@@ -28,17 +28,24 @@ Represents a website or app being monitored.
 
 ```sql
 CREATE TABLE projects (
-  id            TEXT PRIMARY KEY,
-  name          TEXT NOT NULL,
-  public_key    TEXT NOT NULL UNIQUE,
-  owner_id      TEXT NOT NULL,
-  github_repo   TEXT,
-  github_token  TEXT,
-  created_at    INTEGER NOT NULL
+  id                               TEXT PRIMARY KEY,
+  name                             TEXT NOT NULL,
+  public_key                       TEXT NOT NULL UNIQUE,
+  owner_id                         TEXT NOT NULL,
+  github_repo                      TEXT,
+  github_token                     TEXT,
+  created_at                       INTEGER NOT NULL,
+
+  github_auto_raise_enabled        INTEGER NOT NULL DEFAULT 0,
+  github_auto_raise_severity       TEXT    NOT NULL DEFAULT 'P0',
+  github_auto_raise_min_confidence REAL    NOT NULL DEFAULT 0.90,
+  github_comment_enabled           INTEGER NOT NULL DEFAULT 0
 );
 ```
 
 `public_key` is used by the SDK for ingest authentication. `github_token` must be encrypted at rest.
+
+`github_auto_raise_severity` accepts `'P0'` or `'P0+P1'`. `github_auto_raise_min_confidence` is a float between 0 and 1 (default 0.90). Both settings are only evaluated when `github_auto_raise_enabled = 1`. `github_comment_enabled` controls AI follow-up comments independently of auto-raise.
 
 ---
 
@@ -145,29 +152,32 @@ The main developer-facing object. One row represents a deduplicated issue that m
 
 ```sql
 CREATE TABLE issue_groups (
-  id                      TEXT PRIMARY KEY,
-  project_id              TEXT NOT NULL,
+  id                               TEXT PRIMARY KEY,
+  project_id                       TEXT NOT NULL,
 
-  fingerprint             TEXT NOT NULL,
-  title                   TEXT NOT NULL,
-  root_cause              TEXT,
-  suggested_fix           TEXT,
-  severity                TEXT NOT NULL,
-  status                  TEXT NOT NULL DEFAULT 'open',
-  confidence              REAL,
+  fingerprint                      TEXT NOT NULL,
+  title                            TEXT NOT NULL,
+  root_cause                       TEXT,
+  suggested_fix                    TEXT,
+  severity                         TEXT NOT NULL,
+  status                           TEXT NOT NULL DEFAULT 'open',
+  confidence                       REAL,
 
-  reproduction_steps_json TEXT,
-  evidence_summary        TEXT,
+  reproduction_steps_json          TEXT,
+  evidence_summary                 TEXT,
 
-  affected_session_count  INTEGER NOT NULL DEFAULT 0,
-  first_seen_at           INTEGER NOT NULL,
-  last_seen_at            INTEGER NOT NULL,
+  affected_session_count           INTEGER NOT NULL DEFAULT 0,
+  first_seen_at                    INTEGER NOT NULL,
+  last_seen_at                     INTEGER NOT NULL,
 
-  github_issue_url        TEXT,
-  github_issue_number     INTEGER,
+  github_issue_url                 TEXT,
+  github_issue_number              INTEGER,
+  github_auto_raised               INTEGER NOT NULL DEFAULT 0,
+  github_last_comment_at           INTEGER,
+  github_last_comment_session_count INTEGER,
 
-  created_at              INTEGER NOT NULL,
-  updated_at              INTEGER NOT NULL
+  created_at                       INTEGER NOT NULL,
+  updated_at                       INTEGER NOT NULL
 );
 ```
 
@@ -184,6 +194,8 @@ Allowed `status` values:
 - `linked`
 - `ignored`
 - `resolved`
+
+`github_auto_raised` is set to `1` when the GitHub issue was created by auto-raise, not manually. `github_last_comment_at` and `github_last_comment_session_count` track when the last AI follow-up comment was posted and how many sessions were affected at that point — used to evaluate whether the batching threshold has been crossed for the next comment.
 
 `reproduction_steps_json` stores a JSON string array for MVP simplicity.
 

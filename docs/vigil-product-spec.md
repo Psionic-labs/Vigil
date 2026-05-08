@@ -22,10 +22,10 @@ Vigil is not positioned as a general session replay tool. Replay is evidence. Th
 
 ## How Vigil Works
 
-1. **Record** — install `@vigil/sdk`. It uses rrweb to capture DOM mutations, clicks, scrolls, masked inputs, console errors, JS exceptions, network failures, and navigations.
-2. **Ingest** — browser events are batched and flushed to Vigil's ingest API. Raw replay blobs are stored separately from structured event summaries.
-3. **Triage** — every completed non-noise session enters the AI triage pipeline. The AI determines whether the session is normal behavior, a new issue, or another instance of an existing issue group.
-4. **Act** — developers review grouped issues, inspect representative replays, add optional context, and raise or update a GitHub issue.
+1. **Record** — install `@vigil/sdk`. It captures DOM mutations, clicks, scrolls, masked inputs, console errors, JS exceptions, network failures, and navigations using rrweb. No raw input values leave the browser.
+2. **Ingest** — events are batched and flushed to Vigil's ingest API. Sessions are processed asynchronously and non-noise sessions enter the triage pipeline automatically.
+3. **Triage** — the AI makes a verdict on every session: normal behavior, a new bug, or a duplicate of a known failure. Repeated failures cluster into a single issue group — not one report per affected user.
+4. **Act** — developers work from a prioritized issue queue, not a list of sessions. Each issue comes with AI-written root cause, reproduction steps, a suggested fix, and a one-click path to a pre-filled GitHub issue.
 
 ---
 
