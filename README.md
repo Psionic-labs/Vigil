@@ -8,7 +8,7 @@ AI-first bug triage from real user sessions. Vigil watches your users, groups re
 
 Vigil is not a session replay tool. Replay is evidence. The product is the triage loop:
 
-- **Detects** broken UX from real sessions — JS errors, network failures, rage clicks, dead clicks, navigation friction.
+- **Detects** Captures broken UX signals automatically — JS errors, network failures, rage clicks, dead clicks — as they happen in real user sessions, then runs AI triage post-session.
 - **Groups** repeated failures across sessions into a single issue. 500 users hitting the same bug → 1 issue, not 500 reports.
 - **Writes** developer-ready bug reports: root cause, reproduction steps, suggested fix, severity, and supporting evidence.
 - **Raises** GitHub issues pre-filled by AI, one per issue group, with optional auto-raise for high-confidence P0/P1s.
