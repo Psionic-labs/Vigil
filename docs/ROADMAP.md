@@ -12,7 +12,7 @@ Get the monorepo, tooling, and database in place before writing any product code
 - [x] Create folder structure: `packages/sdk`, `apps/api`, `apps/web`
 - [x] Add root `tsconfig.base.json` shared across packages
 - [x] Add `turbo.json` for build/dev orchestration (optional but recommended)
-- [ ] Create Neon project, copy connection string to `.env`
+- [x] Create Neon project, copy connection string to `.env`
 - [ ] Write Postgres migrations from `docs/vigil-data-schema.md`
   - [ ] `users`
   - [ ] `projects`
