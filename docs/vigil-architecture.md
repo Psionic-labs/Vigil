@@ -38,7 +38,7 @@
      |-- outputs: summary, friction score, goal completion, issues, evidence, reproduction steps
      |-- creates or attaches to issue groups
      v
-[Session Store] — SQLite for MVP, Postgres later
+[Session Store] — Neon (Postgres)
      |
      |-- sessions
      |-- events_summary
@@ -102,6 +102,7 @@ Captures:
 - SPA navigations via `pushState`, `replaceState`, and `popstate`.
 - Rage clicks.
 - Dead clicks.
+- Significant clicks on interactive elements (`button`, `a`, `[role=button]`) as structured summary events.
 
 Batching:
 
@@ -183,7 +184,7 @@ The AI never receives raw replay blobs. Raw blobs are used only for replay in th
 
 ### 4. Session Store
 
-SQLite for MVP, Postgres later.
+Neon (serverless Postgres).
 
 Core tables:
 
@@ -412,7 +413,7 @@ AI follow-up comments:
 | Capture | rrweb/record | Standard replay capture primitive |
 | Backend | Node.js + Hono | Lightweight TypeScript API |
 | Frontend | Next.js 14 | Existing stack |
-| Database | SQLite dev, Postgres prod | Simple MVP path |
+| Database | Neon (Postgres) | Serverless, zero-ops, free tier |
 | Blob storage | Local disk dev, R2/S3 prod | Cheap replay storage |
 | AI | Claude API | Strong reasoning over structured timelines |
 | GitHub | Octokit | Official GitHub client |

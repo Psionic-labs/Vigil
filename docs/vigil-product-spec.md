@@ -8,7 +8,7 @@
 
 ## What It Is
 
-Vigil is an AI-native bug triage platform for developers. It watches real user sessions, detects broken UX, clusters repeated failures, explains the likely cause, and turns those failures into actionable GitHub issues.
+Vigil is an AI-native bug triage platform for developers. It captures signals from real user sessions, clusters repeated failures, explains the likely cause, and turns those failures into actionable GitHub issues.
 
 Vigil is not positioned as a general session replay tool. Replay is evidence. The core product is the AI triage loop that converts messy user behavior into a developer-ready issue queue.
 

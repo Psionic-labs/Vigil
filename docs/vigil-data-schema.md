@@ -1,6 +1,6 @@
 # Vigil — Data Schema
 
-> SQLite for MVP. All fields are snake_case. No ORM for now.
+> Postgres via Neon. All fields are snake_case. No ORM for now.
 
 ---
 
@@ -369,9 +369,9 @@ It reduces token cost, avoids exposing raw replay data to the model, and makes o
 
 Fingerprints reduce noise and give the AI stable candidates. The AI still owns the final create/attach/ignore triage decision.
 
-### Why no foreign key constraints in SQLite?
+### Why no foreign key constraints yet?
 
-For MVP speed. Enforce relationships in application logic and add real foreign keys during the Postgres migration.
+Deferred for MVP speed. Enforce relationships in application logic for now and add real FK constraints in a follow-up migration. Postgres supports them fully.
 
 ### Why nanoids?
 

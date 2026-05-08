@@ -81,6 +81,7 @@ If `userId` is provided, the SDK or backend must hash it before persistent stora
 | Network method | Same interceptors | On |
 | Rage clicks | 3+ clicks in same 500px area within 2s | On |
 | Dead clicks | Click with no DOM mutation or navigation within 500ms | On |
+| Significant clicks | Click on `button`, `a`, or `[role=button]` elements | On, as summary event |
 | Page navigations | `pushState`, `replaceState`, `popstate` | On |
 | Release metadata | Init options | Optional |
 
@@ -196,7 +197,8 @@ type SummaryEventType =
   | "dead_click"
   | "network_error"
   | "navigation"
-  | "console_error";
+  | "console_error"
+  | "click";
 ```
 
 Raw rrweb events are opaque to the backend and stored as replay blobs. Summary events are validated, normalized, and used as AI triage input.
@@ -308,6 +310,24 @@ Summary event:
   "networkMethod": "POST"
 }
 ```
+
+### Significant Click
+
+Emitted for clicks on interactive elements: `button`, `a`, and elements with `[role=button]`. This gives the AI the causal chain leading up to errors — for example, a button click immediately before a network failure or JS exception.
+
+Summary event:
+
+```json
+{
+  "type": "click",
+  "timestampMs": 12400,
+  "target": "#pay-btn"
+}
+```
+
+Only the `target` selector is captured. No click coordinates, no input values.
+
+---
 
 ### JS Error
 
