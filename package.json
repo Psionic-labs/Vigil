@@ -1,13 +1,15 @@
 {
-  "name": "Vigil",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "vigil",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "type-check": "turbo type-check"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "devDependencies": {
+    "turbo": "latest",
+    "typescript": "^5.4.0"
+  },
   "packageManager": "pnpm@10.26.2"
 }
