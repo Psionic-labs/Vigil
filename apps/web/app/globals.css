@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0d0d0f;
+  --surface: #141417;
+  --surface-2: #1c1c21;
+  --border: #2a2a31;
+  --text-1: #f0f0f3;
+  --text-2: #8b8b99;
+  --text-3: #55555f;
+  --accent: #3b82f6;
+  --p0: #ef4444;
+  --p1: #f97316;
+  --p2: #eab308;
+  --p3: #64748b;
+  --success: #22c55e;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background-color: var(--bg);
+  color: var(--text-1);
+  font-family: 'Geist', 'JetBrains Mono', monospace;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: #3b82f620; color: var(--text-1); }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: 4px;
+}
+
+@keyframes pulse-p0 {
+  0%, 100% { box-shadow: 0 0 0 0 #ef444440; }
+  50% { box-shadow: 0 0 0 4px #ef444420; }
+}
+
+.badge-p0 { animation: pulse-p0 2s ease-in-out infinite; }
