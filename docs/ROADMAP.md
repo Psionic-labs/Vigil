@@ -13,17 +13,17 @@ Get the monorepo, tooling, and database in place before writing any product code
 - [x] Add root `tsconfig.base.json` shared across packages
 - [x] Add `turbo.json` for build/dev orchestration (optional but recommended)
 - [x] Create Neon project, copy connection string to `.env`
-- [ ] Write Postgres migrations from `docs/vigil-data-schema.md`
-  - [ ] `users`
-  - [ ] `projects`
-  - [ ] `sessions`
-  - [ ] `events_summary`
-  - [ ] `issue_groups`
-  - [ ] `issue_instances`
-  - [ ] `ai_triage_runs`
-  - [ ] Add all indexes from schema doc
-- [ ] Fix Postgres types: `BOOLEAN` instead of `INTEGER` for flags, `BIGINT` for `timestamp_ms` fields
-- [ ] Set up a migration runner (`node-postgres` + raw SQL files, or `drizzle-kit`)
+- [x] Write Postgres migrations from `docs/vigil-data-schema.md`
+  - [x] `users`
+  - [x] `projects`
+  - [x] `sessions`
+  - [x] `events_summary`
+  - [x] `issue_groups`
+  - [x] `issue_instances`
+  - [x] `ai_triage_runs`
+  - [x] Add all indexes from schema doc
+- [x] Fix Postgres types: `BOOLEAN` instead of `INTEGER` for flags, `BIGINT` for `timestamp_ms` fields
+- [x] Set up a migration runner (`node-postgres` + raw SQL files, or `drizzle-kit`)
 
 ---
 
