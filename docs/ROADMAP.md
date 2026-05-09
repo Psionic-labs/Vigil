@@ -31,10 +31,10 @@ Get the monorepo, tooling, and database in place before writing any product code
 
 Ship a working `@vigil/sdk` that captures signals and flushes them to an ingest endpoint.
 
-- [ ] Init TypeScript package, configure `tsup` for dual CJS/ESM build
-- [ ] Integrate `rrweb/record` for DOM capture
+- [x] Init TypeScript package, configure `tsup` for dual CJS/ESM build
+- [x] Integrate `rrweb/record` for DOM capture
 - [ ] Implement session ID generation and persistence via `sessionStorage`
-- [ ] Implement in-memory event buffer
+- [x] Implement in-memory event buffer
 - [ ] Implement flush timer (default 5s)
 - [ ] Implement `navigator.sendBeacon` final flush on `beforeunload`/`pagehide`
 - [ ] Implement retry logic: up to 3 retries on failed normal flushes, then drop silently

@@ -1,2 +1,27 @@
+# Environment variables
 .env*
+!.env.example
+
+# Dependencies
 node_modules
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.turbo/
+.next/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# OS / Editor files
+.DS_Store
+.idea/
+.vscode/
