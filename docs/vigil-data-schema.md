@@ -16,7 +16,7 @@ CREATE TABLE users (
   email       TEXT NOT NULL UNIQUE,
   name        TEXT,
   github_id   TEXT UNIQUE,
-  created_at  INTEGER NOT NULL
+  created_at  BIGINT NOT NULL
 );
 ```
 
@@ -34,18 +34,18 @@ CREATE TABLE projects (
   owner_id                         TEXT NOT NULL,
   github_repo                      TEXT,
   github_token                     TEXT,
-  created_at                       INTEGER NOT NULL,
+  created_at                       BIGINT NOT NULL,
 
-  github_auto_raise_enabled        INTEGER NOT NULL DEFAULT 0,
+  github_auto_raise_enabled        BOOLEAN NOT NULL DEFAULT false,
   github_auto_raise_severity       TEXT    NOT NULL DEFAULT 'P0',
   github_auto_raise_min_confidence REAL    NOT NULL DEFAULT 0.90,
-  github_comment_enabled           INTEGER NOT NULL DEFAULT 0
+  github_comment_enabled           BOOLEAN NOT NULL DEFAULT false
 );
 ```
 
 `public_key` is used by the SDK for ingest authentication. `github_token` must be encrypted at rest.
 
-`github_auto_raise_severity` accepts `'P0'` or `'P0+P1'`. `github_auto_raise_min_confidence` is a float between 0 and 1 (default 0.90). Both settings are only evaluated when `github_auto_raise_enabled = 1`. `github_comment_enabled` controls AI follow-up comments independently of auto-raise.
+`github_auto_raise_severity` accepts `'P0'` or `'P0+P1'`. `github_auto_raise_min_confidence` is a float between 0 and 1 (default 0.90). Both settings are only evaluated when `github_auto_raise_enabled = true`. `github_comment_enabled` controls AI follow-up comments independently of auto-raise.
 
 ---
 
@@ -70,26 +70,26 @@ CREATE TABLE sessions (
   sdk_version           TEXT,
 
   duration_ms           INTEGER,
-  started_at            INTEGER NOT NULL,
-  ended_at              INTEGER,
-  created_at            INTEGER NOT NULL,
+  started_at            BIGINT NOT NULL,
+  ended_at              BIGINT,
+  created_at            BIGINT NOT NULL,
 
   blob_path             TEXT,
 
-  has_js_error          INTEGER NOT NULL DEFAULT 0,
-  has_rage_click        INTEGER NOT NULL DEFAULT 0,
-  has_network_err       INTEGER NOT NULL DEFAULT 0,
-  has_dead_click        INTEGER NOT NULL DEFAULT 0,
+  has_js_error          BOOLEAN NOT NULL DEFAULT false,
+  has_rage_click        BOOLEAN NOT NULL DEFAULT false,
+  has_network_err       BOOLEAN NOT NULL DEFAULT false,
+  has_dead_click        BOOLEAN NOT NULL DEFAULT false,
   error_count           INTEGER NOT NULL DEFAULT 0,
 
   issue_instance_count  INTEGER NOT NULL DEFAULT 0,
   issue_group_count     INTEGER NOT NULL DEFAULT 0,
 
-  ai_analyzed_at        INTEGER,
-  ai_analysis_skipped   INTEGER NOT NULL DEFAULT 0,
+  ai_analyzed_at        BIGINT,
+  ai_analysis_skipped   BOOLEAN NOT NULL DEFAULT false,
   ai_skip_reason        TEXT,
   ai_session_summary    TEXT,
-  ai_goal_completed     INTEGER,
+  ai_goal_completed     BOOLEAN,
   ai_friction_score     INTEGER,
   ai_triage_confidence  REAL
 );
@@ -116,7 +116,7 @@ CREATE TABLE events_summary (
   project_id      TEXT NOT NULL,
 
   type            TEXT NOT NULL,
-  timestamp_ms    INTEGER NOT NULL,
+  timestamp_ms    BIGINT NOT NULL,
   target          TEXT,
 
   error_message   TEXT,
@@ -128,7 +128,7 @@ CREATE TABLE events_summary (
   nav_to          TEXT,
 
   fingerprint     TEXT,
-  created_at      INTEGER NOT NULL
+  created_at      BIGINT NOT NULL
 );
 ```
 
@@ -167,17 +167,17 @@ CREATE TABLE issue_groups (
   evidence_summary                 TEXT,
 
   affected_session_count           INTEGER NOT NULL DEFAULT 0,
-  first_seen_at                    INTEGER NOT NULL,
-  last_seen_at                     INTEGER NOT NULL,
+  first_seen_at                    BIGINT NOT NULL,
+  last_seen_at                     BIGINT NOT NULL,
 
   github_issue_url                 TEXT,
   github_issue_number              INTEGER,
-  github_auto_raised               INTEGER NOT NULL DEFAULT 0,
-  github_last_comment_at           INTEGER,
+  github_auto_raised               BOOLEAN NOT NULL DEFAULT false,
+  github_last_comment_at           BIGINT,
   github_last_comment_session_count INTEGER,
 
-  created_at                       INTEGER NOT NULL,
-  updated_at                       INTEGER NOT NULL
+  created_at                       BIGINT NOT NULL,
+  updated_at                       BIGINT NOT NULL
 );
 ```
 
@@ -195,7 +195,7 @@ Allowed `status` values:
 - `ignored`
 - `resolved`
 
-`github_auto_raised` is set to `1` when the GitHub issue was created by auto-raise, not manually. `github_last_comment_at` and `github_last_comment_session_count` track when the last AI follow-up comment was posted and how many sessions were affected at that point — used to evaluate whether the batching threshold has been crossed for the next comment.
+`github_auto_raised` is set to `true` when the GitHub issue was created by auto-raise, not manually. `github_last_comment_at` and `github_last_comment_session_count` track when the last AI follow-up comment was posted and how many sessions were affected at that point — used to evaluate whether the batching threshold has been crossed for the next comment.
 
 `reproduction_steps_json` stores a JSON string array for MVP simplicity.
 
@@ -216,7 +216,7 @@ CREATE TABLE issue_instances (
   root_cause            TEXT,
   suggested_fix         TEXT,
   severity              TEXT NOT NULL,
-  timestamp_ms          INTEGER,
+  timestamp_ms          BIGINT,
   confidence            REAL,
 
   evidence_json         TEXT,
@@ -224,7 +224,7 @@ CREATE TABLE issue_instances (
 
   dev_comment           TEXT,
 
-  created_at            INTEGER NOT NULL
+  created_at            BIGINT NOT NULL
 );
 ```
 
@@ -249,8 +249,8 @@ CREATE TABLE ai_triage_runs (
   output_tokens         INTEGER,
   error_message         TEXT,
 
-  created_at            INTEGER NOT NULL,
-  completed_at          INTEGER
+  created_at            BIGINT NOT NULL,
+  completed_at          BIGINT
 );
 ```
 
@@ -408,7 +408,7 @@ CREATE INDEX idx_issue_instances_session
 
 ## AI Skip Conditions
 
-Set `sessions.ai_analysis_skipped = 1` when:
+Set `sessions.ai_analysis_skipped = true` when:
 
 - `duration_ms < 5000`
 - no rows exist in `events_summary`
