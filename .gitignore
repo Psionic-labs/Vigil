@@ -1,9 +1,13 @@
 # Environment variables
-.env*
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 !.env.example
 
 # Dependencies
-node_modules
+node_modules/
 .pnpm-store/
 
 # Build outputs
@@ -11,6 +15,7 @@ dist/
 build/
 .turbo/
 .next/
+coverage/
 
 # Logs
 npm-debug.log*
@@ -25,3 +30,13 @@ pnpm-debug.log*
 .DS_Store
 .idea/
 .vscode/
+
+# Temporary/debug files
+*.tmp
+*.temp
+
+# Agent/tooling files
+.agents/
+
+# stuff
+*.txt

@@ -2,7 +2,7 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   entry: ["src/index.ts"],
-  format: ["cjs", "esm"], // Output both CommonJS and ES Modules
+  format: ["cjs", "esm"], // Dual CJS/ESM as specified in the roadmap
   dts: true,              // Generate TypeScript declaration files
   splitting: false,
   sourcemap: true,
