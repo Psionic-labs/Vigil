@@ -61,7 +61,33 @@ export type SummaryEventType =
   | "console_error"
   | "click";
 
-export interface SummaryEvent {
+export interface JsErrorEvent {
+  type: "js_error";
+  message: string;
+  stack?: string;
+  timestampMs: number;
+}
+
+export type ConsoleErrorEvent = {
+  type: "console_error";
+  message: string;
+  stack?: string;
+  argumentSummaries?: string[];
+  timestampMs: number;
+};
+
+export type NetworkFailureEvent = {
+  type: "network_failure";
+  method: string;
+  url: string;
+  status: number;
+  statusText?: string;
+  durationMs?: number;
+  source: "fetch" | "xhr";
+  timestampMs: number;
+};
+
+export type SummaryEvent = JsErrorEvent | ConsoleErrorEvent | NetworkFailureEvent | {
   type: SummaryEventType;
   timestampMs: number;
   target?: string;

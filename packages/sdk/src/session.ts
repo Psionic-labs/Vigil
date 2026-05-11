@@ -11,6 +11,7 @@
  */
 
 const SESSION_KEY = "vigil_session_id";
+let inMemorySessionId: string | null = null;
 
 /**
  * Generate a random session ID.
@@ -41,18 +42,23 @@ function generateSessionId(): string {
  * Callers should treat the returned value as stable for the tab's lifetime.
  */
 export function getOrCreateSessionId(): string {
+  if (inMemorySessionId) return inMemorySessionId;
+
   try {
     const existing = sessionStorage.getItem(SESSION_KEY);
     if (existing) {
+      inMemorySessionId = existing;
       return existing;
     }
 
     const id = generateSessionId();
     sessionStorage.setItem(SESSION_KEY, id);
+    inMemorySessionId = id;
     return id;
   } catch {
     // sessionStorage throws in some private-browsing modes.
     // Return a freshly generated ID (won't survive navigation but won't crash).
-    return generateSessionId();
+    inMemorySessionId ??= generateSessionId();
+    return inMemorySessionId;
   }
 }

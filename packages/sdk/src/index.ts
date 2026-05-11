@@ -3,6 +3,7 @@ import { getOrCreateSessionId } from "./session";
 import { startFlushTimer, setupFinalFlush } from "./flush";
 import { setupErrorCapture } from "./errors";
 import { setupConsoleCapture } from "./console";
+import { setupNetworkCapture } from "./network";
 import { sanitizeUrl } from "./utils";
 import type { VigilOptions, SummaryEvent, SessionMetadata } from "./types";
 
@@ -137,6 +138,12 @@ export function init(options: VigilOptions) {
     debug,
   });
 
+  // Attach network failure capture
+  const removeNetworkCapture = setupNetworkCapture({
+    summaryEvents,
+    endpoint,
+  });
+
   // Attach final flush on tab close / navigation away
   const removeFinalFlush = setupFinalFlush(flushCtx, stopFlushing);
 
@@ -151,6 +158,7 @@ export function init(options: VigilOptions) {
       stopFlushing,
       removeErrorCapture,
       removeConsoleCapture,
+      removeNetworkCapture,
       removeFinalFlush,
     };
   }
