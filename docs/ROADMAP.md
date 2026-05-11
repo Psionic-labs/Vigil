@@ -40,12 +40,12 @@ Ship a working `@vigil/sdk` that captures signals and flushes them to an ingest 
 - [x] Implement retry logic: up to 3 retries on failed normal flushes, then drop silently
 - [x] Wire `window.onerror` and `window.onunhandledrejection` → JS error summary events
 - [x] Wire `console.error` monkey patch → console error summary events
-- [ ] Wire `fetch` and `XMLHttpRequest` interceptors → network failure summary events (4xx/5xx only)
+- [x] Wire `fetch` and `XMLHttpRequest` interceptors → network failure summary events (4xx/5xx only)
 - [ ] Implement rage click detection (3+ clicks, 500px area, 2s window)
 - [ ] Implement dead click detection (click + no DOM mutation/navigation within 500ms)
 - [ ] Implement significant click summary events (`button`, `a`, `[role=button]`)
 - [ ] Implement SPA navigation tracking (`pushState`, `replaceState`, `popstate`)
-- [ ] Implement `maskAllInputs` (default on) and always-on password masking
+- [x] Implement `maskAllInputs` (default on) and always-on password masking
 - [ ] Implement `Vigil.init()` with all options from `docs/vigil-sdk-contract.md`
 - [ ] Implement `sessionSampleRate` check at init
 - [ ] Implement `isFinal: true` on final flush
