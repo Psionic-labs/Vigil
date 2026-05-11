@@ -33,10 +33,10 @@ Ship a working `@vigil/sdk` that captures signals and flushes them to an ingest 
 
 - [x] Init TypeScript package, configure `tsup` for dual CJS/ESM build
 - [x] Integrate `rrweb/record` for DOM capture
-- [ ] Implement session ID generation and persistence via `sessionStorage`
+- [x] Implement session ID generation and persistence via `sessionStorage`
 - [x] Implement in-memory event buffer
-- [ ] Implement flush timer (default 5s)
-- [ ] Implement `navigator.sendBeacon` final flush on `beforeunload`/`pagehide`
+- [x] Implement flush timer (default 5s)
+- [x] Implement `navigator.sendBeacon` final flush on `beforeunload`/`pagehide`
 - [ ] Implement retry logic: up to 3 retries on failed normal flushes, then drop silently
 - [ ] Wire `window.onerror` and `window.onunhandledrejection` → JS error summary events
 - [ ] Wire `console.error` monkey patch → console error summary events
