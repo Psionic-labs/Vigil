@@ -67,8 +67,16 @@ export interface SummaryEvent {
   target?: string;
 
   // JS / console error fields
-  errorMessage?: string;
-  errorStack?: string;
+  errorMessage?: string; // Legacy/v1 contract fallback
+  errorStack?: string; // Legacy/v1 contract fallback
+  message?: string;
+  stack?: string;
+  source?: string;
+  line?: number;
+  column?: number;
+  handled?: boolean;
+  timestamp?: number;
+  argumentSummaries?: string[];
 
   // Network error fields
   networkUrl?: string;

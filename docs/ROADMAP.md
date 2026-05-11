@@ -37,9 +37,9 @@ Ship a working `@vigil/sdk` that captures signals and flushes them to an ingest 
 - [x] Implement in-memory event buffer
 - [x] Implement flush timer (default 5s)
 - [x] Implement `navigator.sendBeacon` final flush on `beforeunload`/`pagehide`
-- [ ] Implement retry logic: up to 3 retries on failed normal flushes, then drop silently
-- [ ] Wire `window.onerror` and `window.onunhandledrejection` → JS error summary events
-- [ ] Wire `console.error` monkey patch → console error summary events
+- [x] Implement retry logic: up to 3 retries on failed normal flushes, then drop silently
+- [x] Wire `window.onerror` and `window.onunhandledrejection` → JS error summary events
+- [x] Wire `console.error` monkey patch → console error summary events
 - [ ] Wire `fetch` and `XMLHttpRequest` interceptors → network failure summary events (4xx/5xx only)
 - [ ] Implement rage click detection (3+ clicks, 500px area, 2s window)
 - [ ] Implement dead click detection (click + no DOM mutation/navigation within 500ms)

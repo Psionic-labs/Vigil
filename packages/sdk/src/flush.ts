@@ -21,6 +21,7 @@
  */
 
 import type { SummaryEvent, IngestPayload, SessionMetadata } from "./types";
+import { sanitizeUrl } from "./utils";
 
 // Shared context
 
@@ -54,6 +55,11 @@ function buildPayload(
   ctx: FlushContext,
   isFinal: boolean,
 ): { payload: IngestPayload; events: unknown[]; summary: SummaryEvent[] } | null {
+  if (typeof window !== "undefined" && window.location) {
+    // Keep metadata URL fresh for SPAs (strips query/hash params for privacy)
+    ctx.metadata.url = sanitizeUrl(window.location.href);
+  }
+
   const events = drain(ctx.events);
   const summary = drain(ctx.summaryEvents);
 
@@ -126,7 +132,24 @@ async function sendBatch(
  * Both are fire-and-forget with no response handling.
  */
 function sendFinal(endpoint: string, payload: IngestPayload, debug: boolean): void {
-  const body = JSON.stringify(payload);
+  let body = JSON.stringify(payload);
+
+  // Chromium/Safari beacon and keepalive limit is exactly 64KB.
+  // We trim payload if it exceeds 60KB to guarantee delivery of summary triage signals.
+  const MAX_PAYLOAD_BYTES = 60000;
+  if (body.length > MAX_PAYLOAD_BYTES && payload.events.length > 0) {
+    if (debug) {
+      console.warn(`Vigil final flush: payload too large (${body.length} bytes), dropping raw rrweb events`);
+    }
+    payload.events = []; // Drop opaque blobs, prioritize structured triage
+    body = JSON.stringify(payload);
+
+    if (body.length > MAX_PAYLOAD_BYTES) {
+      // Extreme fallback: trim summary array if somehow still > 60KB
+      payload.summary = payload.summary.slice(-100); 
+      body = JSON.stringify(payload);
+    }
+  }
 
   // Try sendBeacon first
   if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
@@ -175,21 +198,52 @@ export function startFlushTimer(
   ctx: FlushContext,
   intervalMs: number,
 ): () => void {
-  const tick = () => {
+  let consecutiveFailures = 0;
+  const MAX_RETRIES = 3;
+  let isFlushing = false; // Lock to prevent overlapping network requests
+
+  // O(N) stack-safe array restore. Prevents "Maximum call stack size exceeded" 
+  // on massive telemetry arrays and avoids O(N^2) unshift loop freezes.
+  const restoreBuffer = <T>(buffer: T[], failedItems: T[]) => {
+    const combined = failedItems.concat(buffer);
+    buffer.length = 0; // Clear existing
+    for (let i = 0; i < combined.length; i++) {
+      buffer.push(combined[i] as T);
+    }
+  };
+
+  const tick = async () => {
+    // If a request is hanging on a bad connection, skip this tick.
+    // Events will safely accumulate in the buffer without creating a thundering herd.
+    if (isFlushing) return;
+
     const result = buildPayload(ctx, false);
     if (!result) return;
 
+    isFlushing = true;
     const { payload, events, summary } = result;
 
-    // Fire-and-forget — failure handling (retry, re-queue) is a separate roadmap item.
-    // On failure we push events back so they aren't lost before retry logic exists.
-    sendBatch(ctx.endpoint, payload, ctx.debug).then((ok) => {
-      if (!ok) {
-        // Put unsent events back at the front of the buffers so the next tick retries them.
-        ctx.events.unshift(...events);
-        ctx.summaryEvents.unshift(...summary);
+    const ok = await sendBatch(ctx.endpoint, payload, ctx.debug);
+    
+    if (!ok) {
+      consecutiveFailures++;
+      if (consecutiveFailures <= MAX_RETRIES) {
+        if (ctx.debug) {
+          console.warn(`Vigil flush: network failed, re-queueing (retry ${consecutiveFailures}/${MAX_RETRIES})`);
+        }
+        restoreBuffer(ctx.events, events);
+        restoreBuffer(ctx.summaryEvents, summary);
+      } else {
+        if (ctx.debug) {
+          console.error(`Vigil flush: endpoint unreachable, dropping batch after ${MAX_RETRIES} retries`);
+        }
+        consecutiveFailures = 0;
       }
-    });
+    } else {
+      consecutiveFailures = 0; // Reset on success
+    }
+    
+    isFlushing = false;
   };
 
   const id = setInterval(tick, intervalMs);

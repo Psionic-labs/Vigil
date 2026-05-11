@@ -1,6 +1,9 @@
 import { record } from "rrweb";
 import { getOrCreateSessionId } from "./session";
 import { startFlushTimer, setupFinalFlush } from "./flush";
+import { setupErrorCapture } from "./errors";
+import { setupConsoleCapture } from "./console";
+import { sanitizeUrl } from "./utils";
 import type { VigilOptions, SummaryEvent, SessionMetadata } from "./types";
 
 export type { VigilOptions, SummaryEvent, SessionMetadata };
@@ -54,15 +57,29 @@ export function init(options: VigilOptions) {
     console.log("Vigil SDK initialized", { projectKey: options.projectKey, sessionId, endpoint, flushInterval });
   }
 
-  // ---- Buffers ----
+  // Buffers
   // rrweb raw events (opaque blobs for replay)
   const events: RrwebEvent[] = [];
-  // Summary events (structured signals consumed by AI triage)
-  const summaryEvents: SummaryEvent[] = [];
+  const MAX_EVENTS = 5000;
 
-  // ---- Session metadata (captured once at init) ----
+  // Summary events (structured signals consumed by AI triage)
+  const summaryEvents: SummaryEvent[] = [] as any;
+  const MAX_SUMMARY = 1000;
+  
+  // Safe bounded enqueue for summary events (intercepts array push)
+  const originalSummaryPush = summaryEvents.push.bind(summaryEvents);
+  summaryEvents.push = (...items) => {
+    const res = originalSummaryPush(...items);
+    if (summaryEvents.length > MAX_SUMMARY) {
+      // Aggressively drop oldest to prevent unbounded memory growth on network failure
+      summaryEvents.splice(0, summaryEvents.length - MAX_SUMMARY + 50); 
+    }
+    return res;
+  };
+
+  // Session metadata (captured once at init)
   const metadata: SessionMetadata = {
-    url: window.location.href,
+    url: sanitizeUrl(window.location.href),
     userAgent: navigator.userAgent,
     startedAt: Date.now(),
     screenWidth: window.screen.width,
@@ -73,15 +90,27 @@ export function init(options: VigilOptions) {
     userId: options.userId,
   };
 
-  // ---- Start recording ----
-  const stopRecording = record({
-    emit(event: RrwebEvent) {
-      events.push(event);
-    },
-    // maskAllInputs will be enabled when that roadmap item is implemented
-  });
+  // Start recording safely
+  let stopRecording: (() => void) | undefined;
+  try {
+    stopRecording = record({
+      emit(event: RrwebEvent) {
+        if (events.length > MAX_EVENTS) {
+          // Prevent unbounded memory growth if fetch hangs
+          events.splice(0, events.length - MAX_EVENTS + 100); 
+        }
+        events.push(event);
+      },
+      maskAllInputs: options.maskAllInputs !== false, // Critical: Defaults to true to protect PII/Passwords
+      maskTextClass: "vigil-mask", // Explicit override support
+    });
+  } catch (err) {
+    if (debug) {
+      console.warn("Vigil SDK: rrweb failed to initialize. Proceeding in summary-only mode.", err);
+    }
+  }
 
-  // ---- Shared flush context (referenced by both timer and final flush) ----
+  // Shared flush context (referenced by both timer and final flush)
   const flushCtx = {
     sessionId,
     projectKey: options.projectKey,
@@ -93,10 +122,22 @@ export function init(options: VigilOptions) {
     debug,
   };
 
-  // ---- Start periodic flush ----
+  // Start periodic flush
   const stopFlushing = startFlushTimer(flushCtx, flushInterval);
 
-  // ---- Attach final flush on tab close / navigation away ----
+  // Attach global error capture
+  const removeErrorCapture = setupErrorCapture({
+    summaryEvents,
+    debug,
+  });
+
+  // Attach console.error capture
+  const removeConsoleCapture = setupConsoleCapture({
+    summaryEvents,
+    debug,
+  });
+
+  // Attach final flush on tab close / navigation away
   const removeFinalFlush = setupFinalFlush(flushCtx, stopFlushing);
 
   // Expose to window for debugging during early development
@@ -108,6 +149,8 @@ export function init(options: VigilOptions) {
       metadata,
       stopRecording,
       stopFlushing,
+      removeErrorCapture,
+      removeConsoleCapture,
       removeFinalFlush,
     };
   }
