@@ -52,7 +52,8 @@ describe('flush mechanics', () => {
       if (name === 'pagehide') finalHandler = handler;
     });
 
-    setupFinalFlush(ctx, vi.fn());
+    const mockTimer = { stop: vi.fn(), getInFlight: vi.fn().mockReturnValue(null) };
+    setupFinalFlush(ctx, mockTimer);
     finalHandler();
 
     expect((globalThis as any).navigator.sendBeacon).toHaveBeenCalledTimes(1);
@@ -75,7 +76,8 @@ describe('flush mechanics', () => {
       if (name === 'beforeunload') beforeunload = handler;
     });
 
-    setupFinalFlush(ctx, vi.fn());
+    const mockTimer = { stop: vi.fn(), getInFlight: vi.fn().mockReturnValue(null) };
+    setupFinalFlush(ctx, mockTimer);
     
     pagehide();
     beforeunload();
@@ -91,7 +93,8 @@ describe('flush mechanics', () => {
       if (name === 'pagehide') pagehide = handler;
     });
 
-    setupFinalFlush(ctx, vi.fn());
+    const mockTimer = { stop: vi.fn(), getInFlight: vi.fn().mockReturnValue(null) };
+    setupFinalFlush(ctx, mockTimer);
     pagehide();
 
     const mockBlob = (globalThis as any).navigator.sendBeacon.mock.calls[0]![1] as MockBlob;

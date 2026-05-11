@@ -10,7 +10,13 @@ export type { VigilOptions, SummaryEvent, SessionMetadata };
 
 // Derive the event type from rrweb's own record signature - no separate @rrweb/types import needed
 type RecordOptions = NonNullable<Parameters<typeof record>[0]>;
-type RrwebEvent = NonNullable<RecordOptions["emit"]> extends (e: infer E, ...args: any[]) => void ? E : never;
+type RrwebEvent =
+  NonNullable<RecordOptions["emit"]> extends (
+    e: infer E,
+    ...args: any[]
+  ) => void
+    ? E
+    : never;
 
 /**
  * @vigil/sdk
@@ -40,7 +46,8 @@ export function init(options: VigilOptions) {
 
   // Prevent duplicate rrweb record() calls (e.g. React StrictMode, HMR)
   if (initialized) {
-    if (options.debug) console.warn("Vigil SDK: already initialized, skipping.");
+    if (options.debug)
+      console.warn("Vigil SDK: already initialized, skipping.");
     return;
   }
   initialized = true;
@@ -54,7 +61,12 @@ export function init(options: VigilOptions) {
   const flushInterval = options.flushInterval ?? DEFAULT_FLUSH_INTERVAL;
 
   if (debug) {
-    console.log("Vigil SDK initialized", { projectKey: options.projectKey, sessionId, endpoint, flushInterval });
+    console.log("Vigil SDK initialized", {
+      projectKey: options.projectKey,
+      sessionId,
+      endpoint,
+      flushInterval,
+    });
   }
 
   // Buffers
@@ -63,19 +75,29 @@ export function init(options: VigilOptions) {
   const MAX_EVENTS = 5000;
 
   // Summary events (structured signals consumed by AI triage)
-  const summaryEvents: SummaryEvent[] = [] as any;
   const MAX_SUMMARY = 1000;
-  
-  // Safe bounded enqueue for summary events (intercepts array push)
-  const originalSummaryPush = summaryEvents.push.bind(summaryEvents);
-  summaryEvents.push = (...items) => {
-    const res = originalSummaryPush(...items);
-    if (summaryEvents.length > MAX_SUMMARY) {
-      // Aggressively drop oldest to prevent unbounded memory growth on network failure
-      summaryEvents.splice(0, summaryEvents.length - MAX_SUMMARY + 50); 
-    }
-    return res;
-  };
+  const SUMMARY_TRIM_BATCH_SIZE = 50;
+
+  // Use a Proxy to enforce buffer limits universally on the array.
+  // This traps .push() regardless of whether it's called by name or reference.
+  const summaryEvents = new Proxy([] as SummaryEvent[], {
+    get(target, prop, receiver) {
+      const val = Reflect.get(target, prop, receiver);
+      if (prop === "push") {
+        return (...items: SummaryEvent[]) => {
+          const res = Array.prototype.push.apply(target, items);
+          if (target.length > MAX_SUMMARY) {
+            target.splice(
+              0,
+              target.length - MAX_SUMMARY + SUMMARY_TRIM_BATCH_SIZE,
+            );
+          }
+          return res;
+        };
+      }
+      return val;
+    },
+  });
 
   // Session metadata (captured once at init)
   const metadata: SessionMetadata = {
@@ -97,7 +119,7 @@ export function init(options: VigilOptions) {
       emit(event: RrwebEvent) {
         if (events.length > MAX_EVENTS) {
           // Prevent unbounded memory growth if fetch hangs
-          events.splice(0, events.length - MAX_EVENTS + 100); 
+          events.splice(0, events.length - MAX_EVENTS + 100);
         }
         events.push(event);
       },
@@ -106,7 +128,10 @@ export function init(options: VigilOptions) {
     });
   } catch (err) {
     if (debug) {
-      console.warn("Vigil SDK: rrweb failed to initialize. Proceeding in summary-only mode.", err);
+      console.warn(
+        "Vigil SDK: rrweb failed to initialize. Proceeding in summary-only mode.",
+        err,
+      );
     }
   }
 
@@ -123,7 +148,7 @@ export function init(options: VigilOptions) {
   };
 
   // Start periodic flush
-  const stopFlushing = startFlushTimer(flushCtx, flushInterval);
+  const flushTimer = startFlushTimer(flushCtx, flushInterval);
 
   // Attach global error capture
   const removeErrorCapture = setupErrorCapture({
@@ -138,7 +163,7 @@ export function init(options: VigilOptions) {
   });
 
   // Attach final flush on tab close / navigation away
-  const removeFinalFlush = setupFinalFlush(flushCtx, stopFlushing);
+  const removeFinalFlush = setupFinalFlush(flushCtx, flushTimer);
 
   // Expose to window for debugging during early development
   if (debug) {
@@ -148,7 +173,7 @@ export function init(options: VigilOptions) {
       summaryEvents,
       metadata,
       stopRecording,
-      stopFlushing,
+      stopFlushing: flushTimer.stop,
       removeErrorCapture,
       removeConsoleCapture,
       removeFinalFlush,

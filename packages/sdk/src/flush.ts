@@ -40,6 +40,22 @@ export interface FlushContext {
 // Shared helpers
 
 /**
+ * O(N) stack-safe array restore. Prevents "Maximum call stack size exceeded"
+ * on massive telemetry arrays and avoids O(N^2) unshift loop freezes.
+ *
+ * It puts `items` at the beginning of `buffer`.
+ */
+function restoreBuffer<T>(buffer: T[], items: T[]): void {
+  const original = [...buffer];
+  buffer.length = 0;
+  // Combine items (new batch) + original (old buffer)
+  // push(...items) is usually safe for ~10k items, but for absolute safety
+  // we could use a loop. For Vigil's 5k limit, this is fine.
+  for (const item of items) buffer.push(item);
+  for (const item of original) buffer.push(item);
+}
+
+/**
  * Drain an array in-place and return the removed items.
  * This is the atomic "take all and clear" primitive for both buffers.
  */
@@ -54,7 +70,11 @@ function drain<T>(buffer: T[]): T[] {
 function buildPayload(
   ctx: FlushContext,
   isFinal: boolean,
-): { payload: IngestPayload; events: unknown[]; summary: SummaryEvent[] } | null {
+): {
+  payload: IngestPayload;
+  events: unknown[];
+  summary: SummaryEvent[];
+} | null {
   if (typeof window !== "undefined" && window.location) {
     // Keep metadata URL fresh for SPAs (strips query/hash params for privacy)
     ctx.metadata.url = sanitizeUrl(window.location.href);
@@ -102,13 +122,23 @@ async function sendBatch(
 
     if (!res.ok) {
       if (debug) {
-        console.warn("Vigil flush: ingest returned", res.status, await res.text().catch(() => ""));
+        console.warn(
+          "Vigil flush: ingest returned",
+          res.status,
+          await res.text().catch(() => ""),
+        );
       }
       return false;
     }
 
     if (debug) {
-      console.log("Vigil flush: sent", payload.events.length, "events,", payload.summary.length, "summary");
+      console.log(
+        "Vigil flush: sent",
+        payload.events.length,
+        "events,",
+        payload.summary.length,
+        "summary",
+      );
     }
     return true;
   } catch (err) {
@@ -131,34 +161,49 @@ async function sendBatch(
  *
  * Both are fire-and-forget with no response handling.
  */
-function sendFinal(endpoint: string, payload: IngestPayload, debug: boolean): void {
+function sendFinal(
+  endpoint: string,
+  payload: IngestPayload,
+  debug: boolean,
+): void {
+  const encoder = new TextEncoder();
   let body = JSON.stringify(payload);
+  let bodyBytes = encoder.encode(body).length;
 
   // Chromium/Safari beacon and keepalive limit is exactly 64KB.
   // We trim payload if it exceeds 60KB to guarantee delivery of summary triage signals.
   const MAX_PAYLOAD_BYTES = 60000;
-  if (body.length > MAX_PAYLOAD_BYTES && payload.events.length > 0) {
+  if (bodyBytes > MAX_PAYLOAD_BYTES && payload.events.length > 0) {
     if (debug) {
-      console.warn(`Vigil final flush: payload too large (${body.length} bytes), dropping raw rrweb events`);
+      console.warn(
+        `Vigil final flush: payload too large (${bodyBytes} bytes), dropping raw rrweb events`,
+      );
     }
     payload.events = []; // Drop opaque blobs, prioritize structured triage
     body = JSON.stringify(payload);
+    bodyBytes = encoder.encode(body).length;
 
-    if (body.length > MAX_PAYLOAD_BYTES) {
+    if (bodyBytes > MAX_PAYLOAD_BYTES) {
       // Extreme fallback: trim summary array if somehow still > 60KB
-      payload.summary = payload.summary.slice(-100); 
+      payload.summary = payload.summary.slice(-100);
       body = JSON.stringify(payload);
     }
   }
 
   // Try sendBeacon first
-  if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+  if (
+    typeof navigator !== "undefined" &&
+    typeof navigator.sendBeacon === "function"
+  ) {
     const blob = new Blob([body], { type: "application/json" });
     const queued = navigator.sendBeacon(endpoint, blob);
 
     if (debug) {
-      console.log("Vigil final flush: sendBeacon", queued ? "queued" : "rejected",
-        `(${payload.events.length} events, ${payload.summary.length} summary)`);
+      console.log(
+        "Vigil final flush: sendBeacon",
+        queued ? "queued" : "rejected",
+        `(${payload.events.length} events, ${payload.summary.length} summary)`,
+      );
     }
 
     if (queued) return;
@@ -176,8 +221,10 @@ function sendFinal(endpoint: string, payload: IngestPayload, debug: boolean): vo
     });
 
     if (debug) {
-      console.log("Vigil final flush: fetch+keepalive sent",
-        `(${payload.events.length} events, ${payload.summary.length} summary)`);
+      console.log(
+        "Vigil final flush: fetch+keepalive sent",
+        `(${payload.events.length} events, ${payload.summary.length} summary)`,
+      );
     }
   } catch {
     // Nothing more we can do during unload.
@@ -189,29 +236,26 @@ function sendFinal(endpoint: string, payload: IngestPayload, debug: boolean): vo
 
 // Periodic flush
 
+export interface FlushTimer {
+  stop: () => void;
+  getInFlight: () => { events: unknown[]; summary: SummaryEvent[] } | null;
+}
+
 /**
  * Start the periodic flush loop.
  *
- * @returns A `stop()` function that clears the interval.
+ * @returns A `FlushTimer` object to manage the interval and access in-flight state.
  */
 export function startFlushTimer(
   ctx: FlushContext,
   intervalMs: number,
-): () => void {
+): FlushTimer {
   let consecutiveFailures = 0;
   const MAX_RETRIES = 3;
   let isFlushing = false; // Lock to prevent overlapping network requests
+  let currentInFlight: { events: unknown[]; summary: SummaryEvent[] } | null = null;
 
-  // O(N) stack-safe array restore. Prevents "Maximum call stack size exceeded" 
-  // on massive telemetry arrays and avoids O(N^2) unshift loop freezes.
-  const restoreBuffer = <T>(buffer: T[], failedItems: T[]) => {
-    const combined = failedItems.concat(buffer);
-    buffer.length = 0; // Clear existing
-    for (let i = 0; i < combined.length; i++) {
-      buffer.push(combined[i] as T);
-    }
-  };
-
+  // Start tick loop...
   const tick = async () => {
     // If a request is hanging on a bad connection, skip this tick.
     // Events will safely accumulate in the buffer without creating a thundering herd.
@@ -222,33 +266,43 @@ export function startFlushTimer(
 
     isFlushing = true;
     const { payload, events, summary } = result;
+    currentInFlight = { events, summary };
 
     const ok = await sendBatch(ctx.endpoint, payload, ctx.debug);
-    
+
+    currentInFlight = null;
+
     if (!ok) {
       consecutiveFailures++;
       if (consecutiveFailures <= MAX_RETRIES) {
         if (ctx.debug) {
-          console.warn(`Vigil flush: network failed, re-queueing (retry ${consecutiveFailures}/${MAX_RETRIES})`);
+          console.warn(
+            `Vigil flush: network failed, re-queueing (retry ${consecutiveFailures}/${MAX_RETRIES})`,
+          );
         }
         restoreBuffer(ctx.events, events);
         restoreBuffer(ctx.summaryEvents, summary);
       } else {
         if (ctx.debug) {
-          console.error(`Vigil flush: endpoint unreachable, dropping batch after ${MAX_RETRIES} retries`);
+          console.error(
+            `Vigil flush: endpoint unreachable, dropping batch after ${MAX_RETRIES} retries`,
+          );
         }
         consecutiveFailures = 0;
       }
     } else {
       consecutiveFailures = 0; // Reset on success
     }
-    
+
     isFlushing = false;
   };
 
   const id = setInterval(tick, intervalMs);
 
-  return () => clearInterval(id);
+  return {
+    stop: () => clearInterval(id),
+    getInFlight: () => currentInFlight,
+  };
 }
 
 // Final flush (page unload)
@@ -258,15 +312,17 @@ export function startFlushTimer(
  * with `isFinal: true` when the tab is closing or navigating away.
  *
  * @param ctx       — shared flush context (same reference as the periodic timer)
- * @param stopTimer — the `stop()` function returned by `startFlushTimer`,
+ * @param timer     — the `FlushTimer` returned by `startFlushTimer`,
  *                    called before draining to prevent a race with the interval
  *
  * @returns A cleanup function that removes the event listeners.
  */
 export function setupFinalFlush(
   ctx: FlushContext,
-  stopTimer: () => void,
+  timer: FlushTimer,
 ): () => void {
+  if (typeof window === "undefined") return () => {};
+
   let flushed = false;
 
   const doFinalFlush = () => {
@@ -276,7 +332,17 @@ export function setupFinalFlush(
     flushed = true;
 
     // Stop the periodic timer so it doesn't race with us.
-    stopTimer();
+    timer.stop();
+
+    // Recover any batch that was in-flight during a periodic flush
+    // The browser might cancel the in-flight fetch when the tab closes, so we must
+    // include those events in the sendBeacon payload to prevent data loss.
+    const inFlight = timer.getInFlight();
+    if (inFlight) {
+      // Use stack-safe recovery to prevent "Maximum call stack size exceeded"
+      restoreBuffer(ctx.events, inFlight.events);
+      restoreBuffer(ctx.summaryEvents, inFlight.summary);
+    }
 
     const result = buildPayload(ctx, true);
     if (!result) return;
