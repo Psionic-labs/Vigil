@@ -6,6 +6,7 @@ import { IssueBadge } from "@/components/issues/IssueBadge";
 import { ConfidenceBadge } from "@/components/shared/ConfidenceBadge";
 import { EvidenceTimeline } from "@/components/issues/EvidenceTimeline";
 import { GitHubActionPanel } from "@/components/issues/GitHubActionPanel";
+import { TriageActions } from "@/components/issues/TriageActions";
 import { FrictionBar } from "@/components/sessions/FrictionBar";
 import { RelativeTime } from "@/components/shared/RelativeTime";
 import { InlineCode } from "@/components/shared/CodeBlock";
@@ -129,6 +130,7 @@ export default function IssueDetailPage({ params }: { params: { id: string } }) 
 
         {/* Right column — sticky panel */}
         <div className="w-80 flex-shrink-0 border-l border-border overflow-y-auto px-4 py-6 space-y-4">
+          <TriageActions issue={issue} />
           <GitHubActionPanel issue={issue} project={MOCK_PROJECT} />
 
           {/* Related issues */}
