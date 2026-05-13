@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { ToastProvider } from "@/components/shared/Toast";
+import { CommandPalette } from "@/components/shared/CommandPalette";
 
 export const metadata: Metadata = {
   title: "Vigil — AI Bug Triage",
@@ -11,8 +12,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
-      <body className="flex min-h-screen bg-bg text-text-1 antialiased">
+      <body className="flex flex-col md:flex-row min-h-screen bg-bg text-text-1 antialiased">
         <ToastProvider>
+          <CommandPalette />
           <Sidebar />
           <main className="flex-1 min-w-0 overflow-y-auto">
             {children}

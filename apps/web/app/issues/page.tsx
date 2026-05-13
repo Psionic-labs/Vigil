@@ -135,7 +135,8 @@ export default function IssuesPage() {
       </div>
 
       {/* Issue list */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-auto">
+        <div className="min-w-[800px]">
         {isLoading ? (
           <div className="animate-fade-in">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -180,6 +181,7 @@ export default function IssuesPage() {
             ))}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

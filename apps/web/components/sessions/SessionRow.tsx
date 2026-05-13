@@ -7,7 +7,7 @@ import type { Session } from "@/lib/types";
 
 export function SessionRow({ session }: { session: Session }) {
   return (
-    <tr className="border-b border-border hover:bg-surface-2 transition-colors group">
+    <tr className="border-b border-border hover:bg-surface-2 transition-colors group stagger-item">
       <td className="px-4 py-3 font-mono text-xs text-text-2">{session.id}</td>
       <td className="px-4 py-3 text-xs text-text-1 max-w-[140px] truncate">{session.url}</td>
       <td className="px-4 py-3 w-36"><FrictionBar score={session.ai_friction_score} /></td>

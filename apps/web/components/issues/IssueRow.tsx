@@ -9,7 +9,7 @@ export function IssueRow({ issue }: { issue: IssueGroup }) {
   return (
     <Link
       href={`/issues/${issue.id}`}
-      className="group flex items-center gap-4 px-4 py-3.5 border-b border-border hover:bg-surface-2 transition-colors duration-100 relative"
+      className="group flex items-center gap-4 px-4 py-3.5 border-b border-border hover:bg-surface-2 transition-colors duration-100 relative stagger-item"
     >
       {/* Left accent on hover */}
       <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-accent opacity-0 group-hover:opacity-100 transition-opacity duration-100" />

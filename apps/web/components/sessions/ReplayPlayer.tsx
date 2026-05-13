@@ -1,98 +1,102 @@
 "use client";
-import { Play, Pause, Maximize2 } from "lucide-react";
+
 import { useState } from "react";
-import { formatTimestampOffset } from "@/lib/utils";
-import type { EventSummary } from "@/lib/types";
+import { Play, Pause, AlertCircle, MousePointer2 } from "lucide-react";
+import type { Session } from "@/lib/types";
 
-export function ReplayPlayer({ duration_ms, events }: { duration_ms: number; events: EventSummary[] }) {
-  const [playing, setPlaying] = useState(false);
-  const totalSecs = Math.floor(duration_ms / 1000);
-  const mins = Math.floor(totalSecs / 60);
-  const secs = totalSecs % 60;
-  const totalLabel = `${mins}:${String(secs).padStart(2, "0")}`;
+interface ReplayPlayerProps {
+  session: Session;
+}
 
-  const issueEvents = events.filter(e => ["js_error", "rage_click", "network_error"].includes(e.type));
+export function ReplayPlayer({ session }: ReplayPlayerProps) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0); // 0 to 100
+
+  // Mock events for the timeline based on session
+  const events = [
+    { id: 1, time: "00:02", type: "nav", message: `Navigated to ${session.url}` },
+    { id: 2, time: "00:15", type: "click", message: "Clicked 'Add to Cart'" },
+    ...(session.has_js_error || session.has_network_err ? [{ id: 3, time: "00:22", type: "error", message: "Exception captured during session" }] : []),
+    { id: 4, time: "00:45", type: "click", message: "User abandoned or navigated away" },
+  ];
 
   return (
-    <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      {/* Fake browser viewport */}
-      <div className="relative bg-[#0a0a0c] h-64 border-b border-border overflow-hidden">
-        {/* Browser chrome bar */}
-        <div className="flex items-center gap-2 px-3 py-2 bg-surface-2 border-b border-border">
-          <div className="flex gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-p0/40" />
-            <div className="w-2.5 h-2.5 rounded-full bg-p2/40" />
-            <div className="w-2.5 h-2.5 rounded-full bg-success/40" />
+    <div className="flex h-full flex-col lg:flex-row overflow-hidden border border-ui-3 bg-ui-1 rounded-xl shadow-sm">
+      {/* Player Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Video Canvas Placeholder */}
+        <div className="flex-1 bg-[#1A1A1A] flex items-center justify-center relative overflow-hidden">
+          {/* Mock cursor */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-1000 ease-in-out">
+             <MousePointer2 className="w-6 h-6 text-white drop-shadow-md" fill="currentColor" />
           </div>
-          <div className="flex-1 bg-bg rounded px-2 py-0.5 text-[10px] font-mono text-text-3 mx-2">
-            https://checkout-app.vercel.app/checkout
-          </div>
-        </div>
-
-        {/* Fake page content */}
-        <div className="p-4 space-y-3 opacity-40">
-          <div className="h-3 bg-surface-2 rounded w-1/3" />
-          <div className="h-2 bg-surface-2 rounded w-2/3" />
-          <div className="grid grid-cols-3 gap-3 mt-4">
-            <div className="h-20 bg-surface-2 rounded" />
-            <div className="h-20 bg-surface-2 rounded" />
-            <div className="h-20 bg-surface-2 rounded" />
-          </div>
-          <div className="h-8 bg-accent/20 rounded w-1/4 mt-4" />
-        </div>
-
-        {/* Issue markers overlay */}
-        <div className="absolute bottom-2 left-4 right-4 flex gap-2">
-          {issueEvents.map(ev => (
-            <div
-              key={ev.id}
-              className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-p0/80 text-white border border-p0/50"
-              title={ev.error_message ?? ev.type}
-            >
-              {formatTimestampOffset(ev.timestamp_ms)}
+          
+          <div className="text-center z-10 px-4">
+            <div className="text-text-3 font-mono text-xs mb-2">VIEWPORT: {session.screen_width} × {session.screen_height}</div>
+            <div className="text-text-2 text-sm max-w-sm mx-auto">
+              This is a placeholder for the Session Replay canvas. In production, this area plays back DOM mutations.
             </div>
-          ))}
+          </div>
+
+          {/* Grid pattern background for canvas */}
+          <div 
+            className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+            style={{ backgroundImage: 'linear-gradient(var(--ui-3) 1px, transparent 1px), linear-gradient(90deg, var(--ui-3) 1px, transparent 1px)', backgroundSize: '20px 20px' }} 
+          />
+        </div>
+
+        {/* Controls */}
+        <div className="h-16 border-t border-ui-3 bg-ui-2 flex items-center px-4 gap-4 shrink-0">
+          <button 
+            onClick={() => setIsPlaying(!isPlaying)}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-ui-3 hover:bg-ui-4 transition-colors text-text-1 shrink-0"
+          >
+            {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-1" />}
+          </button>
+          
+          <div className="flex-1 flex items-center gap-3">
+            <span className="text-xs font-mono text-text-3 w-10 text-right shrink-0">00:00</span>
+            <div className="flex-1 h-2 bg-ui-3 rounded-full overflow-hidden relative cursor-pointer">
+              <div 
+                className="absolute top-0 left-0 bottom-0 bg-blue-500 rounded-full transition-all duration-200"
+                style={{ width: `${isPlaying ? 45 : progress}%` }}
+              />
+            </div>
+            <span className="text-xs font-mono text-text-3 w-10 shrink-0">
+              0{Math.floor(session.duration_ms / 60000)}:{String(Math.floor((session.duration_ms % 60000) / 1000)).padStart(2, '0')}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="px-4 py-3 bg-surface">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setPlaying(!playing)}
-            className="w-8 h-8 rounded-full bg-accent flex items-center justify-center hover:bg-accent/80 transition-colors flex-shrink-0"
-          >
-            {playing ? <Pause size={14} className="text-white" /> : <Play size={14} className="text-white ml-0.5" />}
-          </button>
-
-          {/* Timeline scrubber */}
-          <div className="flex-1 relative">
-            <div className="h-1.5 bg-surface-2 rounded-full relative">
-              <div className="absolute top-0 left-0 h-full w-[8%] bg-accent rounded-full" />
-              {/* Issue markers */}
-              {issueEvents.map(ev => (
-                <div
-                  key={ev.id}
-                  className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-p0 border border-bg cursor-pointer"
-                  style={{ left: `${(ev.timestamp_ms / duration_ms) * 100}%` }}
-                  title={ev.error_message ?? ev.type}
-                />
-              ))}
+      {/* Right Sidebar - Event Timeline */}
+      <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-ui-3 bg-ui-1 flex flex-col shrink-0">
+        <div className="p-4 border-b border-ui-3 shrink-0">
+          <h3 className="font-semibold text-text-1">Session Timeline</h3>
+          <p className="text-xs text-text-3 mt-1">Key events and errors</p>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[200px]">
+          {events.map((event, i) => (
+            <div key={event.id} className="flex gap-3 relative">
+              {i !== events.length - 1 && (
+                <div className="absolute left-[9px] top-6 bottom-[-16px] w-[2px] bg-ui-3" />
+              )}
+              <div className="relative z-10 w-5 h-5 mt-0.5 shrink-0 flex items-center justify-center rounded-full bg-bg border border-ui-3">
+                {event.type === 'error' ? (
+                  <AlertCircle className="w-3 h-3 text-red-500" />
+                ) : (
+                  <div className="w-1.5 h-1.5 rounded-full bg-ui-4" />
+                )}
+              </div>
+              <div className="pb-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-mono text-text-3">{event.time}</span>
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-text-3">{event.type}</span>
+                </div>
+                <p className="text-sm text-text-2">{event.message}</p>
+              </div>
             </div>
-          </div>
-
-          <span className="font-mono text-xs text-text-2 flex-shrink-0">0:12 / {totalLabel}</span>
-
-          {/* Speed */}
-          <select className="text-xs bg-surface-2 border border-border rounded px-1.5 py-0.5 text-text-2 focus:outline-none">
-            <option>0.5x</option>
-            <option selected>1x</option>
-            <option>2x</option>
-          </select>
-
-          <button className="text-text-3 hover:text-text-1 transition-colors">
-            <Maximize2 size={13} />
-          </button>
+          ))}
         </div>
       </div>
     </div>

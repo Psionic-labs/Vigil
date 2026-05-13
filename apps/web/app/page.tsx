@@ -124,11 +124,11 @@ export default function OverviewDashboard() {
 
           {/* Right: Activity Feed */}
           <div className="lg:col-span-2 space-y-6">
-            <Card variant="elevated" className="overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between py-3 bg-surface-2/50">
+            <Card variant="elevated" className="overflow-hidden overflow-x-auto">
+              <CardHeader className="flex flex-row items-center justify-between py-3 bg-surface-2/50 min-w-[600px]">
                 <CardTitle className="text-sm">Recent Triage Inbox</CardTitle>
               </CardHeader>
-              <div className="divide-y divide-border">
+              <div className="divide-y divide-border min-w-[600px]">
                 {recentIssues.map(issue => (
                   <IssueRow key={issue.id} issue={issue} />
                 ))}
@@ -136,10 +136,10 @@ export default function OverviewDashboard() {
             </Card>
             
             <Card variant="elevated" className="overflow-hidden overflow-x-auto">
-              <CardHeader className="flex flex-row items-center justify-between py-3 bg-surface-2/50">
+              <CardHeader className="flex flex-row items-center justify-between py-3 bg-surface-2/50 min-w-[800px]">
                 <CardTitle className="text-sm">Recent High-Friction Sessions</CardTitle>
               </CardHeader>
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[800px]">
                 <thead className="bg-surface border-b border-border">
                   <tr>
                     {["Session ID", "URL", "Friction", "Goal", "Issues", "Signals", "Duration", "Env", "Started", ""].map(h => (
