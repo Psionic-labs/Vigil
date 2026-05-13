@@ -1,5 +1,6 @@
-import { GitBranch, ExternalLink, MessageSquare, Bot } from "lucide-react";
+import { ExternalLink, MessageSquare, Bot } from "lucide-react";
 import type { IssueGroup, Project } from "@/lib/types";
+import { GithubIcon } from "@/components/shared/GithubIcon";
 
 export function GitHubActionPanel({ issue, project }: { issue: IssueGroup; project: Project }) {
   const isLinked = !!issue.github_issue_url;
@@ -9,7 +10,7 @@ export function GitHubActionPanel({ issue, project }: { issue: IssueGroup; proje
       {/* GitHub card */}
       <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
         <div className="flex items-center gap-2 text-sm font-medium text-text-1">
-          <GitBranch size={14} />
+          <GithubIcon width={14} height={14} />
           GitHub
         </div>
 
@@ -58,7 +59,7 @@ export function GitHubActionPanel({ issue, project }: { issue: IssueGroup; proje
               className="w-full text-xs bg-surface-2 border border-border rounded-md px-3 py-2 text-text-1 placeholder:text-text-3 focus:outline-none focus:border-accent resize-none"
             />
             <button className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors">
-              <GitBranch size={13} />
+              <GithubIcon width={13} height={13} />
               Raise GitHub Issue
             </button>
             <details className="text-xs text-text-3 cursor-pointer">
