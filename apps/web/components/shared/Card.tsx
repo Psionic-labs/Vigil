@@ -9,7 +9,7 @@ export function Card({ className = "", variant = "elevated", children, ...props 
   
   const variants = {
     elevated: "bg-surface border border-border shadow-sm hover:shadow-md",
-    inset: "bg-surface-2 border border-border/50",
+    inset: "bg-surface-2/60 border border-border/60",
     accent: "bg-surface border border-border shadow-sm relative overflow-hidden",
   };
 

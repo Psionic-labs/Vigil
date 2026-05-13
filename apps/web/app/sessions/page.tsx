@@ -187,7 +187,7 @@ export default function SessionsPage() {
                         setActiveFilter("All");
                         setSearchQuery("");
                       }}
-                      className="text-xs font-medium text-bg bg-text-1 px-3 py-1.5 rounded-md hover:bg-text-2 transition-colors"
+                      className="text-xs font-medium text-white bg-accent px-3 py-1.5 rounded-md hover:bg-accent/90 transition-colors"
                     >
                       Clear filters
                     </button>

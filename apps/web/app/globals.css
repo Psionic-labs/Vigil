@@ -3,19 +3,28 @@
 @tailwind utilities;
 
 :root {
-  --bg: 13 13 15;
-  --surface: 20 20 23;
-  --surface-2: 28 28 33;
-  --border: 42 42 49;
-  --text-1: 240 240 243;
-  --text-2: 139 139 153;
-  --text-3: 85 85 95;
+  /* ── Core surfaces ── */
+  --bg: 248 250 252;
+  --surface: 255 255 255;
+  --surface-2: 241 245 249;
+  --border: 226 232 240;
+
+  /* ── Text hierarchy ── */
+  --text-1: 15 23 42;
+  --text-2: 71 85 105;
+  --text-3: 148 163 184;
+
+  /* ── Brand accent ── */
   --accent: 59 130 246;
-  --p0: 239 68 68;
-  --p1: 249 115 22;
-  --p2: 234 179 8;
+
+  /* ── Severity palette ── */
+  --p0: 220 38 38;
+  --p1: 234 88 12;
+  --p2: 202 138 4;
   --p3: 100 116 139;
-  --success: 34 197 94;
+
+  /* ── Semantic ── */
+  --success: 22 163 74;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -23,36 +32,55 @@
 html, body {
   background-color: rgb(var(--bg));
   color: rgb(var(--text-1));
-  font-family: 'Geist', 'JetBrains Mono', monospace;
+  font-family: 'Geist', 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-::selection { background: rgba(var(--accent), 0.2); color: rgb(var(--text-1)); }
+/* ── Premium gradient background ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 5%, rgba(59, 130, 246, 0.06), transparent 50%),
+    radial-gradient(ellipse 60% 50% at 90% 90%, rgba(139, 92, 246, 0.04), transparent 50%),
+    radial-gradient(ellipse 40% 40% at 50% 50%, rgba(59, 130, 246, 0.02), transparent 60%);
+  pointer-events: none;
+}
 
+/* ── Text selection ── */
+::selection { background: rgba(var(--accent), 0.15); color: rgb(var(--text-1)); }
+
+/* ── Scrollbar (thin, refined) ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgb(var(--text-3)); }
 
+/* ── Skeleton shimmer ── */
 @keyframes shimmer {
   0% { background-position: -400px 0; }
   100% { background-position: 400px 0; }
 }
 
 .skeleton {
-  background: linear-gradient(90deg, rgb(var(--surface)) 25%, rgb(var(--surface-2)) 50%, rgb(var(--surface)) 75%);
+  background: linear-gradient(90deg, rgb(var(--surface-2)) 25%, rgb(var(--surface)) 50%, rgb(var(--surface-2)) 75%);
   background-size: 400px 100%;
   animation: shimmer 1.4s ease infinite;
   border-radius: 4px;
 }
 
+/* ── P0 badge pulse ── */
 @keyframes pulse-p0 {
-  0%, 100% { box-shadow: 0 0 0 0 #ef444440; }
-  50% { box-shadow: 0 0 0 4px #ef444420; }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--p0), 0.25); }
+  50% { box-shadow: 0 0 0 4px rgba(var(--p0), 0.1); }
 }
 
 .badge-p0 { animation: pulse-p0 2s ease-in-out infinite; }
 
+/* ── Stagger entry animation ── */
 @keyframes staggerFade {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -73,3 +101,9 @@ html, body {
 .stagger-item:nth-child(9) { animation-delay: 450ms; }
 .stagger-item:nth-child(10) { animation-delay: 500ms; }
 .stagger-item:nth-child(n+11) { animation-delay: 550ms; }
+
+/* ── Focus ring utility ── */
+.focus-ring:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+}

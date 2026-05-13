@@ -21,14 +21,14 @@ export function ReplayPlayer({ session }: ReplayPlayerProps) {
   ];
 
   return (
-    <div className="flex h-full flex-col lg:flex-row overflow-hidden border border-ui-3 bg-ui-1 rounded-xl shadow-sm">
+    <div className="flex h-full flex-col lg:flex-row overflow-hidden border border-border bg-surface rounded-xl shadow-sm">
       {/* Player Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Video Canvas Placeholder */}
-        <div className="flex-1 bg-[#1A1A1A] flex items-center justify-center relative overflow-hidden">
+        <div className="flex-1 bg-surface-2 flex items-center justify-center relative overflow-hidden">
           {/* Mock cursor */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-1000 ease-in-out">
-             <MousePointer2 className="w-6 h-6 text-white drop-shadow-md" fill="currentColor" />
+             <MousePointer2 className="w-6 h-6 text-text-3 drop-shadow-md" fill="currentColor" />
           </div>
           
           <div className="text-center z-10 px-4">
@@ -40,25 +40,25 @@ export function ReplayPlayer({ session }: ReplayPlayerProps) {
 
           {/* Grid pattern background for canvas */}
           <div 
-            className="absolute inset-0 opacity-[0.03] pointer-events-none" 
-            style={{ backgroundImage: 'linear-gradient(var(--ui-3) 1px, transparent 1px), linear-gradient(90deg, var(--ui-3) 1px, transparent 1px)', backgroundSize: '20px 20px' }} 
+            className="absolute inset-0 opacity-[0.06] pointer-events-none" 
+            style={{ backgroundImage: 'linear-gradient(rgb(var(--border)) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--border)) 1px, transparent 1px)', backgroundSize: '20px 20px' }} 
           />
         </div>
 
         {/* Controls */}
-        <div className="h-16 border-t border-ui-3 bg-ui-2 flex items-center px-4 gap-4 shrink-0">
+        <div className="h-16 border-t border-border bg-surface flex items-center px-4 gap-4 shrink-0">
           <button 
             onClick={() => setIsPlaying(!isPlaying)}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-ui-3 hover:bg-ui-4 transition-colors text-text-1 shrink-0"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-surface-2 border border-border hover:bg-bg hover:shadow-sm transition-all text-text-1 shrink-0"
           >
             {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-1" />}
           </button>
           
           <div className="flex-1 flex items-center gap-3">
             <span className="text-xs font-mono text-text-3 w-10 text-right shrink-0">00:00</span>
-            <div className="flex-1 h-2 bg-ui-3 rounded-full overflow-hidden relative cursor-pointer">
+            <div className="flex-1 h-2 bg-surface-2 border border-border/50 rounded-full overflow-hidden relative cursor-pointer">
               <div 
-                className="absolute top-0 left-0 bottom-0 bg-blue-500 rounded-full transition-all duration-200"
+                className="absolute top-0 left-0 bottom-0 bg-accent rounded-full transition-all duration-200"
                 style={{ width: `${isPlaying ? 45 : progress}%` }}
               />
             </div>
@@ -70,8 +70,8 @@ export function ReplayPlayer({ session }: ReplayPlayerProps) {
       </div>
 
       {/* Right Sidebar - Event Timeline */}
-      <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-ui-3 bg-ui-1 flex flex-col shrink-0">
-        <div className="p-4 border-b border-ui-3 shrink-0">
+      <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-border bg-surface flex flex-col shrink-0">
+        <div className="p-4 border-b border-border shrink-0">
           <h3 className="font-semibold text-text-1">Session Timeline</h3>
           <p className="text-xs text-text-3 mt-1">Key events and errors</p>
         </div>
@@ -79,13 +79,13 @@ export function ReplayPlayer({ session }: ReplayPlayerProps) {
           {events.map((event, i) => (
             <div key={event.id} className="flex gap-3 relative">
               {i !== events.length - 1 && (
-                <div className="absolute left-[9px] top-6 bottom-[-16px] w-[2px] bg-ui-3" />
+                <div className="absolute left-[9px] top-6 bottom-[-16px] w-[2px] bg-border" />
               )}
-              <div className="relative z-10 w-5 h-5 mt-0.5 shrink-0 flex items-center justify-center rounded-full bg-bg border border-ui-3">
+              <div className="relative z-10 w-5 h-5 mt-0.5 shrink-0 flex items-center justify-center rounded-full bg-bg border border-border">
                 {event.type === 'error' ? (
-                  <AlertCircle className="w-3 h-3 text-red-500" />
+                  <AlertCircle className="w-3 h-3 text-p0" />
                 ) : (
-                  <div className="w-1.5 h-1.5 rounded-full bg-ui-4" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-text-3" />
                 )}
               </div>
               <div className="pb-2">

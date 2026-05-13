@@ -64,7 +64,7 @@ export function Sidebar() {
         {/* Project switcher */}
         <div className="px-3 py-3 border-b border-border">
           <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg bg-surface-2 border border-border/50 hover:border-border hover:shadow-sm transition-all text-sm text-text-1 group">
-            <span className="w-2 h-2 rounded-full bg-success flex-shrink-0 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
+            <span className="w-2 h-2 rounded-full bg-success flex-shrink-0 shadow-[0_0_6px_rgba(var(--success),0.4)]" />
             <span className="truncate text-xs font-medium">{MOCK_PROJECT.name}</span>
             <ChevronDown size={12} className="ml-auto text-text-3 flex-shrink-0 group-hover:text-text-2 transition-colors" />
           </button>
