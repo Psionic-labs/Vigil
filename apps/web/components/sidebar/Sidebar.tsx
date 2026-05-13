@@ -1,14 +1,16 @@
 "use client";
-import { AlertTriangle, Activity, Settings, ChevronDown, Shield } from "lucide-react";
+import { AlertTriangle, Activity, Settings, ChevronDown, Shield, LayoutDashboard } from "lucide-react";
 import { NavItem } from "./NavItem";
-import { MOCK_PROJECT } from "@/lib/mock-data";
+import { MOCK_PROJECT, MOCK_ISSUES } from "@/lib/mock-data";
 
 export function Sidebar() {
+  const openIssuesCount = MOCK_ISSUES.filter(i => i.status === "open" || i.status === "linked").length;
+
   return (
     <aside className="w-[240px] flex-shrink-0 h-screen sticky top-0 flex flex-col bg-surface border-r border-border">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-4 border-b border-border">
-        <div className="w-7 h-7 rounded-md bg-accent/20 border border-accent/30 flex items-center justify-center">
+        <div className="w-7 h-7 rounded-md bg-accent/20 border border-accent/30 flex items-center justify-center shadow-inner">
           <Shield size={14} className="text-accent" />
         </div>
         <span className="font-bold text-text-1 tracking-tight">Vigil</span>
@@ -19,17 +21,23 @@ export function Sidebar() {
 
       {/* Project switcher */}
       <div className="px-3 py-3 border-b border-border">
-        <button className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-surface-2 border border-border hover:border-text-3 transition-colors text-sm text-text-1">
-          <span className="w-2 h-2 rounded-full bg-success flex-shrink-0" />
-          <span className="truncate text-xs">{MOCK_PROJECT.name}</span>
-          <ChevronDown size={12} className="ml-auto text-text-3 flex-shrink-0" />
+        <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg bg-surface-2 border border-border/50 hover:border-border hover:shadow-sm transition-all text-sm text-text-1 group">
+          <span className="w-2 h-2 rounded-full bg-success flex-shrink-0 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
+          <span className="truncate text-xs font-medium">{MOCK_PROJECT.name}</span>
+          <ChevronDown size={12} className="ml-auto text-text-3 flex-shrink-0 group-hover:text-text-2 transition-colors" />
         </button>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-3 space-y-0.5">
-        <NavItem href="/issues" icon={<AlertTriangle size={14} />} label="Issues" />
+      <nav className="flex-1 px-3 py-4 space-y-1">
+        <NavItem href="/" icon={<LayoutDashboard size={14} />} label="Overview" />
+        <NavItem href="/issues" icon={<AlertTriangle size={14} />} label="Issues" badge={openIssuesCount} />
         <NavItem href="/sessions" icon={<Activity size={14} />} label="Sessions" />
+        
+        <div className="pt-4 pb-2">
+          <div className="h-px w-full bg-border/50" />
+        </div>
+        
         <NavItem href="/settings" icon={<Settings size={14} />} label="Settings" />
       </nav>
 
