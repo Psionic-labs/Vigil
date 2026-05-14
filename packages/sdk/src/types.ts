@@ -64,7 +64,11 @@ export type SummaryEventType =
 export interface SummaryEvent {
   type: SummaryEventType;
   timestampMs: number;
-  target?: string;
+  target?: string | {
+    tagName?: string;
+    id?: string;
+    className?: string;
+  };
 
   // JS / console error fields
   errorMessage?: string; // Legacy/v1 contract fallback
@@ -85,6 +89,17 @@ export interface SummaryEvent {
 
   // Rage click fields
   clickCount?: number;
+  area?: {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  };
+
+  // Dead click fields
+  x?: number;
+  y?: number;
+  waitTimeMs?: number;
 
   // Navigation fields
   navTo?: string;
