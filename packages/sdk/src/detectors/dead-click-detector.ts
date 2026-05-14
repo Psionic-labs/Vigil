@@ -62,19 +62,18 @@ export function setupDeadClickCapture(ctx: DeadClickContext): () => void {
 
   const originalPushState = window.history?.pushState;
   const originalReplaceState = window.history?.replaceState;
-  
   let vigilPatchedPushState: any;
   let vigilPatchedReplaceState: any;
-  
+
   if (window.history) {
-    vigilPatchedPushState = function (this: History, ...args: Parameters<History["pushState"]>) {
+    vigilPatchedPushState = function (this: History, data: any, unused: string, url?: string | URL | null) {
       updateActivity();
-      if (originalPushState) return originalPushState.apply(this, args);
+      if (originalPushState) return originalPushState.call(this, data, unused, url);
     };
     
-    vigilPatchedReplaceState = function (this: History, ...args: Parameters<History["replaceState"]>) {
+    vigilPatchedReplaceState = function (this: History, data: any, unused: string, url?: string | URL | null) {
       updateActivity();
-      if (originalReplaceState) return originalReplaceState.apply(this, args);
+      if (originalReplaceState) return originalReplaceState.call(this, data, unused, url);
     };
 
     window.history.pushState = vigilPatchedPushState;
@@ -174,7 +173,7 @@ export function setupDeadClickCapture(ctx: DeadClickContext): () => void {
     window.removeEventListener("popstate", handleNav);
     window.removeEventListener("hashchange", handleNav);
     
-    // Restore history patches safely, only if no other library wrapped them after us
+    // Restore history patches safely
     if (window.history) {
       if (window.history.pushState === vigilPatchedPushState) {
         window.history.pushState = originalPushState as any;
