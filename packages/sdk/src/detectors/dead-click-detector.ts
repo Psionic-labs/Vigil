@@ -170,10 +170,10 @@ export function setupDeadClickCapture(ctx: DeadClickContext): () => void {
     
     // Restore history patches safely
     if (window.history) {
-      if (window.history.pushState === originalPushState || window.history.pushState?.name === "pushState") {
+      if (window.history.pushState !== originalPushState) {
         window.history.pushState = originalPushState as any;
       }
-      if (window.history.replaceState === originalReplaceState || window.history.replaceState?.name === "replaceState") {
+      if (window.history.replaceState !== originalReplaceState) {
         window.history.replaceState = originalReplaceState as any;
       }
     }

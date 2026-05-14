@@ -12,6 +12,9 @@
 
 const SESSION_KEY = "vigil_session_id";
 
+// Fallback session ID for when sessionStorage is unavailable
+let fallbackSessionId: string | undefined;
+
 /**
  * Generate a random session ID.
  *
@@ -67,7 +70,11 @@ export function getOrCreateSessionId(): string {
     return id;
   } catch {
     // sessionStorage throws in some private-browsing modes.
-    // Return a freshly generated ID (won't survive navigation but won't crash).
-    return generateSessionId();
+    // Use a cached fallback ID to maintain stability across calls.
+    if (fallbackSessionId) {
+      return fallbackSessionId;
+    }
+    fallbackSessionId = generateSessionId();
+    return fallbackSessionId;
   }
 }

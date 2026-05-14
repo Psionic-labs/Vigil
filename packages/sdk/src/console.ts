@@ -38,7 +38,10 @@ export function setupConsoleCapture(ctx: ConsoleCaptureContext): () => void {
     if (typeof arg === "string") return arg;
     if (typeof arg === "function" || typeof arg === "symbol") return String(arg);
     try {
-      return JSON.stringify(arg);
+      const result = JSON.stringify(arg);
+      // JSON.stringify can return undefined for certain cases (e.g., toJSON returning undefined)
+      if (result === undefined) return "undefined";
+      return result;
     } catch {
       return String(arg); // Fallback for circular references or bigints
     }
