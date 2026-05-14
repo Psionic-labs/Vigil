@@ -63,16 +63,22 @@ export function setupDeadClickCapture(ctx: DeadClickContext): () => void {
   const originalPushState = window.history?.pushState;
   const originalReplaceState = window.history?.replaceState;
   
+  let vigilPatchedPushState: any;
+  let vigilPatchedReplaceState: any;
+  
   if (window.history) {
-    window.history.pushState = function (...args) {
+    vigilPatchedPushState = function (this: History, ...args: Parameters<History["pushState"]>) {
       updateActivity();
       if (originalPushState) return originalPushState.apply(this, args);
     };
     
-    window.history.replaceState = function (...args) {
+    vigilPatchedReplaceState = function (this: History, ...args: Parameters<History["replaceState"]>) {
       updateActivity();
       if (originalReplaceState) return originalReplaceState.apply(this, args);
     };
+
+    window.history.pushState = vigilPatchedPushState;
+    window.history.replaceState = vigilPatchedReplaceState;
   }
 
   // 3. Evaluation logic
@@ -137,19 +143,19 @@ export function setupDeadClickCapture(ctx: DeadClickContext): () => void {
         startObserving();
       }
 
-      // Schedule the evaluation to run exactly DEAD_CLICK_TIMEOUT_MS after the click.
-      // We add a 50ms buffer to allow JS execution and DOM paints to settle.
-      const timeoutId = window.setTimeout(() => {
-        evaluateClick(clickObj);
-      }, DEAD_CLICK_TIMEOUT_MS + 50);
-
+      // Declare object first to avoid Temporal Dead Zone (TDZ) issues
       const clickObj: PendingClick = {
         x: e.clientX,
         y: e.clientY,
         timestamp: now,
         target: e.target,
-        timeoutId,
+        timeoutId: 0, // will be replaced immediately below
       };
+
+      // Schedule the evaluation to run exactly DEAD_CLICK_TIMEOUT_MS after the click.
+      clickObj.timeoutId = window.setTimeout(() => {
+        evaluateClick(clickObj);
+      }, DEAD_CLICK_TIMEOUT_MS);
 
       pendingClicks.push(clickObj);
     } catch (err) {
@@ -168,12 +174,12 @@ export function setupDeadClickCapture(ctx: DeadClickContext): () => void {
     window.removeEventListener("popstate", handleNav);
     window.removeEventListener("hashchange", handleNav);
     
-    // Restore history patches safely
+    // Restore history patches safely, only if no other library wrapped them after us
     if (window.history) {
-      if (window.history.pushState === originalPushState || window.history.pushState?.name === "pushState") {
+      if (window.history.pushState === vigilPatchedPushState) {
         window.history.pushState = originalPushState as any;
       }
-      if (window.history.replaceState === originalReplaceState || window.history.replaceState?.name === "replaceState") {
+      if (window.history.replaceState === vigilPatchedReplaceState) {
         window.history.replaceState = originalReplaceState as any;
       }
     }

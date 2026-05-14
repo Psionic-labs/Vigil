@@ -119,11 +119,11 @@ export function init(options: VigilOptions) {
   try {
     stopRecording = record({
       emit(event: RrwebEvent) {
+        events.push(event);
         if (events.length > MAX_EVENTS) {
           // Prevent unbounded memory growth if fetch hangs
           events.splice(0, events.length - MAX_EVENTS + 100);
         }
-        events.push(event);
       },
       maskAllInputs: options.maskAllInputs !== false, // Critical: Defaults to true to protect PII/Passwords
       maskTextClass: "vigil-mask", // Explicit override support

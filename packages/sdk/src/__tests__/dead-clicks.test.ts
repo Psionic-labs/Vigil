@@ -70,7 +70,7 @@ describe("dead click detector", () => {
     triggerClick(100, 100);
     expect(summaryEvents).toHaveLength(0);
 
-    // Advance past the 550ms threshold
+    // Advance past the 500ms threshold
     vi.advanceTimersByTime(600);
 
     expect(summaryEvents).toHaveLength(1);

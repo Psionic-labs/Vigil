@@ -18,7 +18,11 @@ export interface ConsoleCaptureContext {
  */
 export function setupConsoleCapture(ctx: ConsoleCaptureContext): () => void {
   // SSR Safety: Do nothing if we are not in a browser environment or console is missing
-  if (typeof window === "undefined" || typeof console === "undefined" || !console.error) {
+  if (
+    typeof window === "undefined" ||
+    typeof console === "undefined" ||
+    !console.error
+  ) {
     return () => {};
   }
 
@@ -36,7 +40,8 @@ export function setupConsoleCapture(ctx: ConsoleCaptureContext): () => void {
     if (arg === null) return "null";
     if (arg instanceof Error) return arg.stack || arg.message || String(arg);
     if (typeof arg === "string") return arg;
-    if (typeof arg === "function" || typeof arg === "symbol") return String(arg);
+    if (typeof arg === "function" || typeof arg === "symbol")
+      return String(arg);
     try {
       return JSON.stringify(arg);
     } catch {
@@ -57,7 +62,9 @@ export function setupConsoleCapture(ctx: ConsoleCaptureContext): () => void {
       let stack: string | undefined;
 
       // Extract a summary of all arguments
-      const argSummaries = args.map(arg => safeStringify(arg).slice(0, MAX_ARG_LEN));
+      const argSummaries = args.map((arg) =>
+        safeStringify(arg).slice(0, MAX_ARG_LEN),
+      );
 
       // Attempt to extract an authentic error stack if an Error was passed
       const errorArg = args.find((a): a is Error => a instanceof Error);
@@ -109,7 +116,6 @@ export function setupConsoleCapture(ctx: ConsoleCaptureContext): () => void {
       };
 
       ctx.summaryEvents.push(event);
-
     } catch {
       // Defensive: never throw from the SDK
     } finally {
