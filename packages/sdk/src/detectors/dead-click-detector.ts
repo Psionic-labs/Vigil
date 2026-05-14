@@ -1,0 +1,189 @@
+import type { SummaryEvent } from "../types";
+
+export interface DeadClickContext {
+  summaryEvents: SummaryEvent[];
+  debug?: boolean;
+}
+
+interface PendingClick {
+  x: number;
+  y: number;
+  timestamp: number;
+  target: EventTarget | null;
+  timeoutId: number;
+}
+
+const DEAD_CLICK_TIMEOUT_MS = 500;
+const COOLDOWN_MS = 1000;
+
+export function setupDeadClickCapture(ctx: DeadClickContext): () => void {
+  // SSR Safety
+  if (
+    typeof window === "undefined" ||
+    typeof document === "undefined" ||
+    typeof MutationObserver === "undefined"
+  ) {
+    return () => {};
+  }
+
+  let lastActivityTime = Date.now();
+  let pendingClicks: PendingClick[] = [];
+  let isReporting = false;
+  let lastDeadClickTime = 0;
+
+  const updateActivity = () => {
+    lastActivityTime = Date.now();
+  };
+
+  // 1. Mutation tracking
+  // We use a MutationObserver but only keep it active while there are pending clicks
+  // to avoid draining battery/CPU observing a noisy page unnecessarily.
+  const observer = new MutationObserver(() => {
+    updateActivity();
+  });
+
+  const startObserving = () => {
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      characterData: true,
+    });
+  };
+
+  const stopObserving = () => {
+    observer.disconnect();
+  };
+
+  // 2. Navigation & SPA route tracking
+  const handleNav = () => updateActivity();
+  window.addEventListener("popstate", handleNav, { passive: true });
+  window.addEventListener("hashchange", handleNav, { passive: true });
+
+  const originalPushState = window.history?.pushState;
+  const originalReplaceState = window.history?.replaceState;
+  
+  if (window.history) {
+    window.history.pushState = function (...args) {
+      updateActivity();
+      if (originalPushState) return originalPushState.apply(this, args);
+    };
+    
+    window.history.replaceState = function (...args) {
+      updateActivity();
+      if (originalReplaceState) return originalReplaceState.apply(this, args);
+    };
+  }
+
+  // 3. Evaluation logic
+  const evaluateClick = (click: PendingClick) => {
+    // Remove from tracking
+    pendingClicks = pendingClicks.filter((c) => c !== click);
+
+    if (pendingClicks.length === 0) {
+      stopObserving();
+    }
+
+    // If activity happened after the click, it means the UI reacted
+    if (lastActivityTime > click.timestamp) {
+      return;
+    }
+
+    // Debounce to prevent a storm of dead clicks if the user clicks 10 times rapidly
+    if (click.timestamp - lastDeadClickTime < COOLDOWN_MS) {
+      return;
+    }
+
+    lastDeadClickTime = click.timestamp;
+
+    // Extract lightweight DOM metadata safely
+    const targetEl = click.target as HTMLElement | null;
+    let elementData;
+    if (targetEl && targetEl.tagName) {
+      elementData = {
+        tagName: targetEl.tagName.toLowerCase(),
+        id: targetEl.id || undefined,
+        className: typeof targetEl.className === "string" ? targetEl.className : undefined,
+      };
+    }
+
+    const event: SummaryEvent = {
+      type: "dead_click",
+      timestampMs: click.timestamp,
+      timestamp: click.timestamp, // legacy support
+      x: click.x,
+      y: click.y,
+      waitTimeMs: DEAD_CLICK_TIMEOUT_MS,
+      target: elementData,
+    };
+
+    ctx.summaryEvents.push(event);
+
+    if (ctx.debug) {
+      console.log("Vigil SDK: Dead click detected", event);
+    }
+  };
+
+  // 4. Click tracking
+  const handleClick = (e: MouseEvent) => {
+    try {
+      if (isReporting) return;
+      isReporting = true;
+
+      const now = Date.now();
+
+      // Only boot up the observer if this is the first pending click
+      if (pendingClicks.length === 0) {
+        startObserving();
+      }
+
+      // Schedule the evaluation to run exactly DEAD_CLICK_TIMEOUT_MS after the click.
+      // We add a 50ms buffer to allow JS execution and DOM paints to settle.
+      const timeoutId = window.setTimeout(() => {
+        evaluateClick(clickObj);
+      }, DEAD_CLICK_TIMEOUT_MS + 50);
+
+      const clickObj: PendingClick = {
+        x: e.clientX,
+        y: e.clientY,
+        timestamp: now,
+        target: e.target,
+        timeoutId,
+      };
+
+      pendingClicks.push(clickObj);
+    } catch (err) {
+      if (ctx.debug) console.warn("Vigil SDK: Error tracking dead click", err);
+    } finally {
+      isReporting = false;
+    }
+  };
+
+  // Passive and capture for performance and intercept guarantees
+  document.addEventListener("click", handleClick, { passive: true, capture: true });
+
+  // Cleanup
+  return () => {
+    document.removeEventListener("click", handleClick, { capture: true });
+    window.removeEventListener("popstate", handleNav);
+    window.removeEventListener("hashchange", handleNav);
+    
+    // Restore history patches safely
+    if (window.history) {
+      if (window.history.pushState === originalPushState || window.history.pushState?.name === "pushState") {
+        window.history.pushState = originalPushState as any;
+      }
+      if (window.history.replaceState === originalReplaceState || window.history.replaceState?.name === "replaceState") {
+        window.history.replaceState = originalReplaceState as any;
+      }
+    }
+    
+    stopObserving();
+    
+    // Clear pending timers to prevent leaks and after-shutdown emissions
+    for (const c of pendingClicks) {
+      window.clearTimeout(c.timeoutId);
+    }
+    pendingClicks = [];
+  };
+}

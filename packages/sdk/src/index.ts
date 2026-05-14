@@ -3,6 +3,8 @@ import { getOrCreateSessionId } from "./session";
 import { startFlushTimer, setupFinalFlush } from "./flush";
 import { setupErrorCapture } from "./errors";
 import { setupConsoleCapture } from "./console";
+import { setupRageClickCapture } from "./detectors/rage-click-detector";
+import { setupDeadClickCapture } from "./detectors/dead-click-detector";
 import { sanitizeUrl } from "./utils";
 import type { VigilOptions, SummaryEvent, SessionMetadata } from "./types";
 
@@ -162,6 +164,18 @@ export function init(options: VigilOptions) {
     debug,
   });
 
+  // Attach rage click capture
+  const removeRageClickCapture = setupRageClickCapture({
+    summaryEvents,
+    debug,
+  });
+
+  // Attach dead click capture
+  const removeDeadClickCapture = setupDeadClickCapture({
+    summaryEvents,
+    debug,
+  });
+
   // Attach final flush on tab close / navigation away
   const removeFinalFlush = setupFinalFlush(flushCtx, flushTimer);
 
@@ -176,6 +190,8 @@ export function init(options: VigilOptions) {
       stopFlushing: flushTimer.stop,
       removeErrorCapture,
       removeConsoleCapture,
+      removeRageClickCapture,
+      removeDeadClickCapture,
       removeFinalFlush,
     };
   }
