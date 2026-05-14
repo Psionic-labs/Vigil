@@ -113,11 +113,15 @@ async function sendBatch(
   payload: IngestPayload,
   debug: boolean,
 ): Promise<boolean> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
   try {
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
 
     if (!res.ok) {
@@ -146,6 +150,8 @@ async function sendBatch(
       console.warn("Vigil flush: network error", err);
     }
     return false;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -213,12 +219,16 @@ function sendFinal(
 
   // Fallback: fetch with keepalive
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
       keepalive: true,
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeoutId));
 
     if (debug) {
       console.log(
@@ -325,7 +335,10 @@ export function setupFinalFlush(
 
   let flushed = false;
 
-  const doFinalFlush = () => {
+  const doFinalFlush = (event?: PageTransitionEvent | BeforeUnloadEvent) => {
+    // Guard: bfcache restore (page coming back from cache)
+    if (event && 'persisted' in event && event.persisted === true) return;
+
     // Guard: both pagehide and beforeunload can fire on the same close.
     // We only want to flush once.
     if (flushed) return;
