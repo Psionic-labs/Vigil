@@ -14,7 +14,10 @@ describe('SDK init', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
     });
-    vi.stubGlobal('document', {});
+    vi.stubGlobal('document', {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    });
     vi.stubGlobal('navigator', { userAgent: 'test' });
   });
 
