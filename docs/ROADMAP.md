@@ -43,7 +43,7 @@ Ship a working `@vigil/sdk` that captures signals and flushes them to an ingest 
 - [x] Wire `fetch` and `XMLHttpRequest` interceptors → network failure summary events (4xx/5xx only) -- squash and merged May 15
 - [x] Implement rage click detection (3+ clicks, 500px area, 2s window) -- May 15 onwards 
 - [x] Implement dead click detection (click + no DOM mutation/navigation within 500ms)
-- [ ] Implement significant click summary events (`button`, `a`, `[role=button]`)
+- [x] Implement significant click summary events (`button`, `a`, `[role=button]`)
 - [ ] Implement SPA navigation tracking (`pushState`, `replaceState`, `popstate`)
 - [x] Implement `maskAllInputs` (default on) and always-on password masking
 - [ ] Implement `Vigil.init()` with all options from `docs/vigil-sdk-contract.md`

@@ -6,9 +6,7 @@ export interface SignificantClickContext {
   debug?: boolean;
 }
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 /** CSS selector matching interactive elements worth tracking. */
 const INTERACTIVE_SELECTOR = 'a, button, [role="button"]';
@@ -19,9 +17,7 @@ const THROTTLE_MS = 300;
 /** Maximum length for className strings to prevent payload bloat. */
 const MAX_CLASS_LEN = 200;
 
-// ---------------------------------------------------------------------------
 // Target resolution
-// ---------------------------------------------------------------------------
 
 /**
  * Walk from the actual click target up to the nearest interactive ancestor.
@@ -40,9 +36,7 @@ function resolveInteractiveTarget(target: EventTarget | null): HTMLElement | nul
   return (target as HTMLElement).closest<HTMLElement>(INTERACTIVE_SELECTOR);
 }
 
-// ---------------------------------------------------------------------------
 // Metadata extraction
-// ---------------------------------------------------------------------------
 
 interface ClickElementMeta {
   tagName: string;
@@ -95,9 +89,7 @@ function extractElementMeta(el: HTMLElement): ClickElementMeta {
   return meta;
 }
 
-// ---------------------------------------------------------------------------
 // Deduplication fingerprint
-// ---------------------------------------------------------------------------
 
 /**
  * Build a lightweight string key from element identity to throttle
@@ -111,9 +103,7 @@ function elementFingerprint(meta: ClickElementMeta): string {
   return `${meta.tagName}#${meta.id || ""}|${(meta.className || "").slice(0, 40)}`;
 }
 
-// ---------------------------------------------------------------------------
 // Detector setup
-// ---------------------------------------------------------------------------
 
 export function setupSignificantClickCapture(ctx: SignificantClickContext): () => void {
   // SSR Safety
