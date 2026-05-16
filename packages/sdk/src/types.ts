@@ -59,15 +59,18 @@ export type SummaryEventType =
   | "network_error"
   | "navigation"
   | "console_error"
-  | "click";
+  | "click"
+  | "significant_click";
 
 export interface SummaryEvent {
   type: SummaryEventType;
   timestampMs: number;
   target?: string | {
     tagName?: string;
+    role?: string;
     id?: string;
     className?: string;
+    href?: string;
   };
 
   // JS / console error fields
