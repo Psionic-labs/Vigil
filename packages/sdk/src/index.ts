@@ -5,6 +5,7 @@ import { setupErrorCapture } from "./errors";
 import { setupConsoleCapture } from "./console";
 import { setupRageClickCapture } from "./detectors/rage-click-detector";
 import { setupDeadClickCapture } from "./detectors/dead-click-detector";
+import { setupSignificantClickCapture } from "./detectors/significant-click-detector";
 import { sanitizeUrl } from "./utils";
 import type { VigilOptions, SummaryEvent, SessionMetadata } from "./types";
 
@@ -176,6 +177,12 @@ export function init(options: VigilOptions) {
     debug,
   });
 
+  // Attach significant click capture
+  const removeSignificantClickCapture = setupSignificantClickCapture({
+    summaryEvents,
+    debug,
+  });
+
   // Attach final flush on tab close / navigation away
   const removeFinalFlush = setupFinalFlush(flushCtx, flushTimer);
 
@@ -192,6 +199,7 @@ export function init(options: VigilOptions) {
       removeConsoleCapture,
       removeRageClickCapture,
       removeDeadClickCapture,
+      removeSignificantClickCapture,
       removeFinalFlush,
     };
   }
