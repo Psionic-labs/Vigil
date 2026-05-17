@@ -1,8 +1,11 @@
 import type { SummaryEvent } from "../types";
+import type { NavigationCallback } from "./navigation-observer";
 
 export interface DeadClickContext {
   summaryEvents: SummaryEvent[];
   debug?: boolean;
+  /** Subscribe to navigation events from the shared navigation observer. */
+  onNavigation?: (cb: NavigationCallback) => () => void;
 }
 
 interface PendingClick {
@@ -55,29 +58,12 @@ export function setupDeadClickCapture(ctx: DeadClickContext): () => void {
     observer.disconnect();
   };
 
-  // 2. Navigation & SPA route tracking
-  const handleNav = () => updateActivity();
-  window.addEventListener("popstate", handleNav, { passive: true });
-  window.addEventListener("hashchange", handleNav, { passive: true });
-
-  const originalPushState = window.history?.pushState;
-  const originalReplaceState = window.history?.replaceState;
-  let vigilPatchedPushState: any;
-  let vigilPatchedReplaceState: any;
-
-  if (window.history) {
-    vigilPatchedPushState = function (this: History, data: any, unused: string, url?: string | URL | null) {
-      updateActivity();
-      if (originalPushState) return originalPushState.call(this, data, unused, url);
-    };
-    
-    vigilPatchedReplaceState = function (this: History, data: any, unused: string, url?: string | URL | null) {
-      updateActivity();
-      if (originalReplaceState) return originalReplaceState.call(this, data, unused, url);
-    };
-
-    window.history.pushState = vigilPatchedPushState;
-    window.history.replaceState = vigilPatchedReplaceState;
+  // 2. Navigation activity tracking
+  // Subscribe to the shared navigation observer instead of independently
+  // patching history.pushState/replaceState (which caused double-patch conflicts).
+  let unsubscribeNav: (() => void) | undefined;
+  if (ctx.onNavigation) {
+    unsubscribeNav = ctx.onNavigation(() => updateActivity());
   }
 
   // 3. Evaluation logic
@@ -170,21 +156,12 @@ export function setupDeadClickCapture(ctx: DeadClickContext): () => void {
   // Cleanup
   return () => {
     document.removeEventListener("click", handleClick, { capture: true });
-    window.removeEventListener("popstate", handleNav);
-    window.removeEventListener("hashchange", handleNav);
-    
-    // Restore history patches safely
-    if (window.history) {
-      if (window.history.pushState === vigilPatchedPushState) {
-        window.history.pushState = originalPushState as any;
-      }
-      if (window.history.replaceState === vigilPatchedReplaceState) {
-        window.history.replaceState = originalReplaceState as any;
-      }
-    }
-    
+
+    // Unsubscribe from navigation observer
+    unsubscribeNav?.();
+
     stopObserving();
-    
+
     // Clear pending timers to prevent leaks and after-shutdown emissions
     for (const c of pendingClicks) {
       window.clearTimeout(c.timeoutId);
