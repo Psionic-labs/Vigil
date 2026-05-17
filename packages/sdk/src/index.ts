@@ -6,6 +6,7 @@ import { setupConsoleCapture } from "./console";
 import { setupRageClickCapture } from "./detectors/rage-click-detector";
 import { setupDeadClickCapture } from "./detectors/dead-click-detector";
 import { setupSignificantClickCapture } from "./detectors/significant-click-detector";
+import { setupNavigationCapture } from "./detectors/navigation-observer";
 import { sanitizeUrl } from "./utils";
 import type { VigilOptions, SummaryEvent, SessionMetadata } from "./types";
 
@@ -171,10 +172,18 @@ export function init(options: VigilOptions) {
     debug,
   });
 
-  // Attach dead click capture
+  // Attach navigation tracking (must be initialized BEFORE dead-click detector
+  // so the subscribe hook is available for dead-click to receive nav signals)
+  const navigation = setupNavigationCapture({
+    summaryEvents,
+    debug,
+  });
+
+  // Attach dead click capture (subscribes to navigation observer for activity signals)
   const removeDeadClickCapture = setupDeadClickCapture({
     summaryEvents,
     debug,
+    onNavigation: navigation.subscribe,
   });
 
   // Attach significant click capture
@@ -200,6 +209,7 @@ export function init(options: VigilOptions) {
       removeRageClickCapture,
       removeDeadClickCapture,
       removeSignificantClickCapture,
+      removeNavigationCapture: navigation.cleanup,
       removeFinalFlush,
     };
   }
