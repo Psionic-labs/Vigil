@@ -64,16 +64,14 @@ describe("navigation observer", () => {
   // popstate tracking
 
   it("emits navigation event on popstate", () => {
-    setupNavigationCapture({ summaryEvents });
-
     // Simulate the browser's popstate event
     const popstateListeners: Function[] = [];
-    (window.addEventListener as any).mockImplementation((event: string, handler: Function) => {
-      if (event === "popstate") popstateListeners.push(handler);
-    });
+    (window.addEventListener as any).mockImplementation(
+      (event: string, handler: Function) => {
+        if (event === "popstate") popstateListeners.push(handler);
+      },
+    );
 
-    // Re-setup to capture the listener
-    summaryEvents.length = 0;
     const { cleanup } = setupNavigationCapture({ summaryEvents });
 
     mockLocation.href = "https://app.example.com/previous";
@@ -128,7 +126,8 @@ describe("navigation observer", () => {
   it("sanitizes query params and hash from URLs", () => {
     setupNavigationCapture({ summaryEvents });
 
-    mockLocation.href = "https://app.example.com/profile?token=secret&user=123#section";
+    mockLocation.href =
+      "https://app.example.com/profile?token=secret&user=123#section";
     window.history.pushState({}, "", "/profile?token=secret&user=123#section");
 
     expect(summaryEvents).toHaveLength(1);
@@ -167,7 +166,9 @@ describe("navigation observer", () => {
   it("isolates subscriber errors from event pipeline", () => {
     const { subscribe } = setupNavigationCapture({ summaryEvents });
 
-    subscribe(() => { throw new Error("subscriber crash"); });
+    subscribe(() => {
+      throw new Error("subscriber crash");
+    });
 
     mockLocation.href = "https://app.example.com/new";
     // Should not throw and event should still be emitted
@@ -198,8 +199,14 @@ describe("navigation observer", () => {
 
     cleanup();
 
-    expect(window.removeEventListener).toHaveBeenCalledWith("popstate", expect.any(Function));
-    expect(window.removeEventListener).toHaveBeenCalledWith("hashchange", expect.any(Function));
+    expect(window.removeEventListener).toHaveBeenCalledWith(
+      "popstate",
+      expect.any(Function),
+    );
+    expect(window.removeEventListener).toHaveBeenCalledWith(
+      "hashchange",
+      expect.any(Function),
+    );
   });
 
   it("does not restore history if another library wrapped after us", () => {
