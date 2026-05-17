@@ -44,7 +44,7 @@ Ship a working `@vigil/sdk` that captures signals and flushes them to an ingest 
 - [x] Implement rage click detection (3+ clicks, 500px area, 2s window) -- May 15 onwards 
 - [x] Implement dead click detection (click + no DOM mutation/navigation within 500ms)
 - [x] Implement significant click summary events (`button`, `a`, `[role=button]`)
-- [ ] Implement SPA navigation tracking (`pushState`, `replaceState`, `popstate`)
+- [x] Implement SPA navigation tracking (`pushState`, `replaceState`, `popstate`)
 - [x] Implement `maskAllInputs` (default on) and always-on password masking
 - [ ] Implement `Vigil.init()` with all options from `docs/vigil-sdk-contract.md`
 - [ ] Implement `sessionSampleRate` check at init

@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { setupDeadClickCapture } from "../detectors/dead-click-detector";
+import type { NavigationCallback } from "../detectors/navigation-observer";
 import type { SummaryEvent } from "../types";
 
 describe("dead click detector", () => {
   let summaryEvents: SummaryEvent[];
   let triggerClick: (x: number, y: number, target?: any) => void;
   let triggerMutation: () => void;
+  let triggerNavActivity: NavigationCallback;
   let observeMock: any;
   let disconnectMock: any;
 
@@ -43,11 +45,15 @@ describe("dead click detector", () => {
       clearTimeout: clearTimeout,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
-      history: {
-        pushState: vi.fn(),
-        replaceState: vi.fn(),
-      }
     });
+
+    // Mock the onNavigation subscribe hook
+    // Captures the callback so tests can trigger navigation activity signals
+    triggerNavActivity = () => {};
+    const mockOnNavigation = (cb: NavigationCallback) => {
+      triggerNavActivity = cb;
+      return () => {};
+    };
 
     triggerClick = (x: number, y: number, target: any = {}) => {
       clickHandler({
@@ -65,7 +71,7 @@ describe("dead click detector", () => {
   });
 
   it("triggers dead click if no activity occurs within timeout", () => {
-    setupDeadClickCapture({ summaryEvents, debug: false });
+    setupDeadClickCapture({ summaryEvents, debug: false, onNavigation: (cb: NavigationCallback) => { triggerNavActivity = cb; return () => {}; } });
 
     triggerClick(100, 100);
     expect(summaryEvents).toHaveLength(0);
@@ -82,7 +88,7 @@ describe("dead click detector", () => {
   });
 
   it("does not trigger dead click if DOM mutates", () => {
-    setupDeadClickCapture({ summaryEvents });
+    setupDeadClickCapture({ summaryEvents, onNavigation: (cb: NavigationCallback) => { triggerNavActivity = cb; return () => {}; } });
 
     triggerClick(100, 100);
 
@@ -96,14 +102,14 @@ describe("dead click detector", () => {
     expect(summaryEvents).toHaveLength(0);
   });
 
-  it("does not trigger dead click if history.pushState occurs", () => {
-    setupDeadClickCapture({ summaryEvents });
+  it("does not trigger dead click if navigation activity occurs", () => {
+    setupDeadClickCapture({ summaryEvents, onNavigation: (cb: NavigationCallback) => { triggerNavActivity = cb; return () => {}; } });
 
     triggerClick(100, 100);
 
-    // Simulate SPA route change
+    // Simulate SPA route change via navigation observer subscription
     vi.advanceTimersByTime(100);
-    window.history.pushState({}, "", "/new-route");
+    triggerNavActivity("pushState");
 
     // Advance past the threshold
     vi.advanceTimersByTime(500);
@@ -112,7 +118,7 @@ describe("dead click detector", () => {
   });
 
   it("prevents duplicate dead clicks within cooldown period", () => {
-    setupDeadClickCapture({ summaryEvents });
+    setupDeadClickCapture({ summaryEvents, onNavigation: (cb: NavigationCallback) => { triggerNavActivity = cb; return () => {}; } });
 
     // Click 1
     triggerClick(100, 100);
@@ -128,7 +134,7 @@ describe("dead click detector", () => {
   });
 
   it("connects and disconnects MutationObserver dynamically to save CPU", () => {
-    setupDeadClickCapture({ summaryEvents });
+    setupDeadClickCapture({ summaryEvents, onNavigation: (cb: NavigationCallback) => { triggerNavActivity = cb; return () => {}; } });
 
     expect(observeMock).not.toHaveBeenCalled();
 
@@ -142,7 +148,7 @@ describe("dead click detector", () => {
   });
 
   it("captures element metadata safely", () => {
-    setupDeadClickCapture({ summaryEvents });
+    setupDeadClickCapture({ summaryEvents, onNavigation: (cb: NavigationCallback) => { triggerNavActivity = cb; return () => {}; } });
 
     const mockTarget = {
       tagName: "DIV",
@@ -162,7 +168,7 @@ describe("dead click detector", () => {
   });
 
   it("cleans up listeners and timers on teardown", () => {
-    const teardown = setupDeadClickCapture({ summaryEvents });
+    const teardown = setupDeadClickCapture({ summaryEvents, onNavigation: (cb: NavigationCallback) => { triggerNavActivity = cb; return () => {}; } });
     expect(document.addEventListener).toHaveBeenCalledWith("click", expect.any(Function), { passive: true, capture: true });
 
     triggerClick(100, 100); // starts a timer

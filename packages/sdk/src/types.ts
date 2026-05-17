@@ -105,5 +105,7 @@ export interface SummaryEvent {
   waitTimeMs?: number;
 
   // Navigation fields
+  navFrom?: string;
   navTo?: string;
+  navigationType?: "pushState" | "replaceState" | "popstate" | "hashchange";
 }
