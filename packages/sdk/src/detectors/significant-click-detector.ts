@@ -29,7 +29,9 @@ const MAX_CLASS_LEN = 200;
  * Returns `null` if the click landed on a non-interactive surface (body
  * text, layout containers, images, etc.) — those are intentionally ignored.
  */
-function resolveInteractiveTarget(target: EventTarget | null): HTMLElement | null {
+function resolveInteractiveTarget(
+  target: EventTarget | null,
+): HTMLElement | null {
   // Duck-type check: verify the target has .closest() rather than using
   // `instanceof HTMLElement`, which doesn't exist in Node.js/SSR.
   if (!target || typeof (target as any).closest !== "function") return null;
@@ -73,9 +75,10 @@ function extractElementMeta(el: HTMLElement): ClickElementMeta {
   if (el.id) meta.id = el.id;
 
   if (typeof el.className === "string" && el.className) {
-    meta.className = el.className.length > MAX_CLASS_LEN
-      ? el.className.slice(0, MAX_CLASS_LEN)
-      : el.className;
+    meta.className =
+      el.className.length > MAX_CLASS_LEN
+        ? el.className.slice(0, MAX_CLASS_LEN)
+        : el.className;
   }
 
   // Only extract href from anchor elements, sanitized to strip tokens/PII
@@ -105,12 +108,15 @@ function elementFingerprint(meta: ClickElementMeta): string {
 
 // Detector setup
 
-export function setupSignificantClickCapture(ctx: SignificantClickContext): () => void {
+export function setupSignificantClickCapture(
+  ctx: SignificantClickContext,
+): () => void {
   // SSR Safety
   if (typeof window === "undefined" || typeof document === "undefined") {
     return () => {};
   }
 
+  // Defensive guard for rare synchronous re-entry from third-party wrappers (e.g. patched console hooks).
   let isReporting = false;
   let lastClickFingerprint = "";
   let lastClickTime = 0;
@@ -140,7 +146,7 @@ export function setupSignificantClickCapture(ctx: SignificantClickContext): () =
 
       // 4. Emit event
       const event: SummaryEvent = {
-        type: "click",
+        type: "significant_click",
         timestampMs: now,
         timestamp: now,
         x: e.clientX,
@@ -165,7 +171,10 @@ export function setupSignificantClickCapture(ctx: SignificantClickContext): () =
 
   // Single delegated listener on document, passive + capture phase
   // for earliest interception without blocking the UI thread.
-  document.addEventListener("click", handleClick, { passive: true, capture: true });
+  document.addEventListener("click", handleClick, {
+    passive: true,
+    capture: true,
+  });
 
   return () => {
     document.removeEventListener("click", handleClick, { capture: true });

@@ -48,7 +48,7 @@ describe("significant click detector", () => {
     triggerClick(btn);
 
     expect(summaryEvents).toHaveLength(1);
-    expect(summaryEvents[0]!.type).toBe("click");
+    expect(summaryEvents[0]!.type).toBe("significant_click");
     expect((summaryEvents[0]!.target as any).tagName).toBe("button");
     expect((summaryEvents[0]!.target as any).id).toBe("submit-btn");
   });
@@ -243,7 +243,11 @@ function mockElement(
     closest(selector: string) {
       // Walk the mock chain: check self, then parent
       if (matchesSelector(el, selector)) return el;
-      if (parent) return parent.closest?.(selector) ?? (matchesSelector(parent, selector) ? parent : null);
+      if (parent)
+        return (
+          parent.closest?.(selector) ??
+          (matchesSelector(parent, selector) ? parent : null)
+        );
       return null;
     },
   };
