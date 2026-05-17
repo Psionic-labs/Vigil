@@ -199,11 +199,12 @@ describe("dead click detector", () => {
   });
 
   it("cleans up listeners and timers on teardown", () => {
+    const unsubscribe = vi.fn();
     const teardown = setupDeadClickCapture({
       summaryEvents,
       onNavigation: (cb: NavigationCallback) => {
         triggerNavActivity = cb;
-        return () => {};
+        return unsubscribe;
       },
     });
     expect(document.addEventListener).toHaveBeenCalledWith(
@@ -221,6 +222,7 @@ describe("dead click detector", () => {
       { capture: true },
     );
     expect(disconnectMock).toHaveBeenCalled();
+    expect(unsubscribe).toHaveBeenCalled();
 
     // Fast forward to prove timer was cleared (if it wasn't, evaluateClick would throw or add an event)
     vi.advanceTimersByTime(600);
