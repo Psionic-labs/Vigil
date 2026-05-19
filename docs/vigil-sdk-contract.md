@@ -53,6 +53,13 @@ type VigilInitOptions = {
   release?: string;
   commitSha?: string;
   userId?: string;
+  debug?: boolean;
+
+  // Feature Toggles
+  disableSessionReplay?: boolean;
+  disableClickTracking?: boolean;
+  disableErrorTracking?: boolean;
+  disableNavigationTracking?: boolean;
 };
 ```
 
@@ -62,6 +69,11 @@ Defaults:
 - `endpoint: "https://ingest.usevigilhq.com/api/ingest"`
 - `flushInterval: 5000`
 - `sessionSampleRate: 1.0`
+- `debug: false`
+- `disableSessionReplay: false`
+- `disableClickTracking: false`
+- `disableErrorTracking: false`
+- `disableNavigationTracking: false`
 
 `release`, `commitSha`, and `environment` are optional but strongly recommended. They allow Vigil to identify regressions and correlate issue groups with deploys.
 
