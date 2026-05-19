@@ -20,6 +20,24 @@ export interface VigilOptions {
   commitSha?: string;
   userId?: string;
   debug?: boolean;
+
+  // Feature Toggles
+  disableSessionReplay?: boolean;
+  disableClickTracking?: boolean;
+  disableErrorTracking?: boolean;
+  disableNavigationTracking?: boolean;
+}
+
+export interface NormalizedVigilOptions extends Required<Omit<VigilOptions, "userId" | "release" | "commitSha" | "environment" | "debug" | "disableSessionReplay" | "disableClickTracking" | "disableErrorTracking" | "disableNavigationTracking">> {
+  userId?: string;
+  release?: string;
+  commitSha?: string;
+  environment?: "development" | "preview" | "production";
+  debug: boolean;
+  disableSessionReplay: boolean;
+  disableClickTracking: boolean;
+  disableErrorTracking: boolean;
+  disableNavigationTracking: boolean;
 }
 
 // ---------------------------------------------------------------------------

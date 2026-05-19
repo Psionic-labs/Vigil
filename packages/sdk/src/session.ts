@@ -11,29 +11,16 @@
  */
 
 const SESSION_KEY = "vigil_session_id";
+const SAMPLED_OUT_KEY = "vigil_sampled_out";
 
-// Fallback session ID for when sessionStorage is unavailable
 let fallbackSessionId: string | undefined;
+let fallbackSampledDecision: boolean | undefined;
 
-/**
- * Generate a random session ID.
- *
- * Uses `crypto.randomUUID()` when available (all modern browsers).
- * Falls back to a manual hex string for older environments.
- */
 function generateSessionId(): string {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
-
-  // Middle fallback: High-entropy crypto.getRandomValues
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.getRandomValues === "function"
-  ) {
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
     const bytes = new Uint8Array(31);
     crypto.getRandomValues(bytes);
     let i = 0;
@@ -43,8 +30,6 @@ function generateSessionId(): string {
       return v.toString(16);
     });
   }
-
-  // Last resort fallback: Low-entropy Math.random()
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     const v = c === "x" ? r : (r & 0x3) | 0x8;
@@ -53,28 +38,43 @@ function generateSessionId(): string {
 }
 
 /**
- * Returns the current session ID, creating and persisting one if it doesn't
- * already exist in sessionStorage.
- *
- * Callers should treat the returned value as stable for the tab's lifetime.
+ * Checks or establishes the sampling decision for the current session.
  */
+export function isSessionSampled(sampleRate: number): boolean {
+  if (sampleRate >= 1) return true;
+  if (sampleRate <= 0) return false;
+
+  try {
+    const storedDecision = sessionStorage.getItem(SAMPLED_OUT_KEY);
+    if (storedDecision === "1") return false;
+    if (storedDecision === "0") return true;
+
+    // We don't have a session yet. Make a decision.
+    const isSampledIn = Math.random() < sampleRate;
+    sessionStorage.setItem(SAMPLED_OUT_KEY, isSampledIn ? "0" : "1");
+    return isSampledIn;
+  } catch {
+    // SessionStorage unavailable
+    if (fallbackSampledDecision !== undefined) return fallbackSampledDecision;
+
+    const isSampledIn = Math.random() < sampleRate;
+    fallbackSampledDecision = isSampledIn;
+    return isSampledIn;
+  }
+}
+
 export function getOrCreateSessionId(): string {
   try {
     const existing = sessionStorage.getItem(SESSION_KEY);
-    if (existing) {
-      return existing;
-    }
+    if (existing) return existing;
 
     const id = generateSessionId();
     sessionStorage.setItem(SESSION_KEY, id);
     return id;
   } catch {
-    // sessionStorage throws in some private-browsing modes.
-    // Use a cached fallback ID to maintain stability across calls.
-    if (fallbackSessionId) {
-      return fallbackSessionId;
-    }
+    if (fallbackSessionId) return fallbackSessionId;
     fallbackSessionId = generateSessionId();
     return fallbackSessionId;
   }
 }
+
