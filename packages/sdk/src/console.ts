@@ -52,7 +52,7 @@ export function setupConsoleCapture(ctx: ConsoleCaptureContext): () => void {
     }
   };
 
-  const patchedConsoleError = function (...args: unknown[]) {
+  const patchedConsoleError = function (this: any, ...args: unknown[]) {
     // 1. ALWAYS execute the original immediately to preserve host app behavior
     const result = originalConsoleError.apply(console, args);
 
@@ -131,6 +131,7 @@ export function setupConsoleCapture(ctx: ConsoleCaptureContext): () => void {
   // Apply patch
   console.error = patchedConsoleError;
   (patchedConsoleError as any).__vigil_patched = true;
+  (window as any).__vigil_console_captured = true;
 
   // Return teardown function
   return () => {
@@ -140,5 +141,6 @@ export function setupConsoleCapture(ctx: ConsoleCaptureContext): () => void {
     }
     // Remove our signature so we can be cleanly re-initialized later
     delete (patchedConsoleError as any).__vigil_patched;
+    delete (window as any).__vigil_console_captured;
   };
 }

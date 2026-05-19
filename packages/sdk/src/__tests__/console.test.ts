@@ -130,7 +130,6 @@ describe('console.error capture', () => {
   it('is SSR safe', () => {
     // Temporarily remove window
     const originalWindow = (globalThis as any).window;
-    // @ts-ignore
     delete (globalThis as any).window;
 
     const removeCapture = setupConsoleCapture({ summaryEvents });
@@ -138,7 +137,6 @@ describe('console.error capture', () => {
 
     removeCapture();
 
-    // @ts-ignore
     (globalThis as any).window = originalWindow;
   });
 
