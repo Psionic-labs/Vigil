@@ -8,10 +8,10 @@ import { setupDeadClickCapture } from "../detectors/dead-click-detector";
 import { setupSignificantClickCapture } from "../detectors/significant-click-detector";
 import { setupNavigationCapture } from "../detectors/navigation-observer";
 import { sanitizeUrl } from "../utils";
-import type { VigilOptions, SessionMetadata } from "../types";
+import type { VigilOptions } from "../types";
 import { normalizeConfig } from "../config/normalize-config";
 import { validateConfig } from "../config/validate-config";
-import { createSDKState, MAX_EVENTS, RrwebEvent } from "./state";
+import { createSDKState, MAX_EVENTS, type RrwebEvent } from "./state";
 import { createLifecycleManager } from "./lifecycle";
 
 const SDK_VERSION = "0.1.0";
@@ -44,9 +44,9 @@ export const Vigil = {
     }
 
     state.sessionId = getOrCreateSessionId();
-    const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : ""
-    const screen = window.screen
-    state.initialized = true
+    const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    const screen = window.screen;
+    state.initialized = true;
 
     if (config.debug) {
       console.log("Vigil SDK initialized", {

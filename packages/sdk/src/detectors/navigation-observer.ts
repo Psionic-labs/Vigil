@@ -155,10 +155,10 @@ export function setupNavigationCapture(ctx: NavigationContext): {
 
     // Restore history patches only if no other library wrapped them after us
     if (window.history) {
-      if (window.history.pushState === vigilPatchedPushState) {
+      if ((window.history as any).pushState === vigilPatchedPushState) {
         window.history.pushState = originalPushState as any;
       }
-      if (window.history.replaceState === vigilPatchedReplaceState) {
+      if ((window.history as any).replaceState === vigilPatchedReplaceState) {
         window.history.replaceState = originalReplaceState as any;
       }
     }

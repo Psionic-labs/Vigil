@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { setupFinalFlush, FlushContext } from '../flush';
+import { setupFinalFlush, type FlushContext } from '../flush';
 
 class MockBlob {
   parts: string[];

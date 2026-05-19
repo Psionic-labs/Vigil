@@ -18,7 +18,7 @@ export function createLifecycleManager(): LifecycleManager {
         const fn = cleanups.pop();
         try {
           if (fn) fn();
-        } catch (e) {
+        } catch {
           // Ignore cleanup errors to ensure the rest run
         }
       }

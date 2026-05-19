@@ -65,8 +65,10 @@ interface ClickElementMeta {
  *   - full href with query params (may contain auth tokens, PII)
  */
 function extractElementMeta(el: HTMLElement): ClickElementMeta {
+  const node = el as HTMLElement;
+  const tagName = node.tagName ? node.tagName.toLowerCase() : "";
   const meta: ClickElementMeta = {
-    tagName: el.tagName.toLowerCase(),
+    tagName: tagName,
   };
 
   const role = el.getAttribute("role");

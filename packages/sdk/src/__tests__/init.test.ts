@@ -8,7 +8,6 @@ vi.mock('rrweb', () => ({
 
 describe('SDK init behavior', () => {
   let warnSpy: any;
-  let logSpy: any;
 
   beforeEach(() => {
     vi.resetModules();
@@ -25,7 +24,7 @@ describe('SDK init behavior', () => {
     vi.stubGlobal('navigator', { userAgent: 'test' });
     
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
