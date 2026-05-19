@@ -141,5 +141,6 @@ export function setupConsoleCapture(ctx: ConsoleCaptureContext): () => void {
     }
     // Remove our signature so we can be cleanly re-initialized later
     delete (patchedConsoleError as any).__vigil_patched;
+    delete (window as any).__vigil_console_captured;
   };
 }

@@ -3,7 +3,7 @@ import type { SummaryEvent, SessionMetadata } from "../types";
 // Derive the event type from rrweb's own record signature
 import type { record } from "rrweb";
 type RecordOptions = NonNullable<Parameters<typeof record>[0]>;
-export type RrwebEvent = NonNullable<RecordOptions["emit"]> extends (e: infer E, ...args: unknown[]) => void ? E : never;
+export type RrwebEvent = NonNullable<RecordOptions["emit"]> extends (...args: infer A) => void ? (A extends [infer E, ...unknown[]] ? E : never) : never;
 
 export const MAX_EVENTS = 5000;
 export const MAX_SUMMARY = 1000;
