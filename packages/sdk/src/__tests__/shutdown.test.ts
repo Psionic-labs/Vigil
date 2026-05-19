@@ -30,6 +30,7 @@ describe('SDK shutdown behavior', () => {
   });
 
   afterEach(() => {
+    Vigil.shutdown();
     vi.useRealTimers();
     vi.clearAllMocks();
     vi.unstubAllGlobals();

@@ -11,7 +11,7 @@ import { sanitizeUrl } from "../utils";
 import type { VigilOptions, SessionMetadata } from "../types";
 import { normalizeConfig } from "../config/normalize-config";
 import { validateConfig } from "../config/validate-config";
-import { createSDKState, MAX_EVENTS } from "./state";
+import { createSDKState, MAX_EVENTS, RrwebEvent } from "./state";
 import { createLifecycleManager } from "./lifecycle";
 
 const SDK_VERSION = "0.1.0";
@@ -37,8 +37,6 @@ export const Vigil = {
       return; // Invalid config, abort
     }
 
-    state.initialized = true;
-
     // Session sampling
     if (!isSessionSampled(config.sessionSampleRate)) {
       if (config.debug) console.log("Vigil SDK: Session sampled out.");
@@ -46,6 +44,9 @@ export const Vigil = {
     }
 
     state.sessionId = getOrCreateSessionId();
+    const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : ""
+    const screen = window.screen
+    state.initialized = true
 
     if (config.debug) {
       console.log("Vigil SDK initialized", {
@@ -58,10 +59,10 @@ export const Vigil = {
 
     state.metadata = {
       url: sanitizeUrl(window.location.href),
-      userAgent: navigator.userAgent,
+      userAgent,
       startedAt: Date.now(),
-      screenWidth: window.screen.width,
-      screenHeight: window.screen.height,
+      screenWidth: screen?.width ?? 0,
+      screenHeight: screen?.height ?? 0,
       environment: config.environment,
       release: config.release,
       commitSha: config.commitSha,
@@ -92,8 +93,8 @@ export const Vigil = {
     if (!config.disableSessionReplay) {
       try {
         const stopRecording = record({
-          emit(event) {
-            state.events.push(event as any);
+          emit(event: RrwebEvent) {
+            state.events.push(event);
             if (state.events.length > MAX_EVENTS) {
               state.events.splice(0, state.events.length - MAX_EVENTS + 100);
             }

@@ -46,7 +46,7 @@ Ship a working `@vigil/sdk` that captures signals and flushes them to an ingest 
 - [x] Implement significant click summary events (`button`, `a`, `[role=button]`)
 - [x] Implement SPA navigation tracking (`pushState`, `replaceState`, `popstate`)
 - [x] Implement `maskAllInputs` (default on) and always-on password masking
-- [ ] Implement `Vigil.init()` with all options from `docs/vigil-sdk-contract.md`
+- [x] Implement `Vigil.init()` with all options from `docs/vigil-sdk-contract.md`
 - [ ] Implement `sessionSampleRate` check at init
 - [ ] Implement `isFinal: true` on final flush
 - [ ] Write a test page that loads the SDK and generates all signal types

@@ -2,7 +2,7 @@ import type { NormalizedVigilOptions } from "../types";
 import { DEFAULT_CONFIG } from "./defaults";
 
 export function validateConfig(config: NormalizedVigilOptions): boolean {
-  if (!config.projectKey || typeof config.projectKey !== "string") {
+  if (typeof config.projectKey !== "string" || config.projectKey.trim().length === 0) {
     console.error("Vigil SDK: Invalid or missing projectKey.");
     return false;
   }
