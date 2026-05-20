@@ -1,5 +1,6 @@
 import { record } from "rrweb";
-import { getOrCreateSessionId, isSessionSampled } from "../session";
+import { getOrCreateSessionId } from "../session";
+import { isSessionSampled } from "../sampling/session-sampling";
 import { startFlushTimer, setupFinalFlush } from "../flush";
 import { setupErrorCapture } from "../errors";
 import { setupConsoleCapture } from "../console";
@@ -38,9 +39,11 @@ export const Vigil = {
     }
 
     // Session sampling
-    if (!isSessionSampled(config.sessionSampleRate)) {
-      if (config.debug) console.log("Vigil SDK: Session sampled out.");
-      return;
+    const isSampled = isSessionSampled(config.sessionSampleRate);
+    if (!isSampled) {
+      if (config.debug) console.log("Vigil SDK: Session sampled out. Disabling expensive telemetry.");
+      config.disableSessionReplay = true;
+      config.disableClickTracking = true;
     }
 
     state.sessionId = getOrCreateSessionId();

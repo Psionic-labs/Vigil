@@ -11,10 +11,7 @@
  */
 
 const SESSION_KEY = "vigil_session_id";
-const SAMPLED_OUT_KEY = "vigil_sampled_out";
-
 let fallbackSessionId: string | undefined;
-let fallbackSampledDecision: boolean | undefined;
 
 function generateSessionId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -35,32 +32,6 @@ function generateSessionId(): string {
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
-}
-
-/**
- * Checks or establishes the sampling decision for the current session.
- */
-export function isSessionSampled(sampleRate: number): boolean {
-  if (sampleRate >= 1) return true;
-  if (sampleRate <= 0) return false;
-
-  try {
-    const storedDecision = sessionStorage.getItem(SAMPLED_OUT_KEY);
-    if (storedDecision === "1") return false;
-    if (storedDecision === "0") return true;
-
-    // We don't have a session yet. Make a decision.
-    const isSampledIn = Math.random() < sampleRate;
-    sessionStorage.setItem(SAMPLED_OUT_KEY, isSampledIn ? "0" : "1");
-    return isSampledIn;
-  } catch {
-    // SessionStorage unavailable
-    if (fallbackSampledDecision !== undefined) return fallbackSampledDecision;
-
-    const isSampledIn = Math.random() < sampleRate;
-    fallbackSampledDecision = isSampledIn;
-    return isSampledIn;
-  }
 }
 
 export function getOrCreateSessionId(): string {

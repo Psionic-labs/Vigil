@@ -64,4 +64,22 @@ describe('SDK init behavior', () => {
     expect(rrweb.record).not.toHaveBeenCalled();
     errorSpy.mockRestore();
   });
+
+  it('gracefully degrades when session is sampled out', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    
+    // sessionSampleRate: 0 should cause it to sample out
+    Vigil.init({ projectKey: 'pk_test', sessionSampleRate: 0, debug: true });
+    
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Session sampled out'));
+    // rrweb should not be initialized
+    expect(rrweb.record).not.toHaveBeenCalled();
+    // It should still set itself as initialized though
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Vigil SDK initialized'),
+      expect.anything()
+    );
+    
+    logSpy.mockRestore();
+  });
 });
