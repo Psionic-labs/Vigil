@@ -64,7 +64,7 @@ describe('SDK shutdown behavior', () => {
     expect(docRemoveListener).toHaveBeenCalledWith('click', expect.any(Function), { capture: true });
 
     // Debug object should be removed
-    expect((window as any).__vigil).toBeUndefined();
+    expect(window.__vigil).toBeUndefined();
   });
 
   it('clears all flush timers on shutdown', () => {

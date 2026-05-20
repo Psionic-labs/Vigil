@@ -14,8 +14,8 @@ describe('session-sampling', () => {
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
     clearSamplingDecision();
+    vi.unstubAllGlobals();
   });
 
   it('samples in 1.0 rates deterministically', () => {
@@ -32,7 +32,7 @@ describe('session-sampling', () => {
 
   it('uses Math.random for intermediate rates and caches the result', () => {
     const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.2); // Will be sampled in for rate 0.5
-    
+
     // First call
     expect(isSessionSampled(0.5)).toBe(true);
     expect(randomSpy).toHaveBeenCalledTimes(1);
@@ -48,7 +48,7 @@ describe('session-sampling', () => {
 
   it('caches sampled out decisions', () => {
     const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.8); // Will be sampled out for rate 0.5
-    
+
     expect(isSessionSampled(0.5)).toBe(false);
     expect(sessionStorage.setItem).toHaveBeenCalledWith('vigil_sampled_out', '1');
 
@@ -59,32 +59,32 @@ describe('session-sampling', () => {
 
   it('handles sessionStorage being unavailable safely', () => {
     vi.stubGlobal('sessionStorage', undefined); // Remove sessionStorage completely
-    
-    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.2); 
-    
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.2);
+
     // Should fallback to memory variable and succeed
     expect(isSessionSampled(0.5)).toBe(true);
     expect(randomSpy).toHaveBeenCalledTimes(1);
 
     // Second call should return cached true without random
     expect(isSessionSampled(0.5)).toBe(true);
-    expect(randomSpy).toHaveBeenCalledTimes(1); 
+    expect(randomSpy).toHaveBeenCalledTimes(1);
   });
-  
+
   it('handles sessionStorage throwing safely', () => {
     vi.stubGlobal('sessionStorage', {
       getItem: () => { throw new Error('Quota exceeded or security error'); },
       setItem: () => { throw new Error('Quota exceeded or security error'); }
     });
-    
+
     const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.8); // > 0.5 so false
-    
+
     // Should fallback to memory variable and succeed
     expect(isSessionSampled(0.5)).toBe(false);
     expect(randomSpy).toHaveBeenCalledTimes(1);
 
     // Second call should return cached false without random
     expect(isSessionSampled(0.5)).toBe(false);
-    expect(randomSpy).toHaveBeenCalledTimes(1); 
+    expect(randomSpy).toHaveBeenCalledTimes(1);
   });
 });

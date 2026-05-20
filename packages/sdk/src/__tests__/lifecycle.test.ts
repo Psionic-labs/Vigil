@@ -43,32 +43,31 @@ describe('SDK lifecycle integration', () => {
     
     // Should initialize successfully the second time
     expect(rrweb.record).toHaveBeenCalledTimes(2);
-    const vigil = (window as any).__vigil;
+    const vigil = window.__vigil;
     expect(vigil).toBeDefined();
-    // expect(vigil.metadata.projectKey).toBeUndefined(); // It's in the payload not metadata, but let's just check it attached correctly.
     // Verify fresh state after reinitialization
-    expect(vigil.metadata).toBeDefined();
+    expect(vigil?.metadata).toBeDefined();
 
     // If projectKey is stored elsewhere, verify it there
     // expect(vigil.config.projectKey).toBe('pk_test_2');
-    expect(vigil.events).toHaveLength(0);
-    expect(vigil.summaryEvents).toHaveLength(0);
+    expect(vigil?.events).toHaveLength(0);
+    expect(vigil?.summaryEvents).toHaveLength(0);
   });
 
   it('preserves no stale internal state between sessions', () => {
     Vigil.init({ projectKey: 'pk_test', debug: true });
     
-    const vigil1 = (window as any).__vigil;
-    vigil1.summaryEvents.push({ type: 'js_error', timestampMs: 1 });
-    expect(vigil1.summaryEvents).toHaveLength(1);
+    const vigil1 = window.__vigil;
+    vigil1?.summaryEvents.push({ type: 'js_error', timestampMs: 1 });
+    expect(vigil1?.summaryEvents).toHaveLength(1);
     
     Vigil.shutdown();
     
     Vigil.init({ projectKey: 'pk_test', debug: true });
-    const vigil2 = (window as any).__vigil;
+    const vigil2 = window.__vigil;
     
     // State should be fresh
-    expect(vigil2.summaryEvents).toHaveLength(0);
+    expect(vigil2?.summaryEvents).toHaveLength(0);
   });
 
   it('maintains stable listener counts across init/shutdown cycles', () => {

@@ -66,7 +66,7 @@ describe('SDK init behavior', () => {
   });
 
   it('gracefully degrades when session is sampled out', () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const logSpy = vi.mocked(console.log);
     
     // sessionSampleRate: 0 should cause it to sample out
     Vigil.init({ projectKey: 'pk_test', sessionSampleRate: 0, debug: true });
@@ -79,7 +79,15 @@ describe('SDK init behavior', () => {
       expect.stringContaining('Vigil SDK initialized'),
       expect.anything()
     );
+  });
+
+  it('does not mutate the user-provided config object', () => {
+    const userConfig = { projectKey: 'pk_test', sessionSampleRate: 0, disableSessionReplay: false };
     
-    logSpy.mockRestore();
+    // sessionSampleRate: 0 should cause it to sample out and disable session replay internally
+    Vigil.init(userConfig);
+    
+    // Original object should be untouched
+    expect(userConfig.disableSessionReplay).toBe(false);
   });
 });

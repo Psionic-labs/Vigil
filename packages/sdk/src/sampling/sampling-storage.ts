@@ -28,10 +28,13 @@ export function getStoredSamplingDecision(): boolean | undefined {
  * Saves the sampling decision for the current session.
  */
 export function saveSamplingDecision(isSampledIn: boolean): void {
+  // Keep in-memory fallback aligned even when storage works now,
+  // so later storage failures still return a stable decision.
+  fallbackSampledDecision = isSampledIn;
   try {
     sessionStorage.setItem(SAMPLED_OUT_KEY, isSampledIn ? "0" : "1");
   } catch {
-    fallbackSampledDecision = isSampledIn;
+    // Ignore - fallback already set
   }
 }
 
