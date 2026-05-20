@@ -8,7 +8,7 @@ export function validateConfig(config: NormalizedVigilOptions): boolean {
   }
 
   // Fallback invalid sample rates
-  if (typeof config.sessionSampleRate !== "number" || config.sessionSampleRate < 0 || config.sessionSampleRate > 1) {
+  if (typeof config.sessionSampleRate !== "number" || Number.isNaN(config.sessionSampleRate) || config.sessionSampleRate < 0 || config.sessionSampleRate > 1) {
     if (config.debug) console.warn(`Vigil SDK: Invalid sessionSampleRate (${config.sessionSampleRate}). Falling back to ${DEFAULT_CONFIG.sessionSampleRate}.`);
     config.sessionSampleRate = DEFAULT_CONFIG.sessionSampleRate!;
   }
