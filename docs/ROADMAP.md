@@ -47,7 +47,7 @@ Ship a working `@vigil/sdk` that captures signals and flushes them to an ingest 
 - [x] Implement SPA navigation tracking (`pushState`, `replaceState`, `popstate`)
 - [x] Implement `maskAllInputs` (default on) and always-on password masking
 - [x] Implement `Vigil.init()` with all options from `docs/vigil-sdk-contract.md`
-- [ ] Implement `sessionSampleRate` check at init
+- [x] Implement `sessionSampleRate` check at init
 - [ ] Implement `isFinal: true` on final flush
 - [ ] Write a test page that loads the SDK and generates all signal types
 - [ ] Verify gzipped bundle stays under 25KB

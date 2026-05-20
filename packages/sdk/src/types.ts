@@ -127,3 +127,20 @@ export interface SummaryEvent {
   navTo?: string;
   navigationType?: "pushState" | "replaceState" | "popstate" | "hashchange";
 }
+
+// Global debug interface
+
+export interface VigilDebugInterface {
+  sessionId: string;
+  events: unknown[];
+  summaryEvents: SummaryEvent[];
+  metadata: SessionMetadata | null;
+  cleanup: () => void;
+}
+
+declare global {
+  interface Window {
+    __vigil?: VigilDebugInterface;
+  }
+}
+
