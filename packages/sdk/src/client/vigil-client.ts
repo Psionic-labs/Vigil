@@ -159,7 +159,7 @@ export const Vigil = {
           events: state.events,
           summaryEvents: state.summaryEvents,
           metadata: state.metadata,
-          cleanup: () => lifecycle.cleanupAll(),
+          cleanup: () => Vigil.shutdown(),
         };
       }
 
