@@ -38,139 +38,146 @@ export const Vigil = {
       return; // Invalid config, abort
     }
 
-    // Session sampling
-    const isSampled = isSessionSampled(config.sessionSampleRate);
-    const effectiveConfig = {
-      ...config,
-      disableSessionReplay: !isSampled || config.disableSessionReplay,
-      disableClickTracking: !isSampled || config.disableClickTracking,
-    };
+    try {
+      // Session sampling
+      const isSampled = isSessionSampled(config.sessionSampleRate);
+      const effectiveConfig = {
+        ...config,
+        disableSessionReplay: !isSampled || config.disableSessionReplay,
+        disableClickTracking: !isSampled || config.disableClickTracking,
+      };
 
-    if (!isSampled && effectiveConfig.debug) {
-      console.log("Vigil SDK: Session sampled out. Disabling expensive telemetry.");
-    }
-
-    state.sessionId = getOrCreateSessionId();
-    const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
-    const screen = window.screen;
-
-    if (effectiveConfig.debug) {
-      console.log("Vigil SDK initialized", {
-        projectKey: effectiveConfig.projectKey,
-        sessionId: state.sessionId,
-        endpoint: effectiveConfig.endpoint,
-        flushInterval: effectiveConfig.flushInterval,
-      });
-    }
-
-    state.metadata = {
-      url: sanitizeUrl(window.location.href),
-      userAgent,
-      startedAt: Date.now(),
-      screenWidth: screen?.width ?? 0,
-      screenHeight: screen?.height ?? 0,
-      environment: effectiveConfig.environment,
-      release: effectiveConfig.release,
-      commitSha: effectiveConfig.commitSha,
-      userId: effectiveConfig.userId,
-    };
-
-    // Shared flush context
-    const flushCtx = {
-      sessionId: state.sessionId,
-      projectKey: effectiveConfig.projectKey,
-      endpoint: effectiveConfig.endpoint,
-      sdkVersion: SDK_VERSION,
-      events: state.events,
-      summaryEvents: state.summaryEvents,
-      metadata: state.metadata,
-      debug: effectiveConfig.debug,
-    };
-
-    // Start periodic flush
-    const flushTimer = startFlushTimer(flushCtx, effectiveConfig.flushInterval);
-    lifecycle.addCleanup(flushTimer.stop);
-
-    // Final flush on close
-    const removeFinalFlush = setupFinalFlush(flushCtx, flushTimer);
-    lifecycle.addCleanup(removeFinalFlush);
-
-    // 1. Setup Session Replay
-    if (!effectiveConfig.disableSessionReplay) {
-      try {
-        const stopRecording = record({
-          emit(event: RrwebEvent) {
-            state.events.push(event);
-            if (state.events.length > MAX_EVENTS) {
-              state.events.splice(0, state.events.length - MAX_EVENTS + 100);
-            }
-          },
-          maskAllInputs: effectiveConfig.maskAllInputs !== false,
-          maskTextClass: "vigil-mask",
-        });
-        if (stopRecording) {
-          lifecycle.addCleanup(stopRecording);
-        }
-      } catch (err) {
-        if (effectiveConfig.debug) {
-          console.warn("Vigil SDK: rrweb failed to initialize. Proceeding in summary-only mode.", err);
-        }
+      if (!isSampled && effectiveConfig.debug) {
+        console.log("Vigil SDK: Session sampled out. Disabling expensive telemetry.");
       }
-    }
 
-    // 2. Setup Error Tracking
-    if (!effectiveConfig.disableErrorTracking) {
-      const removeErrorCapture = setupErrorCapture({ summaryEvents: state.summaryEvents, debug: effectiveConfig.debug });
-      lifecycle.addCleanup(removeErrorCapture);
+      state.sessionId = getOrCreateSessionId();
+      const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
+      const screen = window.screen;
 
-      const removeConsoleCapture = setupConsoleCapture({ summaryEvents: state.summaryEvents, debug: effectiveConfig.debug });
-      lifecycle.addCleanup(removeConsoleCapture);
-    }
+      if (effectiveConfig.debug) {
+        console.log("Vigil SDK initialized", {
+          projectKey: effectiveConfig.projectKey,
+          sessionId: state.sessionId,
+          endpoint: effectiveConfig.endpoint,
+          flushInterval: effectiveConfig.flushInterval,
+        });
+      }
 
-    // 3. Setup Navigation Tracking
-    let navigationSubscribe: undefined | ReturnType<typeof setupNavigationCapture>["subscribe"];
-    if (!effectiveConfig.disableNavigationTracking) {
-      const navigation = setupNavigationCapture({ summaryEvents: state.summaryEvents, debug: effectiveConfig.debug });
-      lifecycle.addCleanup(navigation.cleanup);
-      navigationSubscribe = navigation.subscribe;
-    }
+      state.metadata = {
+        url: sanitizeUrl(window.location.href),
+        userAgent,
+        startedAt: Date.now(),
+        screenWidth: screen?.width ?? 0,
+        screenHeight: screen?.height ?? 0,
+        environment: effectiveConfig.environment,
+        release: effectiveConfig.release,
+        commitSha: effectiveConfig.commitSha,
+        userId: effectiveConfig.userId,
+      };
 
-    // 4. Setup Click Tracking
-    if (!effectiveConfig.disableClickTracking) {
-      const removeRageClickCapture = setupRageClickCapture({ summaryEvents: state.summaryEvents, debug: effectiveConfig.debug });
-      lifecycle.addCleanup(removeRageClickCapture);
-
-      const removeSignificantClickCapture = setupSignificantClickCapture({ summaryEvents: state.summaryEvents, debug: effectiveConfig.debug });
-      lifecycle.addCleanup(removeSignificantClickCapture);
-
-      const removeDeadClickCapture = setupDeadClickCapture({
-        summaryEvents: state.summaryEvents,
-        debug: effectiveConfig.debug,
-        onNavigation: navigationSubscribe,
-      });
-      lifecycle.addCleanup(removeDeadClickCapture);
-    }
-
-    // Expose to window for debugging
-    if (effectiveConfig.debug) {
-      window.__vigil = {
+      // Shared flush context
+      const flushCtx = {
         sessionId: state.sessionId,
+        projectKey: effectiveConfig.projectKey,
+        endpoint: effectiveConfig.endpoint,
+        sdkVersion: SDK_VERSION,
         events: state.events,
         summaryEvents: state.summaryEvents,
         metadata: state.metadata,
-        cleanup: () => lifecycle.cleanupAll(),
+        debug: effectiveConfig.debug,
       };
-    }
 
-    // Mark as initialized at the very end to avoid partial state leaks
-    state.initialized = true;
+      // Start periodic flush
+      const flushTimer = startFlushTimer(flushCtx, effectiveConfig.flushInterval);
+      lifecycle.addCleanup(flushTimer.stop);
+
+      // Final flush on close
+      const removeFinalFlush = setupFinalFlush(flushCtx, flushTimer);
+      lifecycle.addCleanup(removeFinalFlush);
+
+      // 1. Setup Session Replay
+      if (!effectiveConfig.disableSessionReplay) {
+        try {
+          const stopRecording = record({
+            emit(event: RrwebEvent) {
+              state.events.push(event);
+              if (state.events.length > MAX_EVENTS) {
+                state.events.splice(0, state.events.length - MAX_EVENTS + 100);
+              }
+            },
+            maskAllInputs: effectiveConfig.maskAllInputs !== false,
+            maskTextClass: "vigil-mask",
+          });
+          if (stopRecording) {
+            lifecycle.addCleanup(stopRecording);
+          }
+        } catch (err) {
+          if (effectiveConfig.debug) {
+            console.warn("Vigil SDK: rrweb failed to initialize. Proceeding in summary-only mode.", err);
+          }
+        }
+      }
+
+      // 2. Setup Error Tracking
+      if (!effectiveConfig.disableErrorTracking) {
+        const removeErrorCapture = setupErrorCapture({ summaryEvents: state.summaryEvents, debug: effectiveConfig.debug });
+        lifecycle.addCleanup(removeErrorCapture);
+
+        const removeConsoleCapture = setupConsoleCapture({ summaryEvents: state.summaryEvents, debug: effectiveConfig.debug });
+        lifecycle.addCleanup(removeConsoleCapture);
+      }
+
+      // 3. Setup Navigation Tracking
+      let navigationSubscribe: undefined | ReturnType<typeof setupNavigationCapture>["subscribe"];
+      if (!effectiveConfig.disableNavigationTracking) {
+        const navigation = setupNavigationCapture({ summaryEvents: state.summaryEvents, debug: effectiveConfig.debug });
+        lifecycle.addCleanup(navigation.cleanup);
+        navigationSubscribe = navigation.subscribe;
+      }
+
+      // 4. Setup Click Tracking
+      if (!effectiveConfig.disableClickTracking) {
+        const removeRageClickCapture = setupRageClickCapture({ summaryEvents: state.summaryEvents, debug: effectiveConfig.debug });
+        lifecycle.addCleanup(removeRageClickCapture);
+
+        const removeSignificantClickCapture = setupSignificantClickCapture({ summaryEvents: state.summaryEvents, debug: effectiveConfig.debug });
+        lifecycle.addCleanup(removeSignificantClickCapture);
+
+        const removeDeadClickCapture = setupDeadClickCapture({
+          summaryEvents: state.summaryEvents,
+          debug: effectiveConfig.debug,
+          onNavigation: navigationSubscribe,
+        });
+        lifecycle.addCleanup(removeDeadClickCapture);
+      }
+
+      // Expose to window for debugging
+      if (effectiveConfig.debug) {
+        window.__vigil = {
+          sessionId: state.sessionId,
+          events: state.events,
+          summaryEvents: state.summaryEvents,
+          metadata: state.metadata,
+          cleanup: () => lifecycle.cleanupAll(),
+        };
+      }
+
+      // Mark as initialized at the very end to avoid partial state leaks
+      state.initialized = true;
+    } catch (err) {
+      Vigil.shutdown();
+      if (config.debug) {
+        console.error("Vigil SDK: Initialization failed, cleaned up partial state.", err);
+      }
+    }
   },
 
   /**
    * Completely shut down the SDK and remove all listeners.
    */
   shutdown() {
-    if (!state.initialized) return;
+    // Run cleanups regardless of initialized state to prevent partial initialization leaks
     lifecycle.cleanupAll();
     state.initialized = false;
     state.sessionId = "";
