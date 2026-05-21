@@ -18,6 +18,7 @@ describe('SDK lifecycle integration', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
     });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
     vi.stubGlobal('navigator', { userAgent: 'test' });
     vi.stubGlobal('sessionStorage', {
       getItem: vi.fn(),

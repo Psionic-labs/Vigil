@@ -15,6 +15,12 @@ export interface SDKState {
   events: RrwebEvent[];
   summaryEvents: SummaryEvent[];
   metadata: SessionMetadata | null;
+  /**
+   * [j76y39] After a terminal flush attempt, the SDK prevents any future
+   * periodic or retry-based flush activity for that session lifecycle.
+   */
+  finalFlushSent: boolean;
+  lifecycleEpoch: number;
 }
 
 export function createSDKState(): SDKState {
@@ -43,5 +49,7 @@ export function createSDKState(): SDKState {
     events,
     summaryEvents,
     metadata: null,
+    finalFlushSent: false,
+    lifecycleEpoch: 0,
   };
 }
