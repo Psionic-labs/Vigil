@@ -105,4 +105,14 @@ describe('SSR safety and environments', () => {
 
     Vigil.shutdown();
   });
+
+  it('safely handles shutdown in non-browser environments', () => {
+    // Ensure window is undefined for this test
+    expect(typeof window).toBe('undefined');
+    
+    // Should safely abort without throwing ReferenceError for window.__vigil
+    expect(() => {
+      Vigil.shutdown();
+    }).not.toThrow();
+  });
 });

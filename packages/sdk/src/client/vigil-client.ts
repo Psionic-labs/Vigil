@@ -1,5 +1,5 @@
 import { record } from "rrweb";
-import { getOrCreateSessionId } from "../session";
+import { getOrCreateSessionId, clearSessionId } from "../session";
 import { isSessionSampled } from "../sampling/session-sampling";
 import { startFlushTimer, setupFinalFlush } from "../flush";
 import { setupErrorCapture } from "../errors";
@@ -20,6 +20,7 @@ const SDK_VERSION = "0.1.0";
 // Global singleton state
 const state = createSDKState();
 const lifecycle = createLifecycleManager();
+let triggerFinalFlush: (() => void) | null = null;
 
 export const Vigil = {
   init(options: VigilOptions) {
@@ -37,6 +38,8 @@ export const Vigil = {
     if (!validateConfig(config)) {
       return; // Invalid config, abort
     }
+
+    state.lifecycleEpoch++;
 
     try {
       // Session sampling
@@ -89,12 +92,13 @@ export const Vigil = {
       };
 
       // Start periodic flush
-      const flushTimer = startFlushTimer(flushCtx, effectiveConfig.flushInterval);
+      const flushTimer = startFlushTimer(flushCtx, effectiveConfig.flushInterval, state);
       lifecycle.addCleanup(flushTimer.stop);
 
       // Final flush on close
-      const removeFinalFlush = setupFinalFlush(flushCtx, flushTimer);
-      lifecycle.addCleanup(removeFinalFlush);
+      const finalFlush = setupFinalFlush(flushCtx, flushTimer, state);
+      lifecycle.addCleanup(finalFlush.cleanup);
+      triggerFinalFlush = finalFlush.triggerFinalFlush;
 
       // 1. Setup Session Replay
       if (!effectiveConfig.disableSessionReplay) {
@@ -177,14 +181,21 @@ export const Vigil = {
    * Completely shut down the SDK and remove all listeners.
    */
   shutdown() {
+    state.lifecycleEpoch++;
+    
+    triggerFinalFlush?.();
+    triggerFinalFlush = null;
+
     // Run cleanups regardless of initialized state to prevent partial initialization leaks
     lifecycle.cleanupAll();
+    clearSessionId();
     state.initialized = false;
     state.sessionId = "";
     state.metadata = null;
     state.events.length = 0;
     state.summaryEvents.length = 0; // The proxy interceptor handles this gracefully or just clears the underlying array
-    if (window.__vigil) {
+    state.finalFlushSent = false;
+    if (typeof window !== "undefined" && window.__vigil) {
       delete window.__vigil;
     }
   }

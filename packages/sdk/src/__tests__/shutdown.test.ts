@@ -6,6 +6,13 @@ vi.mock('rrweb', () => ({
   record: vi.fn(() => vi.fn())
 }));
 
+class MockBlob {
+  parts: string[];
+  constructor(parts: string[]) {
+    this.parts = parts;
+  }
+}
+
 describe('SDK shutdown behavior', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -20,13 +27,23 @@ describe('SDK shutdown behavior', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
     });
-    vi.stubGlobal('navigator', { userAgent: 'test' });
+    vi.stubGlobal('navigator', { 
+      userAgent: 'test',
+      sendBeacon: vi.fn().mockReturnValue(true)
+    });
+    vi.stubGlobal('Blob', MockBlob);
     
     // Stub global APIs to track restoration
     const originalPushState = window.history.pushState;
     const originalReplaceState = window.history.replaceState;
     (window as any).__originalPushState = originalPushState;
     (window as any).__originalReplaceState = originalReplaceState;
+    
+    vi.stubGlobal('sessionStorage', {
+      getItem: vi.fn(),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    });
   });
 
   afterEach(() => {
@@ -75,5 +92,32 @@ describe('SDK shutdown behavior', () => {
     
     expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
     clearIntervalSpy.mockRestore();
+  });
+
+  it('triggers terminal payload delivery on shutdown', () => {
+    Vigil.init({ projectKey: 'pk_test', debug: true });
+    
+    // Simulate an event so the payload is not empty
+    window.__vigil!.summaryEvents.push({ type: 'js_error', timestampMs: 123 } as any);
+    
+    vi.mocked((globalThis as any).navigator.sendBeacon).mockClear();
+    
+    Vigil.shutdown();
+    
+    expect((globalThis as any).navigator.sendBeacon).toHaveBeenCalledTimes(1);
+    const mockBlob = (globalThis as any).navigator.sendBeacon.mock.calls[0]![1] as MockBlob;
+    const sentPayload = JSON.parse(mockBlob.parts[0]!);
+    expect(sentPayload.isFinal).toBe(true);
+  });
+
+  it('clears session ID from storage on shutdown to prevent reuse', () => {
+    Vigil.init({ projectKey: 'pk_test', debug: true });
+    
+    const removeItemSpy = vi.mocked(sessionStorage.removeItem);
+    removeItemSpy.mockClear();
+    
+    Vigil.shutdown();
+    
+    expect(removeItemSpy).toHaveBeenCalledWith('vigil_session_id');
   });
 });

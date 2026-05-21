@@ -49,3 +49,12 @@ export function getOrCreateSessionId(): string {
   }
 }
 
+export function clearSessionId(): void {
+  fallbackSessionId = undefined;
+  try {
+    const s = sessionStorage;
+    s.removeItem(SESSION_KEY);
+  } catch {
+    // Ignore
+  }
+}
