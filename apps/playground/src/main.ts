@@ -12,10 +12,20 @@ const originalFetch = window.fetch;
 window.fetch = async (...args) => {
   const url = typeof args[0] === 'string' ? args[0] : (args[0] instanceof Request ? args[0].url : '');
   if (url.includes('/api/ingest')) {
-    const req = args[1];
+    let bodyText: string | undefined;
+    if (args[0] instanceof Request) {
+      bodyText = await args[0].clone().text();
+    } else if (typeof args[1]?.body === 'string') {
+      bodyText = args[1].body;
+    }
+
     let payload;
-    if (typeof req?.body === 'string') {
-      payload = JSON.parse(req.body);
+    if (bodyText) {
+      try {
+        payload = JSON.parse(bodyText);
+      } catch (e) {
+        payload = { _parseError: true, raw: bodyText };
+      }
     }
     logTransport('fetch', payload);
     return new Response('{"ok":true}', { status: 200 });
@@ -29,7 +39,11 @@ navigator.sendBeacon = (url, data) => {
   if (typeof url === 'string' && url.includes('/api/ingest')) {
     let payload;
     if (typeof data === 'string') {
-      payload = JSON.parse(data);
+      try {
+        payload = JSON.parse(data);
+      } catch (e) {
+        payload = { _parseError: true, raw: data };
+      }
     } else if (data instanceof Blob) {
       // Blob data is harder to parse synchronously in sendBeacon, just log it as blob
       payload = { _type: 'Blob', size: data.size };
@@ -52,12 +66,19 @@ function updateStatus() {
     return;
   }
 
+  // HTML-escape function to prevent XSS
+  const escapeHtml = (str: string) => {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  };
+
   const newHtml = `
     <div><span class="status-key">Session ID:</span> <span class="status-val">${v.sessionId || 'N/A'}</span></div>
     <div><span class="status-key">Lifecycle Epoch:</span> <span class="status-val">${v.lifecycleEpoch || 0}</span></div>
     <div><span class="status-key">Final Flush Sent:</span> <span class="status-val">${!!v.finalFlushSent}</span></div>
     <div><span class="status-key">Replay Enabled:</span> <span class="status-val">${v.config?.replay !== false}</span></div>
-    <div><span class="status-key">Current URL:</span> <span class="status-val">${window.location.href}</span></div>
+    <div><span class="status-key">Current URL:</span> <span class="status-val">${escapeHtml(window.location.href)}</span></div>
     <div><span class="status-key">Events Queue:</span> <span class="status-val">${v.events?.length || 0}</span></div>
     <div><span class="status-key">Summary Queue:</span> <span class="status-val">${v.summaryEvents?.length || 0}</span></div>
   `;
