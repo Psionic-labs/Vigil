@@ -9,4 +9,6 @@ export default defineConfig({
   clean: true,            // Clean the dist folder before building
   treeshake: true,
   minify: true,           // Minify the output to keep it small
+  noExternal: ["rrweb"],  // Bundle dependencies for accurate size audit
+  metafile: true,         // Generate metafile for bundle analysis
 });
