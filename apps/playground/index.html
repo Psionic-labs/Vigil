@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vigil SDK Playground</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Vigil SDK Debug Playground</h1>
+    </header>
+
+    <div class="layout">
+      <!-- Status Panel -->
+      <section class="panel status-panel">
+        <h2>SDK Status</h2>
+        <div id="status-content">
+          <p>Loading...</p>
+        </div>
+      </section>
+
+      <!-- Triggers Panel -->
+      <section class="panel triggers-panel">
+        <h2>Signal Triggers</h2>
+        
+        <div class="button-group">
+          <button id="btn-js-error">Trigger JS Error</button>
+          <button id="btn-promise-reject">Trigger Promise Rejection</button>
+          <button id="btn-console-error">Trigger Console Error</button>
+          <button id="btn-console-warn">Trigger Console Warning</button>
+        </div>
+        
+        <div class="button-group">
+          <button id="btn-rage-click">Trigger Rage Click</button>
+          <div id="btn-dead-click" class="button-like" style="display:inline-block; padding:8px 12px; background:#333; color:#eee; border:1px solid #555; border-radius:4px; cursor:pointer; font-size:0.9rem;">Trigger Dead Click</div>
+          <button id="btn-sig-click">Trigger Significant Click</button>
+        </div>
+
+        <div class="button-group">
+          <button id="btn-spa-nav">Trigger SPA Navigation</button>
+          <button id="btn-dom-mutation">Trigger DOM Mutation</button>
+        </div>
+
+        <div class="button-group flush-group">
+          <button id="btn-vis-flush">Trigger Visibility Flush</button>
+          <button id="btn-final-flush">Trigger Final Flush / Shutdown</button>
+        </div>
+      </section>
+
+      <!-- Interaction Area -->
+      <section class="panel interaction-panel">
+        <h2>Interaction Area (rrweb validation)</h2>
+        <div class="interaction-sandbox" id="interaction-sandbox">
+          <p>Click, type, or interact here to generate mutations.</p>
+          <input type="text" placeholder="Type something..." />
+          <button>Sample Button</button>
+          <div id="mutation-target" class="mutation-target">Mutation Target</div>
+        </div>
+      </section>
+
+      <!-- Transport Log -->
+      <section class="panel log-panel">
+        <h2>Transport Log</h2>
+        <button id="btn-clear-logs" class="small-btn">Clear Logs</button>
+        <div id="transport-log" class="log-container"></div>
+      </section>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
