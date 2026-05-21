@@ -69,26 +69,39 @@ export function sendFinalBatch(
   debug: boolean,
 ): void {
   const encoder = new TextEncoder();
+  let events = payload.events;
+  let summary = payload.summary;
   let body = JSON.stringify(payload);
   let bodyBytes = encoder.encode(body).length;
 
   // Chromium/Safari beacon and keepalive limit is exactly 64KB.
   // We trim payload if it exceeds 60KB to guarantee delivery of summary triage signals.
   const MAX_PAYLOAD_BYTES = 60000;
-  if (bodyBytes > MAX_PAYLOAD_BYTES && payload.events.length > 0) {
+  if (bodyBytes > MAX_PAYLOAD_BYTES && events.length > 0) {
     if (debug) {
       console.warn(
         `Vigil final flush: payload too large (${bodyBytes} bytes), dropping raw rrweb events`,
       );
     }
-    payload.events = []; // Drop opaque blobs, prioritize structured triage
-    body = JSON.stringify(payload);
+    events = []; // Drop opaque blobs, prioritize structured triage
+    body = JSON.stringify({ ...payload, events, summary });
     bodyBytes = encoder.encode(body).length;
+  }
 
-    if (bodyBytes > MAX_PAYLOAD_BYTES) {
-      // Extreme fallback: trim summary array if somehow still > 60KB
-      payload.summary = payload.summary.slice(-100);
-      body = JSON.stringify(payload);
+  if (bodyBytes > MAX_PAYLOAD_BYTES && summary.length > 0) {
+    if (debug) {
+      console.warn(
+        `Vigil final flush: payload still too large (${bodyBytes} bytes), trimming summary`,
+      );
+    }
+    while (bodyBytes > MAX_PAYLOAD_BYTES && summary.length > 0) {
+      if (summary.length === 1) {
+        summary = [];
+      } else {
+        summary = summary.slice(-Math.floor(summary.length / 2));
+      }
+      body = JSON.stringify({ ...payload, events, summary });
+      bodyBytes = encoder.encode(body).length;
     }
   }
 
@@ -104,7 +117,7 @@ export function sendFinalBatch(
       console.log(
         "Vigil final flush: sendBeacon",
         queued ? "queued" : "rejected",
-        `(${payload.events.length} events, ${payload.summary.length} summary)`,
+        `(${events.length} events, ${summary.length} summary)`,
       );
     }
 
@@ -125,7 +138,7 @@ export function sendFinalBatch(
     if (debug) {
       console.log(
         "Vigil final flush: fetch+keepalive sent",
-        `(${payload.events.length} events, ${payload.summary.length} summary)`,
+        `(${events.length} events, ${summary.length} summary)`,
       );
     }
   } catch {

@@ -51,11 +51,10 @@ export function getOrCreateSessionId(): string {
 
 export function clearSessionId(): void {
   fallbackSessionId = undefined;
-  if (typeof sessionStorage !== "undefined") {
-    try {
-      sessionStorage.removeItem(SESSION_KEY);
-    } catch {
-      // Ignore
-    }
+  try {
+    const s = sessionStorage;
+    s.removeItem(SESSION_KEY);
+  } catch {
+    // Ignore
   }
 }

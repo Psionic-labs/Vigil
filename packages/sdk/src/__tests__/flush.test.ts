@@ -40,6 +40,7 @@ describe('flush mechanics', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -206,9 +207,8 @@ describe('flush mechanics', () => {
     // Now resolve the in-flight periodic flush with failure (ok: false)
     resolveFetch({ ok: false, status: 500, text: async () => 'Error' });
     
-    // Run all pending promises
-    vi.useRealTimers();
-    await new Promise(resolve => setTimeout(resolve, 0));
+    // Run pending promise callbacks while staying on fake timers
+    await vi.runAllTicks();
     
     // The events from the failed periodic flush should NOT be restored to the buffer
     // because state.finalFlushSent is true.
@@ -349,14 +349,10 @@ describe('flush mechanics', () => {
     const mockState = { finalFlushSent: false } as any;
     setupFinalFlush(ctx, mockTimer, mockState);
     
-    // This should trigger the fetch fallback and NOT cause an unhandled rejection
-    // We expect the promise to be caught internally.
-    await expect(async () => {
-      pagehide();
-      // Wait for fetch to reject
-      await new Promise(resolve => setTimeout(resolve, 0));
-    }).not.toThrow();
+    // Trigger the fetch fallback and explicitly observe the rejected promise.
+    pagehide();
     
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+    await expect(fetchSpy.mock.results[0]!.value).rejects.toThrow('Network error');
   });
 });
