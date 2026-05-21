@@ -72,9 +72,10 @@ Top contributors (minified sizes):
 ### 6. Optimization Opportunities (Concrete Reductions)
 Since the budget is exceeded, here are the safest ways to reduce the bundle without prematurely hurting the architecture:
 
-* **Dynamic / Lazy Loading of `rrweb` (Recommended)**: 
+* **Dynamic / Lazy Loading of `rrweb` (Recommended)**:
   * *Change:* Import `rrweb` via a dynamic `import('rrweb')` call during `Vigil.init()` (only if replay is enabled).
-  * *Savings:* Reduces the critical path initial bundle to **< 5 KB gzipped**. `rrweb` is deferred to a secondary async chunk that doesn't block the host app's main thread.
+  * *Savings:* Reduces the critical path initial bundle to **≈ 5 KB gzipped (estimate)**. `rrweb` is deferred to a secondary async chunk that doesn't block the host app's main thread.
+  * *Measurement Conditions:* This estimate assumes production build mode with modern browser targets, standard minification and gzip compression enabled, and that `rrweb` is successfully deferred by the consumer's bundler configuration and not inlined. Actual savings depend on the consumer's build tool (Webpack/Vite/esbuild/Rollup), tree-shaking configuration, and target browser matrix. Note that the dynamic `import('rrweb')` usage in `Vigil.init()` enables code-splitting, but downstream bundler settings may vary the observed size.
 * **Externalize heavy observers (If rrweb supports it):**
   * *Change:* Since `image-bitmap-data-url-worker.js` alone costs almost 7KB minified, we can look into `@rrweb/record` standalone packages or passing config to disable canvas workers if we don't need them, though `rrweb` version 2.x's internal coupling makes this harder to strip via static analysis. 
 * **Custom Snapshotter:** 
