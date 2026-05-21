@@ -1,4 +1,4 @@
-# High Priority Future Improvements
+# High Priority Future Improvements (deferred for now)
 
 ## 1. Replay/Event Chunking
 

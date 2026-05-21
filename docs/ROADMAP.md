@@ -49,8 +49,8 @@ Ship a working `@vigil/sdk` that captures signals and flushes them to an ingest 
 - [x] Implement `Vigil.init()` with all options from `docs/vigil-sdk-contract.md`
 - [x] Implement `sessionSampleRate` check at init
 - [x] Implement `isFinal: true` on final flush
-- [ ] Write a test page that loads the SDK and generates all signal types
-- [ ] Verify gzipped bundle stays under 25KB
+- [x] Write a test page that loads the SDK and generates all signal types
+- [ ] Bundle size audited (25KB budget not yet met)
 
 ---
 
