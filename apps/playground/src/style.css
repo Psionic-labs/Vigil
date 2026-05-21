@@ -1,0 +1,153 @@
+:root {
+  --bg: #1e1e1e;
+  --text: #f0f0f0;
+  --panel-bg: #2a2a2a;
+  --border: #444;
+  --primary: #007acc;
+  --danger: #cc3300;
+}
+
+body {
+  margin: 0;
+  padding: 20px;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+header h1 {
+  font-size: 1.5rem;
+  margin-top: 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 800px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 15px;
+}
+
+.panel h2 {
+  font-size: 1.2rem;
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #ccc;
+}
+
+.button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.flush-group {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 15px;
+}
+
+button {
+  background: #333;
+  color: #eee;
+  border: 1px solid #555;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+button:hover {
+  background: #444;
+}
+
+button:active {
+  background: #555;
+}
+
+#btn-final-flush {
+  background: var(--danger);
+  border-color: #aa2200;
+}
+
+.interaction-sandbox {
+  border: 2px dashed var(--border);
+  padding: 20px;
+  background: #222;
+}
+
+.mutation-target {
+  margin-top: 15px;
+  padding: 10px;
+  background: #333;
+  border: 1px solid #555;
+}
+
+.log-container {
+  background: #111;
+  font-family: monospace;
+  font-size: 0.85rem;
+  padding: 10px;
+  height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.log-entry {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #333;
+}
+
+.log-time {
+  color: #888;
+  margin-right: 8px;
+}
+
+.log-type {
+  color: var(--primary);
+  font-weight: bold;
+}
+
+.log-detail {
+  display: block;
+  color: #aaa;
+  margin-top: 4px;
+}
+
+#status-content {
+  font-family: monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.status-key {
+  color: #888;
+  display: inline-block;
+  width: 150px;
+}
+
+.status-val {
+  color: #eee;
+}
+
+.small-btn {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  margin-bottom: 10px;
+}
