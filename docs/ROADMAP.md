@@ -102,27 +102,27 @@ Run the triage loop for every completed non-noise session.
 
 Build the issue-first developer UI.
 
-- [ ] Init Next.js 14 app (App Router)
-- [ ] Set up Clerk or NextAuth for auth
+- [x] Init Next.js 14 app (App Router)
+- [ ] Set up Clerk or NextAuth for auth (will do in the end)
 - [ ] Project creation flow + display of `public_key` for SDK install
-- [ ] `/issues` — grouped issue list
-  - [ ] Sort by severity, affected sessions, last seen, confidence
-  - [ ] Filter by severity, environment, release, GitHub status
-  - [ ] Severity badge, title, session count, last seen, confidence
-- [ ] `/issues/[id]` — issue detail
-  - [ ] AI bug report: title, root cause, suggested fix, severity, confidence
-  - [ ] Reproduction steps
-  - [ ] Evidence timeline
-  - [ ] Affected sessions list
-  - [ ] Representative replay links
-  - [ ] GitHub action button (placeholder until Milestone 5)
-- [ ] `/sessions` — session list sortable by friction score, date, severity
-- [ ] `/sessions/[id]` — session detail
-  - [ ] rrweb-player replay
-  - [ ] AI issue markers on the playback timeline
-  - [ ] Session summary, friction score, goal completion
-  - [ ] Linked issue groups
-- [ ] `/settings` — SDK install instructions, project key display
+- [x] `/issues` — grouped issue list
+  - [x] Sort by severity, affected sessions, last seen, confidence
+  - [x] Filter by severity, environment, release, GitHub status
+  - [x] Severity badge, title, session count, last seen, confidence
+- [x] `/issues/[id]` — issue detail
+  - [x] AI bug report: title, root cause, suggested fix, severity, confidence
+  - [x] Reproduction steps
+  - [x] Evidence timeline
+  - [x] Affected sessions list
+  - [x] Representative replay links
+  - [x] GitHub action button (placeholder until Milestone 5)
+- [x] `/sessions` — session list sortable by friction score, date, severity
+- [x] `/sessions/[id]` — session detail
+  - [x] rrweb-player replay
+  - [x] AI issue markers on the playback timeline
+  - [x] Session summary, friction score, goal completion
+  - [x] Linked issue groups
+- [x] `/settings` — SDK install instructions, project key display
 - [ ] Test full loop: SDK → ingest → triage → issue visible in dashboard
 
 ---
