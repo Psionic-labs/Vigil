@@ -5,7 +5,7 @@ import { Search } from "lucide-react";
 import { MOCK_ISSUES } from "@/lib/mock-data";
 import { IssueRow } from "@/components/issues/IssueRow";
 import { Skeleton } from "@/components/shared/Skeleton";
-import type { Severity, IssueStatus } from "@/lib/types";
+import type { Severity } from "@/lib/types";
 
 const FILTER_CHIPS = [
   { key: "all", label: "All" },
@@ -16,6 +16,8 @@ const FILTER_CHIPS = [
   { key: "linked", label: "Linked to GitHub" },
   { key: "ignored", label: "Ignored" },
 ];
+
+const severityWeight: Record<Severity, number> = { P0: 4, P1: 3, P2: 2, P3: 1 };
 
 export default function IssuesPage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -55,7 +57,6 @@ export default function IssuesPage() {
     // 3. Sort
     result.sort((a, b) => {
       if (sortBy === "severity") {
-        const severityWeight = { P0: 4, P1: 3, P2: 2, P3: 1 };
         const aWeight = severityWeight[a.severity] || 0;
         const bWeight = severityWeight[b.severity] || 0;
         if (aWeight !== bWeight) return bWeight - aWeight;

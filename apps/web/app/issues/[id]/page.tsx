@@ -9,7 +9,6 @@ import { GitHubActionPanel } from "@/components/issues/GitHubActionPanel";
 import { TriageActions } from "@/components/issues/TriageActions";
 import { FrictionBar } from "@/components/sessions/FrictionBar";
 import { RelativeTime } from "@/components/shared/RelativeTime";
-import { InlineCode } from "@/components/shared/CodeBlock";
 import { formatDuration, formatRelativeTime } from "@/lib/utils";
 
 export default function IssueDetailPage({ params }: { params: { id: string } }) {

@@ -77,9 +77,11 @@ export function CodeBlock({ code, language = "typescript" }: { code: string; lan
         <span className="text-text-3 text-xs font-mono">{language}</span>
         <button
           onClick={handleCopy}
-          className="text-text-3 hover:text-text-1 transition-colors opacity-0 group-hover:opacity-100"
+          aria-label={copied ? "Copied" : "Copy code"}
+          className="text-text-3 hover:text-text-1 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
+          <span className="sr-only">{copied ? "Copied" : "Copy code"}</span>
         </button>
       </div>
       <Highlight theme={themes.vsDark} code={code.trim()} language={highlightedLanguage}>
