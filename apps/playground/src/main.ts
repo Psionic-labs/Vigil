@@ -23,7 +23,7 @@ window.fetch = async (...args) => {
     if (bodyText) {
       try {
         payload = JSON.parse(bodyText);
-      } catch (e) {
+      } catch {
         payload = { _parseError: true, raw: bodyText };
       }
     }
@@ -41,7 +41,7 @@ navigator.sendBeacon = (url, data) => {
     if (typeof data === 'string') {
       try {
         payload = JSON.parse(data);
-      } catch (e) {
+      } catch {
         payload = { _parseError: true, raw: data };
       }
     } else if (data instanceof Blob) {
