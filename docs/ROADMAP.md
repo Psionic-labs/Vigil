@@ -50,7 +50,7 @@ Ship a working `@vigil/sdk` that captures signals and flushes them to an ingest 
 - [x] Implement `sessionSampleRate` check at init
 - [x] Implement `isFinal: true` on final flush
 - [x] Write a test page that loads the SDK and generates all signal types
-- [ ] Bundle size audited (25KB budget not yet met)
+- [ ] Bundle size audited (25KB budget not yet met) -- 27KB. 
 
 ---
 
