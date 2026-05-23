@@ -15,7 +15,7 @@
     "framer-motion": "^12.40.0",
     "geist": "^1.7.1",
     "lucide-react": "^1.16.0",
-    "next": "14.2.35",
+    "next": "15.5.18",
     "prism-react-renderer": "^2.4.1",
     "radix-ui": "^1.4.3",
     "react": "^18.3.1",
