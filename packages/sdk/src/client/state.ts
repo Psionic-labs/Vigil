@@ -1,3 +1,9 @@
+/**
+ * @file state.ts
+ * @description Centralized state management for the SDK.
+ * Holds memory buffers for rrweb events and summary events, enforcing strict 
+ * bounds limits to prevent browser OOM (Out of Memory) crashes.
+ */
 import type { SummaryEvent, SessionMetadata } from "../types";
 
 // Derive the event type from rrweb's own record signature
@@ -16,7 +22,7 @@ export interface SDKState {
   summaryEvents: SummaryEvent[];
   metadata: SessionMetadata | null;
   /**
-   * [j76y39] After a terminal flush attempt, the SDK prevents any future
+   * After a terminal flush attempt, the SDK prevents any future
    * periodic or retry-based flush activity for that session lifecycle.
    */
   finalFlushSent: boolean;

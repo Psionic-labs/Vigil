@@ -1,3 +1,9 @@
+/**
+ * @file dead-click-detector.ts
+ * @description Detects when a user clicks on an element but the DOM fails to react.
+ * Uses a combination of a global click listener and a transient MutationObserver 
+ * to verify if a click resulted in visual feedback within a 500ms window.
+ */
 import type { SummaryEvent } from "../types";
 import type { NavigationCallback } from "./navigation-observer";
 

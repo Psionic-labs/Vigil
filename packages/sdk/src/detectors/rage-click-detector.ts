@@ -1,3 +1,9 @@
+/**
+ * @file rage-click-detector.ts
+ * @description Identifies user frustration by tracking rapid, clustered clicks.
+ * Enforces a spatial boundary (clicks must be close to each other) and a temporal 
+ * boundary (must occur within 2 seconds) to accurately classify a rage click.
+ */
 import type { SummaryEvent } from "../types";
 
 export interface RageClickContext {

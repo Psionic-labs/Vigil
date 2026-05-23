@@ -1,3 +1,9 @@
+/**
+ * @file final-flush.ts
+ * @description Handles terminal data flushing during browser unload events (`pagehide`, `beforeunload`).
+ * Also manages non-destructive opportunistic "visibility" flushes when the tab is hidden, ensuring 
+ * data is not lost if mobile operating systems terminate the backgrounded browser process.
+ */
 import { sendFinalBatch } from "./transport";
 import type { FlushContext, FlushTimer } from "./shared";
 import { buildPayload, buildSnapshotPayload, restoreBuffer } from "./shared";

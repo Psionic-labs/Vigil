@@ -1,10 +1,10 @@
 /**
- * types.ts
- *
- * Shared type definitions for the Vigil SDK.
- * These mirror the frozen v1 contract from docs/vigil-sdk-contract.md.
+ * @file types.ts
+ * @description Shared type definitions and interfaces for the Vigil SDK.
+ * These definitions represent the rigid data contracts expected by the ingest API,
+ * as well as the initialization options provided by the host application.
+ * Mirrors the v1 contract outlined in docs/vigil-sdk-contract.md.
  */
-
 // ---------------------------------------------------------------------------
 // Init options
 // ---------------------------------------------------------------------------

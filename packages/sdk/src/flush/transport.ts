@@ -1,3 +1,10 @@
+/**
+ * @file transport.ts
+ * @description The low-level network layer of the SDK.
+ * Implements `fetch` with AbortControllers for standard periodic flushes, and 
+ * fallbacks via `navigator.sendBeacon` and `keepalive` for final unload flushes.
+ * Enforces strict 64KB payload limits for beacon requests.
+ */
 import type { IngestPayload } from "../types";
 
 /**

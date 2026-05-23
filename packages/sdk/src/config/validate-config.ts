@@ -1,3 +1,9 @@
+/**
+ * @file validate-config.ts
+ * @description Performs structural and logical validation of the SDK configuration.
+ * Warns developers of misconfigurations in debug mode, and enforces safety bounds
+ * (like ensuring sample rates remain between 0 and 1).
+ */
 import type { NormalizedVigilOptions } from "../types";
 import { DEFAULT_CONFIG } from "./defaults";
 

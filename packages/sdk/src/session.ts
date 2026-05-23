@@ -1,7 +1,6 @@
 /**
- * session.ts
- *
- * Manages the Vigil session ID for a browser tab.
+ * @file session.ts
+ * @description Manages the Vigil session ID for a browser tab.
  *
  * Rules:
  *  - One session ID per browser tab lifetime (sessionStorage is tab-scoped).

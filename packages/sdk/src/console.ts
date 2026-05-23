@@ -1,3 +1,9 @@
+/**
+ * @file console.ts
+ * @description Captures and processes explicit console logging (console.error).
+ * Monkey-patches global console methods to extract arguments, safely serialize them,
+ * and push lightweight summary events to the SDK state without blocking the host application.
+ */
 import type { SummaryEvent } from "./types";
 
 const MAX_MSG_LEN = 500;

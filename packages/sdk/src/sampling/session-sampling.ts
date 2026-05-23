@@ -1,7 +1,8 @@
 /**
- * session-sampling.ts
- *
- * Implements deterministic session sampling logic based on a configured rate.
+ * @file session-sampling.ts
+ * @description Implements deterministic session sampling logic.
+ * Evaluates `Math.random()` against the configured `sessionSampleRate` once per 
+ * session initialization, securely storing the result.
  */
 
 import { getStoredSamplingDecision, saveSamplingDecision } from "./sampling-storage";
