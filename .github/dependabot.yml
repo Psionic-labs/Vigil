@@ -1,16 +1,34 @@
 version: 2
+
 updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
 
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+
+      production-dependencies:
+        dependency-type: "production"
+
   - package-ecosystem: "npm"
     directory: "/apps/api"
     schedule:
       interval: "weekly"
 
+    groups:
+      api-dependencies:
+        patterns:
+          - "*"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+
+    groups:
+      github-actions:
+        patterns:
+          - "*"
