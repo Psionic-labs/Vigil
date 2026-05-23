@@ -5,21 +5,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-
     groups:
-      dev-dependencies:
-        dependency-type: "development"
-
-      production-dependencies:
-        dependency-type: "production"
-
-  - package-ecosystem: "npm"
-    directory: "/apps/api"
-    schedule:
-      interval: "weekly"
-
-    groups:
-      api-dependencies:
+      all-dependencies:
         patterns:
           - "*"
 
@@ -27,7 +14,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-
     groups:
       github-actions:
         patterns:

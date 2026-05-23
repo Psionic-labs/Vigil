@@ -9,7 +9,7 @@ import { GitHubActionPanel } from "@/components/issues/GitHubActionPanel";
 import { TriageActions } from "@/components/issues/TriageActions";
 import { FrictionBar } from "@/components/sessions/FrictionBar";
 import { RelativeTime } from "@/components/shared/RelativeTime";
-import { formatDuration, formatRelativeTime } from "@/lib/utils";
+import { formatDuration } from "@/lib/utils";
 
 export default function IssueDetailPage({ params }: { params: { id: string } }) {
   const issue = MOCK_ISSUES.find(i => i.id === params.id);

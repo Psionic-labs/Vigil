@@ -6,7 +6,8 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "eslint . && turbo lint",
-    "type-check": "turbo type-check"
+    "type-check": "turbo type-check",
+    "typecheck": "turbo type-check"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
