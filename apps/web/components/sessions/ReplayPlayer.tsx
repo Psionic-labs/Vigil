@@ -10,7 +10,7 @@ interface ReplayPlayerProps {
 
 export function ReplayPlayer({ session }: ReplayPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0); // 0 to 100
+  const [progress] = useState(0); // 0 to 100
 
   // Mock events for the timeline based on session
   const events = [
@@ -49,6 +49,9 @@ export function ReplayPlayer({ session }: ReplayPlayerProps) {
         <div className="h-16 border-t border-border bg-surface flex items-center px-4 gap-4 shrink-0">
           <button 
             onClick={() => setIsPlaying(!isPlaying)}
+            aria-label={isPlaying ? "Pause playback" : "Play playback"}
+            aria-pressed={isPlaying}
+            title={isPlaying ? "Pause playback" : "Play playback"}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-surface-2 border border-border hover:bg-bg hover:shadow-sm transition-all text-text-1 shrink-0"
           >
             {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-1" />}
@@ -63,7 +66,7 @@ export function ReplayPlayer({ session }: ReplayPlayerProps) {
               />
             </div>
             <span className="text-xs font-mono text-text-3 w-10 shrink-0">
-              0{Math.floor(session.duration_ms / 60000)}:{String(Math.floor((session.duration_ms % 60000) / 1000)).padStart(2, '0')}
+              {Math.floor(session.duration_ms / 60000)}:{String(Math.floor((session.duration_ms % 60000) / 1000)).padStart(2, '0')}
             </span>
           </div>
         </div>

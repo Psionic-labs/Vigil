@@ -102,6 +102,18 @@ body::before {
 .stagger-item:nth-child(10) { animation-delay: 500ms; }
 .stagger-item:nth-child(n+11) { animation-delay: 550ms; }
 
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .badge-p0,
+  .stagger-item {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    box-shadow: none !important;
+    background-position: 0 0 !important;
+  }
+}
+
 /* ── Focus ring utility ── */
 .focus-ring:focus-visible {
   outline: 2px solid rgb(var(--accent));

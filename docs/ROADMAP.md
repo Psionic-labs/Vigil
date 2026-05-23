@@ -122,7 +122,7 @@ Build the issue-first developer UI.
   - [x] AI issue markers on the playback timeline
   - [x] Session summary, friction score, goal completion
   - [x] Linked issue groups
-- [ ] `/settings` — SDK install instructions, project key display
+- [x] `/settings` — SDK install instructions, project key display
 - [ ] Test full loop: SDK → ingest → triage → issue visible in dashboard
 
 ---

@@ -66,7 +66,7 @@ export function GitHubActionPanel({ issue, project }: { issue: IssueGroup; proje
               <summary className="hover:text-text-2">Preview issue content</summary>
               <div className="mt-2 p-2 bg-surface-2 rounded border border-border text-text-2 leading-relaxed">
                 <p className="font-mono text-text-3 mb-1">## {issue.title}</p>
-                <p>**Severity:** {issue.severity} | **Confidence:** {Math.round(issue.confidence * 100)}%</p>
+                <p><strong>Severity:</strong> {issue.severity} | <strong>Confidence:</strong> {Math.round(issue.confidence * 100)}%</p>
                 <p className="mt-1 truncate">{issue.root_cause.slice(0, 80)}…</p>
               </div>
             </details>

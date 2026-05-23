@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { ArrowLeft, Users, Clock, Calendar } from "lucide-react";
 import Link from "next/link";
-import { MOCK_ISSUES, MOCK_EVENTS, MOCK_SESSIONS, MOCK_PROJECT } from "@/lib/mock-data";
+import { MOCK_ISSUES, MOCK_EVENTS, MOCK_SESSIONS, MOCK_PROJECT, MOCK_ISSUE_INSTANCES } from "@/lib/mock-data";
 import { IssueBadge } from "@/components/issues/IssueBadge";
 import { ConfidenceBadge } from "@/components/shared/ConfidenceBadge";
 import { EvidenceTimeline } from "@/components/issues/EvidenceTimeline";
@@ -17,7 +17,15 @@ export default function IssueDetailPage({ params }: { params: { id: string } }) 
   if (!issue) notFound();
 
   const steps: string[] = JSON.parse(issue.reproduction_steps_json);
-  const affectedSessions = MOCK_SESSIONS.filter(s => s.issue_group_count > 0).slice(0, 5);
+  const affectedSessionIds = new Set(
+    MOCK_ISSUE_INSTANCES
+      .filter(instance => instance.issue_group_id === issue.id)
+      .map(instance => instance.session_id)
+  );
+  const affectedSessions = Array.from(affectedSessionIds)
+    .map(sessionId => MOCK_SESSIONS.find(session => session.id === sessionId))
+    .filter((session): session is (typeof MOCK_SESSIONS)[number] => Boolean(session))
+    .slice(0, 5);
   const relatedIssues = MOCK_ISSUES.filter(i => i.id !== issue.id && i.severity <= issue.severity).slice(0, 3);
 
   return (
@@ -122,7 +130,9 @@ export default function IssueDetailPage({ params }: { params: { id: string } }) 
                 </tbody>
               </table>
               <div className="px-4 py-2 border-t border-border">
-                <button className="text-xs text-accent hover:underline">Show all {issue.affected_session_count} sessions</button>
+                <Link href={`/sessions?issue=${issue.id}`} className="text-xs text-accent hover:underline">
+                  Show all {issue.affected_session_count} sessions
+                </Link>
               </div>
             </div>
           </div>

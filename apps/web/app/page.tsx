@@ -11,9 +11,9 @@ export default function OverviewDashboard() {
   const stats = useMemo(() => {
     const openIssues = MOCK_ISSUES.filter(i => i.status === "open" || i.status === "linked").length;
     const totalSessions = MOCK_SESSIONS.length;
-    const avgFriction = Math.round(
-      MOCK_SESSIONS.reduce((acc, s) => acc + (s.ai_friction_score || 0), 0) / MOCK_SESSIONS.length
-    );
+    const avgFriction = totalSessions > 0
+      ? Math.round(MOCK_SESSIONS.reduce((acc, s) => acc + (s.ai_friction_score || 0), 0) / totalSessions)
+      : 0;
     const p0Count = MOCK_ISSUES.filter(i => i.severity === "P0" && (i.status === "open" || i.status === "linked")).length;
     const p1Count = MOCK_ISSUES.filter(i => i.severity === "P1" && (i.status === "open" || i.status === "linked")).length;
     const p2Count = MOCK_ISSUES.filter(i => i.severity === "P2" && (i.status === "open" || i.status === "linked")).length;
@@ -23,7 +23,9 @@ export default function OverviewDashboard() {
   }, []);
 
   const recentIssues = MOCK_ISSUES.slice(0, 4);
-  const recentSessions = MOCK_SESSIONS.slice(0, 3); // Fit in card better
+  const recentSessions = [...MOCK_SESSIONS]
+    .sort((a, b) => (b.ai_friction_score || 0) - (a.ai_friction_score || 0))
+    .slice(0, 3);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto bg-bg">
@@ -142,7 +144,7 @@ export default function OverviewDashboard() {
               <table className="w-full text-sm min-w-[800px]">
                 <thead className="bg-surface border-b border-border">
                   <tr>
-                    {["Session ID", "URL", "Friction", "Goal", "Issues", "Signals", "Duration", "Env", "Started", ""].map(h => (
+                    {["Session ID", "URL", "Friction", "Goal", "Issues", "Signals", "Duration", "Env", "Started", "Actions"].map(h => (
                       <th key={h} className="text-left px-4 py-2 text-[10px] font-semibold text-text-3 uppercase tracking-wider whitespace-nowrap">
                         {h}
                       </th>

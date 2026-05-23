@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Copy, Eye, EyeOff, GitBranch, Check } from "lucide-react";
 import { MOCK_PROJECT } from "@/lib/mock-data";
 import { CodeBlock } from "@/components/shared/CodeBlock";
+import { useToast } from "@/components/shared/Toast";
 
 const INSTALL_SCRIPT = `<script src="https://cdn.vigil.dev/sdk.js" defer></script>
 <script>
@@ -20,16 +21,55 @@ import { Vigil } from "@vigil/sdk";
 Vigil.init({ projectKey: "${MOCK_PROJECT.public_key}" });`;
 
 export default function SettingsPage() {
+  const { toast } = useToast();
   const [keyVisible, setKeyVisible] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [autoRaise, setAutoRaise] = useState(MOCK_PROJECT.github_auto_raise_enabled);
   const [aiComments, setAiComments] = useState(MOCK_PROJECT.github_comment_enabled);
-  const [connected] = useState(true);
+  const [connected, setConnected] = useState(true);
+  const [severity, setSeverity] = useState(MOCK_PROJECT.github_auto_raise_severity);
+  const [confidence, setConfidence] = useState(Math.round(MOCK_PROJECT.github_auto_raise_min_confidence * 100));
+  const [projectName, setProjectName] = useState(MOCK_PROJECT.name);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(MOCK_PROJECT.public_key);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleCopy = async () => {
+    if (!navigator.clipboard) {
+      const message = "Clipboard access is not available in this browser.";
+      setCopied(false);
+      setCopyError(message);
+      toast(message, "error");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(MOCK_PROJECT.public_key);
+      setCopyError(null);
+      setCopied(true);
+      toast("Project key copied", "success");
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy project key", error);
+      setCopied(false);
+      setCopyError("Unable to copy project key.");
+      toast("Unable to copy project key", "error");
+    }
+  };
+
+  const handleDisconnect = () => {
+    setConnected(false);
+    toast("GitHub repository disconnected", "success");
   };
 
   return (
@@ -75,6 +115,7 @@ export default function SettingsPage() {
                   {copied ? "Copied" : "Copy"}
                 </button>
               </div>
+              {copyError && <p className="text-xs text-p0">{copyError}</p>}
             </div>
           </section>
 
@@ -96,7 +137,10 @@ export default function SettingsPage() {
                     <p className="text-sm font-medium text-text-1">{MOCK_PROJECT.github_repo}</p>
                     <p className="text-xs text-success mt-0.5">Connected</p>
                   </div>
-                  <button className="text-xs text-text-3 hover:text-p0 transition-colors px-3 py-1.5 rounded border border-border hover:border-p0/30">
+                  <button
+                    onClick={handleDisconnect}
+                    className="text-xs text-text-3 hover:text-p0 transition-colors px-3 py-1.5 rounded border border-border hover:border-p0/30"
+                  >
                     Disconnect
                   </button>
                 </div>
@@ -110,6 +154,9 @@ export default function SettingsPage() {
                     </div>
                     <button
                       onClick={() => setAutoRaise(!autoRaise)}
+                      role="switch"
+                      aria-checked={autoRaise}
+                      aria-label="Toggle auto-raise issues"
                       className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${autoRaise ? "bg-accent" : "bg-surface-2 border border-border"}`}
                     >
                       <div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform ${autoRaise ? "translate-x-5" : "translate-x-0.5"}`} />
@@ -126,7 +173,9 @@ export default function SettingsPage() {
                               <input
                                 type="radio"
                                 name="severity"
-                                defaultChecked={MOCK_PROJECT.github_auto_raise_severity === opt}
+                                value={opt}
+                                checked={severity === opt}
+                                onChange={(e) => setSeverity(e.target.value as typeof severity)}
                                 className="accent-accent"
                               />
                               <span className="text-sm text-text-1">{opt} only</span>
@@ -135,9 +184,15 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <p className="text-xs text-text-3">Minimum Confidence: <span className="font-mono text-text-1">{Math.round(MOCK_PROJECT.github_auto_raise_min_confidence * 100)}%</span></p>
-                        <input type="range" min={50} max={100} defaultValue={Math.round(MOCK_PROJECT.github_auto_raise_min_confidence * 100)}
-                          className="w-full accent-accent" />
+                        <p className="text-xs text-text-3">Minimum Confidence: <span className="font-mono text-text-1">{confidence}%</span></p>
+                        <input
+                          type="range"
+                          min={50}
+                          max={100}
+                          value={confidence}
+                          onChange={(e) => setConfidence(Number(e.target.value))}
+                          className="w-full accent-accent"
+                        />
                       </div>
                     </div>
                   )}
@@ -151,6 +206,9 @@ export default function SettingsPage() {
                   </div>
                   <button
                     onClick={() => setAiComments(!aiComments)}
+                    role="switch"
+                    aria-checked={aiComments}
+                    aria-label="Toggle AI follow-up comments"
                     className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${aiComments ? "bg-accent" : "bg-surface-2 border border-border"}`}
                   >
                     <div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform ${aiComments ? "translate-x-5" : "translate-x-0.5"}`} />
@@ -174,7 +232,8 @@ export default function SettingsPage() {
               <div className="space-y-1.5">
                 <label className="text-xs text-text-3 uppercase tracking-wider font-semibold">Project Name</label>
                 <input
-                  defaultValue={MOCK_PROJECT.name}
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
                   className="w-full bg-surface border border-border rounded-md px-3 py-2 text-sm text-text-1 focus:outline-none focus:border-accent transition-colors"
                 />
               </div>

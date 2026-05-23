@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, UserPlus, EyeOff, User } from "lucide-react";
 import { useToast } from "@/components/shared/Toast";
 import type { IssueGroup } from "@/lib/types";
@@ -8,7 +8,11 @@ import type { IssueGroup } from "@/lib/types";
 export function TriageActions({ issue }: { issue: IssueGroup }) {
   const { toast } = useToast();
   const [isAssigned, setIsAssigned] = useState(false);
-  const [isResolved, setIsResolved] = useState(false);
+  const [isResolved, setIsResolved] = useState(issue.status === "resolved");
+
+  useEffect(() => {
+    setIsResolved(issue.status === "resolved");
+  }, [issue.status]);
 
   const handleAssign = () => {
     const newState = !isAssigned;

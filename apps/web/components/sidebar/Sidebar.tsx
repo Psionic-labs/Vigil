@@ -7,6 +7,7 @@ import { MOCK_PROJECT, MOCK_ISSUES } from "@/lib/mock-data";
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const openIssuesCount = MOCK_ISSUES.filter(i => i.status === "open" || i.status === "linked").length;
+  const sidebarId = "sidebar";
 
   return (
     <>
@@ -20,6 +21,9 @@ export function Sidebar() {
         </div>
         <button 
           onClick={() => setIsOpen(true)}
+          aria-label="Open sidebar"
+          aria-controls={sidebarId}
+          aria-expanded={isOpen}
           className="p-1 -mr-1 text-text-2 hover:text-text-1"
         >
           <Menu size={20} />
@@ -35,15 +39,22 @@ export function Sidebar() {
       )}
 
       {/* Sidebar Drawer */}
-      <aside className={`
+      <aside
+        id={sidebarId}
+        role="navigation"
+        className={`
         fixed inset-y-0 left-0 z-50 w-[240px] flex-shrink-0 flex flex-col bg-surface border-r border-border transform transition-transform duration-200 ease-in-out
         md:relative md:translate-x-0 md:h-screen md:sticky md:top-0
         ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
-      `}>
+      `}
+      >
         {/* Mobile Close Button (only visible on mobile when open) */}
         <div className="md:hidden absolute top-3 right-3">
           <button 
             onClick={() => setIsOpen(false)}
+            aria-label="Close sidebar"
+            aria-controls={sidebarId}
+            aria-expanded={isOpen}
             className="p-1 text-text-3 hover:text-text-1 bg-surface-2 rounded-md border border-border"
           >
             <X size={16} />

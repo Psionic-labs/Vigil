@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Vigil Web Dashboard
+
+Next.js dashboard for the Vigil issue triage workflow. The app currently runs against mock data in `lib/mock-data.ts` and exposes the main issue, session replay, and settings surfaces used by the MVP.
 
 ## Getting Started
 
-First, run the development server:
+Install dependencies from the repo root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Run the web app:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cd apps/web
+pnpm dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open http://localhost:3000. No environment variables are required for the mock dashboard today. When API/auth integration lands, add local values in `apps/web/.env.local`.
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm dev     # Next.js development server
+pnpm build   # Production build
+pnpm start   # Serve the production build
+pnpm lint    # Next.js lint checks
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+From the repo root, `pnpm dev`, `pnpm build`, and `pnpm lint` run through Turborepo.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Key Routes
 
-## Deploy on Vercel
+- `/` shows the overview dashboard, severity breakdown, triage inbox, and high-friction sessions.
+- `/issues` lists grouped AI findings with search, filter chips, and sorting.
+- `/issues/[id]` shows the AI bug report, reproduction steps, evidence, affected sessions, and GitHub actions.
+- `/sessions` lists analyzed sessions with friction, signals, and environment metadata.
+- `/sessions/[id]` shows session replay context and timeline details.
+- `/settings` contains SDK install snippets, project key controls, and GitHub automation settings.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Where To Edit
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Main dashboard: `app/page.tsx`
+- Issue pages: `app/issues/page.tsx` and `app/issues/[id]/page.tsx`
+- Session pages: `app/sessions/page.tsx` and `app/sessions/[id]/page.tsx`
+- Shared UI: `components/shared`
+- Mock data and utilities: `lib/mock-data.ts`, `lib/types.ts`, and `lib/utils.ts`
+
+## Deployment
+
+Deploy the app as a standard Next.js project. Vercel is the easiest path: set the project root to `apps/web`, use `pnpm build`, and add any future API/auth environment variables in the Vercel dashboard.
+
+## Troubleshooting
+
+- If dependencies look stale, run `pnpm install` at the repo root.
+- If port 3000 is busy, start Next with `pnpm dev -- -p 3001`.
+- If dashboard data looks wrong, check `apps/web/lib/mock-data.ts` first; most screens currently read directly from that file.

@@ -8,7 +8,7 @@ export function formatDuration(ms: number): string {
 }
 
 export function formatRelativeTime(unixMs: number): string {
-  const diff = Date.now() - unixMs;
+  const diff = Math.max(0, Date.now() - unixMs);
   const s = Math.floor(diff / 1000);
   if (s < 60) return `${s}s ago`;
   const m = Math.floor(s / 60);
@@ -20,8 +20,9 @@ export function formatRelativeTime(unixMs: number): string {
 }
 
 export function formatTimestampOffset(ms: number): string {
+  const sign = ms >= 0 ? "+" : "";
   const s = (ms / 1000).toFixed(1);
-  return `+${s}s`;
+  return `${sign}${s}s`;
 }
 
 export function frictionColor(score: number): string {

@@ -46,7 +46,11 @@ export function SessionRow({ session }: { session: Session }) {
       </td>
       <td className="px-4 py-3"><RelativeTime unixMs={session.started_at} /></td>
       <td className="px-4 py-3">
-        <Link href={`/sessions/${session.id}`} className="opacity-0 group-hover:opacity-100 transition-opacity">
+        <Link
+          href={`/sessions/${session.id}`}
+          aria-label={`View session ${session.id}`}
+          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity"
+        >
           <ArrowRight size={14} className="text-accent" />
         </Link>
       </td>

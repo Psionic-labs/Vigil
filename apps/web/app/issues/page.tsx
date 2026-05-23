@@ -94,6 +94,7 @@ export default function IssuesPage() {
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-3" />
           <input
             type="text"
+            aria-label="Search issues"
             placeholder="Search issues..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -103,6 +104,7 @@ export default function IssuesPage() {
 
         {/* Sort */}
         <select 
+          aria-label="Sort issues"
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value)}
           className="text-sm bg-surface border border-border rounded-md text-text-2 px-2 py-1.5 focus:outline-none focus:border-accent"
@@ -122,6 +124,7 @@ export default function IssuesPage() {
             <button
               key={chip.key}
               onClick={() => setActiveFilter(chip.key)}
+              aria-pressed={isActive}
               className={`flex-shrink-0 text-xs px-3 py-1 rounded-full border transition-colors ${
                 isActive
                   ? "bg-accent/10 text-accent border-accent/30"
