@@ -33,24 +33,24 @@ Ship a working `@vigil/sdk` that captures signals and flushes them to an ingest 
 
 - [x] Init TypeScript package, configure `tsup` for dual CJS/ESM build
 - [x] Integrate `rrweb/record` for DOM capture
-- [ ] Implement session ID generation and persistence via `sessionStorage`
+- [x] Implement session ID generation and persistence via `sessionStorage`
 - [x] Implement in-memory event buffer
-- [ ] Implement flush timer (default 5s)
-- [ ] Implement `navigator.sendBeacon` final flush on `beforeunload`/`pagehide`
-- [ ] Implement retry logic: up to 3 retries on failed normal flushes, then drop silently
-- [ ] Wire `window.onerror` and `window.onunhandledrejection` → JS error summary events
-- [ ] Wire `console.error` monkey patch → console error summary events
-- [ ] Wire `fetch` and `XMLHttpRequest` interceptors → network failure summary events (4xx/5xx only)
-- [ ] Implement rage click detection (3+ clicks, 500px area, 2s window)
-- [ ] Implement dead click detection (click + no DOM mutation/navigation within 500ms)
-- [ ] Implement significant click summary events (`button`, `a`, `[role=button]`)
-- [ ] Implement SPA navigation tracking (`pushState`, `replaceState`, `popstate`)
-- [ ] Implement `maskAllInputs` (default on) and always-on password masking
-- [ ] Implement `Vigil.init()` with all options from `docs/vigil-sdk-contract.md`
-- [ ] Implement `sessionSampleRate` check at init
-- [ ] Implement `isFinal: true` on final flush
-- [ ] Write a test page that loads the SDK and generates all signal types
-- [ ] Verify gzipped bundle stays under 25KB
+- [x] Implement flush timer (default 5s)
+- [x] Implement `navigator.sendBeacon` final flush on `beforeunload`/`pagehide`
+- [x] Implement retry logic: up to 3 retries on failed normal flushes, then drop silently
+- [x] Wire `window.onerror` and `window.onunhandledrejection` → JS error summary events
+- [x] Wire `console.error` monkey patch → console error summary events
+- [x] Wire `fetch` and `XMLHttpRequest` interceptors → network failure summary events (4xx/5xx only) -- squash and merged May 15
+- [x] Implement rage click detection (3+ clicks, 500px area, 2s window) -- May 15 onwards 
+- [x] Implement dead click detection (click + no DOM mutation/navigation within 500ms)
+- [x] Implement significant click summary events (`button`, `a`, `[role=button]`)
+- [x] Implement SPA navigation tracking (`pushState`, `replaceState`, `popstate`)
+- [x] Implement `maskAllInputs` (default on) and always-on password masking
+- [x] Implement `Vigil.init()` with all options from `docs/vigil-sdk-contract.md`
+- [x] Implement `sessionSampleRate` check at init
+- [x] Implement `isFinal: true` on final flush
+- [x] Write a test page that loads the SDK and generates all signal types
+- [ ] Bundle size audited (25KB budget not yet met)
 
 ---
 

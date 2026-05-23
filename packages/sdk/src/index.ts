@@ -1,59 +1,29 @@
-import { record } from "rrweb";
-
-// Derive the event type from rrweb's own record signature - no separate @rrweb/types import needed
-type RecordOptions = NonNullable<Parameters<typeof record>[0]>;
-type RrwebEvent = NonNullable<RecordOptions["emit"]> extends (e: infer E, ...args: any[]) => void ? E : never;
-
 /**
- * @vigil/sdk
- * Core SDK for Vigil analytics and bug triage.
+ * @file index.ts
+ * @description Main entry point for the Vigil SDK. 
+ * This file exposes the public API surface that consuming applications will interact with.
+ * It primarily exports the singleton `Vigil` object and its `init` method, alongside 
+ * necessary TypeScript interfaces for configuration and events.
  */
 
-export interface VigilOptions {
-  projectKey: string;
-  debug?: boolean;
-}
+import type { VigilOptions, SummaryEvent, SessionMetadata } from "./types";
+import { Vigil } from "./client/vigil-client";
 
-// Track initialization to prevent duplicate rrweb observers
-let initialized = false;
+// Export core types for consumers who need strictly typed configurations or event interfaces.
+export type { VigilOptions, SummaryEvent, SessionMetadata };
 
-export function init(options: VigilOptions) {
-  // SSR guard: rrweb requires browser globals
-  if (typeof window === "undefined" || typeof document === "undefined") {
-    return;
-  }
+/**
+ * Initializes the Vigil SDK observability agent.
+ * This is an alias for `Vigil.init()`.
+ * 
+ * @example
+ * import { init } from '@vigil/sdk';
+ * init({ projectKey: 'pk_123', endpoint: 'https://ingest.vigil.com' });
+ */
+export const init = Vigil.init;
 
-  if (!options.projectKey) {
-    console.error("Vigil SDK: projectKey is required.");
-    return;
-  }
-
-  // Prevent duplicate rrweb record() calls (e.g. React StrictMode, HMR)
-  if (initialized) {
-    if (options.debug) console.warn("Vigil SDK: already initialized, skipping.");
-    return;
-  }
-  initialized = true;
-
-  if (options.debug) {
-    console.log("Vigil SDK initialized with project key:", options.projectKey);
-  }
-
-  const events: RrwebEvent[] = [];
-
-  // Start recording DOM mutations, mouse movements, and interactions
-  const stopRecording = record({
-    emit(event: RrwebEvent) {
-      events.push(event);
-    },
-    // maskAllInputs will be enabled when that roadmap item is implemented
-  });
-
-  // Expose to window for debugging during early development
-  if (options.debug) {
-    (window as { __vigil?: unknown }).__vigil = {
-      events,
-      stopRecording,
-    };
-  }
-}
+/**
+ * The Vigil SDK namespace object.
+ * Contains methods to bootstrap and manage the observability session.
+ */
+export { Vigil };
