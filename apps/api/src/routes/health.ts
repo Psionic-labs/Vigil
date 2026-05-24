@@ -1,3 +1,9 @@
+/**
+ * @file health.ts
+ * @description Liveness / readiness probe endpoints.
+ * @how Serves a lightweight JSON payload with system timestamp.
+ * @why Enables external infrastructure (Docker/Kubernetes/Railway) to verify the process is alive.
+ */
 import { Hono } from "hono";
 
 export const healthRouter = new Hono();

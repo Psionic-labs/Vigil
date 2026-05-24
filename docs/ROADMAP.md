@@ -60,9 +60,9 @@ Accept SDK payloads, store them, extract signals, and queue triage.
 
 - [x] Init Node.js + Hono app
 - [x] `POST /api/ingest` endpoint
-- [ ] Validate `projectKey` against `projects.public_key`
-- [ ] Enforce max batch size (500 events, 50 summary events, 2MB payload)
-- [ ] Upsert session row in `sessions`
+- [x] Validate `projectKey` against `projects.public_key`
+- [x] Enforce max batch size (500 events, 50 summary events, 2MB payload)
+- [x] Upsert session row in `sessions`
 - [ ] Store raw rrweb events as gzipped blob on local disk (`/blobs/{project_id}/{session_id}/events.json.gz`)
 - [ ] Write summary events to `events_summary`
 - [ ] Set session flags: `has_js_error`, `has_rage_click`, `has_network_err`, `has_dead_click`, `error_count`

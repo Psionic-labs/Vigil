@@ -1,3 +1,9 @@
+/**
+ * @file ingest.ts
+ * @description Telemetry ingestion endpoint.
+ * @how Validates project credentials, enforces batch payload size limits, and performs atomic session upserts, summary logs, and background replay persistence.
+ * @why Acts as the core entry gate for client-side SDK signals, ensuring fast, idempotent, and transactional recording.
+ */
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { zValidator } from "@hono/zod-validator";
@@ -32,14 +38,15 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
   const startMs = performance.now();
   const payload = c.req.valid("json");
 
-  // 1. Project Validation
+  // 1. Project Validation — runs BEFORE transaction to avoid wasting DB resources on invalid payloads.
+  // Uses the partial index idx_projects_public_key_active for fast lookups.
   const projectResult = await pool.query(
-    "SELECT id FROM projects WHERE public_key = $1",
+    "SELECT id FROM projects WHERE public_key = $1 AND is_active = true",
     [payload.projectKey]
   );
 
   if (projectResult.rows.length === 0) {
-    console.warn(`[Ingest] Unauthorized project key: ${payload.projectKey}`);
+    console.warn(`[Ingest] Rejected | ReqID: ${reqId} | Reason: invalid or inactive project key`);
     return c.json({ success: false, error: "Unauthorized" }, 401);
   }
 
@@ -65,7 +72,9 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
   // 3. Finalization Logistics
   const createdAt = Date.now();
   const endedAt = payload.isFinal ? createdAt : null;
-  const durationMs = payload.isFinal ? createdAt - payload.metadata.startedAt : null;
+  const durationMs = payload.isFinal
+    ? Math.max(0, Math.min(2147483647, createdAt - payload.metadata.startedAt))
+    : null;
 
   // 4. Transactional Upsert
   try {
@@ -76,20 +85,24 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
         `
         INSERT INTO sessions (
           id, project_id, url, user_agent, screen_width, screen_height,
-          release, commit_sha, environment, sdk_version, started_at, created_at,
+          release, commit_sha, environment, sdk_version, started_at, created_at, updated_at,
           has_js_error, has_rage_click, has_network_err, has_dead_click, error_count,
           ended_at, duration_ms
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
         ) ON CONFLICT (id) DO UPDATE SET
-          ended_at = COALESCE(EXCLUDED.ended_at, sessions.ended_at),
-          duration_ms = COALESCE(EXCLUDED.duration_ms, sessions.duration_ms),
-          -- has_* flags use OR-accumulation semantics: once true it stays true across future upserts.
-          -- error_count uses GREATEST to avoid double counting retried payloads.
+          updated_at = GREATEST(sessions.updated_at, EXCLUDED.updated_at),
+          -- ended_at and duration_ms use GREATEST for monotonic safety:
+          -- a retried final flush with a slightly different server timestamp cannot regress these values.
+          -- A non-final batch (NULL) cannot clear a previously finalized session (GREATEST ignores NULLs).
+          ended_at = GREATEST(sessions.ended_at, EXCLUDED.ended_at),
+          duration_ms = GREATEST(sessions.duration_ms, EXCLUDED.duration_ms),
+          -- has_* flags use OR-accumulation: once true, stays true across all future upserts.
           has_js_error = sessions.has_js_error OR EXCLUDED.has_js_error,
           has_rage_click = sessions.has_rage_click OR EXCLUDED.has_rage_click,
           has_network_err = sessions.has_network_err OR EXCLUDED.has_network_err,
           has_dead_click = sessions.has_dead_click OR EXCLUDED.has_dead_click,
+          -- error_count uses GREATEST to avoid double counting retried payloads.
           error_count = GREATEST(sessions.error_count, EXCLUDED.error_count)
         `,
         [
@@ -105,6 +118,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           payload.sdkVersion,
           payload.metadata.startedAt,
           createdAt,
+          createdAt, // updated_at = server timestamp of this batch
           hasJsError,
           hasRageClick,
           hasNetworkErr,
