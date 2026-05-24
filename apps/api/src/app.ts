@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { requestIdMiddleware } from "./middleware/request-id";
 import { globalErrorHandler } from "./middleware/error-handler";
 import { healthRouter } from "./routes/health";
+import ingestRouter from "./routes/ingest";
 
 // Define strict typing for application state/variables if needed later
 type AppBindings = {
@@ -55,7 +56,7 @@ app.notFound((c) => {
 // 3. Health & Utility Routes
 app.route("/health", healthRouter);
 
-// 4. Ingestion API V1 Prefix (Placeholder for future routes)
-// app.route("/api/v1", ingestionRouter);
+// 4. Ingestion API V1
+app.route("/api/v1/ingest", ingestRouter);
 
 export default app;

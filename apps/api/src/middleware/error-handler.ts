@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { ZodError } from "zod";
 
 // Define an interface since HTTPResponseError isn't easily exportable from all Hono versions
 interface HTTPResponseError extends Error {
@@ -13,6 +14,22 @@ interface HTTPResponseError extends Error {
  */
 export function globalErrorHandler(err: Error | HTTPResponseError, c: Context) {
   const reqId = c.get("requestId") || "unknown";
+
+  if (err instanceof ZodError) {
+    console.error(`[ValidationError] RequestID: ${reqId}`, err.issues);
+    return c.json(
+      {
+        success: false,
+        error: {
+          message: "Validation Error",
+          code: 400,
+          requestId: reqId,
+          issues: err.issues,
+        },
+      },
+      400
+    );
+  }
   
   // Hono uses HTTPResponseError for `c.throw` calls and HTTP Exceptions
   let status = "status" in err ? err.status : 500;
