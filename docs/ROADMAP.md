@@ -58,8 +58,8 @@ Ship a working `@vigil/sdk` that captures signals and flushes them to an ingest 
 
 Accept SDK payloads, store them, extract signals, and queue triage.
 
-- [ ] Init Node.js + Hono app
-- [ ] `POST /api/ingest` endpoint
+- [x] Init Node.js + Hono app
+- [x] `POST /api/ingest` endpoint
 - [ ] Validate `projectKey` against `projects.public_key`
 - [ ] Enforce max batch size (500 events, 50 summary events, 2MB payload)
 - [ ] Upsert session row in `sessions`
