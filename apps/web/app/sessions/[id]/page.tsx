@@ -40,7 +40,7 @@ export default async function SessionReplayPage({ params }: { params: Promise<{ 
         </div>
         
         {/* AI Summary Card */}
-        <div className="sm:max-w-md bg-ui-2 border border-ui-3 rounded-lg p-3.5 text-sm shadow-sm">
+        <div className="sm:max-w-md bg-surface-2 border border-border rounded-lg p-3.5 text-sm shadow-sm">
           <div className="font-medium text-text-1 mb-1.5 flex items-center gap-1.5">
             <span className="text-blue-500">✨</span> AI Summary
           </div>

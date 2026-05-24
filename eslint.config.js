@@ -13,7 +13,8 @@ export default [
             "**/.next/**",
             "**/node_modules/**",
             "**/*.config.ts",
-            "**/*.config.js"
+            "**/*.config.js",
+            "**/next-env.d.ts"
         ],
     },
 
