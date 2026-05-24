@@ -5,6 +5,7 @@ import { IngestPayloadSchema } from "../validation/ingest-schema";
 import { pool, withTransaction } from "../db";
 import { persistReplayBlob } from "../lib/blob-storage";
 import crypto from "node:crypto";
+import * as util from "node:util";
 
 const ingest = new Hono<{ Variables: { requestId: string } }>();
 
@@ -83,11 +84,13 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
         ) ON CONFLICT (id) DO UPDATE SET
           ended_at = COALESCE(EXCLUDED.ended_at, sessions.ended_at),
           duration_ms = COALESCE(EXCLUDED.duration_ms, sessions.duration_ms),
+          -- has_* flags use OR-accumulation semantics: once true it stays true across future upserts.
+          -- error_count uses GREATEST to avoid double counting retried payloads.
           has_js_error = sessions.has_js_error OR EXCLUDED.has_js_error,
           has_rage_click = sessions.has_rage_click OR EXCLUDED.has_rage_click,
           has_network_err = sessions.has_network_err OR EXCLUDED.has_network_err,
           has_dead_click = sessions.has_dead_click OR EXCLUDED.has_dead_click,
-          error_count = sessions.error_count + EXCLUDED.error_count
+          error_count = GREATEST(sessions.error_count, EXCLUDED.error_count)
         `,
         [
           payload.sessionId,
@@ -114,47 +117,68 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
 
       // Batch Insert Summary Events
       if (payload.summary.length > 0) {
+        const params: any[] = [];
+        const placeholders: string[] = [];
+        let paramIndex = 1;
+
         for (const event of payload.summary) {
           // Deterministic ID for idempotency (session + type + timestamp + target stringified)
-          const targetStr = typeof event.target === "object" ? JSON.stringify(event.target) : event.target || "";
+          let targetStr = "";
+          if (typeof event.target === "object" && event.target !== null) {
+            try {
+              targetStr = JSON.stringify(event.target);
+            } catch {
+              targetStr = util.inspect(event.target, { depth: 2, maxArrayLength: 50 });
+            }
+          } else {
+            targetStr = event.target ? String(event.target) : "";
+          }
+          if (targetStr.length > 10000) targetStr = targetStr.substring(0, 10000);
+
           const hashInput = `${payload.sessionId}:${event.type}:${event.timestampMs}:${targetStr}`;
           const eventId = crypto.createHash("sha256").update(hashInput).digest("hex");
 
-          await client.query(
-            `
-            INSERT INTO events_summary (
-              id, session_id, project_id, type, timestamp_ms, target,
-              error_message, error_stack, network_url, network_status, network_method,
-              click_count, nav_to, created_at
-            ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
-            ) ON CONFLICT (id) DO NOTHING
-            `,
-            [
-              eventId,
-              payload.sessionId,
-              projectId,
-              event.type,
-              event.timestampMs,
-              targetStr,
-              event.errorMessage || event.message || null,
-              event.errorStack || event.stack || null,
-              event.networkUrl || null,
-              event.networkStatus || null,
-              event.networkMethod || null,
-              event.clickCount || null,
-              event.navTo || null,
-              createdAt,
-            ]
+          placeholders.push(`($${paramIndex}, $${paramIndex+1}, $${paramIndex+2}, $${paramIndex+3}, $${paramIndex+4}, $${paramIndex+5}, $${paramIndex+6}, $${paramIndex+7}, $${paramIndex+8}, $${paramIndex+9}, $${paramIndex+10}, $${paramIndex+11}, $${paramIndex+12}, $${paramIndex+13})`);
+          
+          params.push(
+            eventId,
+            payload.sessionId,
+            projectId,
+            event.type,
+            event.timestampMs,
+            targetStr,
+            event.errorMessage || event.message || null,
+            event.errorStack || event.stack || null,
+            event.networkUrl || null,
+            event.networkStatus || null,
+            event.networkMethod || null,
+            event.clickCount || null,
+            event.navTo || null,
+            createdAt
           );
+          paramIndex += 14;
         }
+
+        await client.query(
+          `
+          INSERT INTO events_summary (
+            id, session_id, project_id, type, timestamp_ms, target,
+            error_message, error_stack, network_url, network_status, network_method,
+            click_count, nav_to, created_at
+          ) VALUES ${placeholders.join(", ")}
+          ON CONFLICT (id) DO NOTHING
+          `,
+          params
+        );
       }
     });
     const dbTimeEnd = performance.now();
 
-    // 5. Replay Persistence (Await to ensure it completes before returning 200, though could be deferred)
+    // 5. Replay Persistence (Fire-and-forget to avoid blocking HTTP response)
     const blobTimeStart = performance.now();
-    await persistReplayBlob(projectId, payload.sessionId, payload.events);
+    persistReplayBlob(projectId, payload.sessionId, payload.events).catch((err) => {
+      console.error(`[Ingest] Background blob persistence failed | ReqID: ${reqId}`, err);
+    });
     const blobTimeEnd = performance.now();
 
     const totalMs = performance.now() - startMs;

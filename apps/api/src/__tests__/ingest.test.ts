@@ -17,7 +17,7 @@ vi.mock("../db", () => ({
 }));
 
 vi.mock("../lib/blob-storage", () => ({
-  persistReplayBlob: vi.fn(),
+  persistReplayBlob: vi.fn().mockResolvedValue(undefined),
 }));
 
 const VALID_PAYLOAD = {
@@ -94,10 +94,13 @@ describe("Ingest API", () => {
   });
 
   it("should reject malformed payload with 400 Zod Error", async () => {
+    const malformedPayload = { ...VALID_PAYLOAD };
+    delete (malformedPayload as any).sessionId;
+
     const res = await app.request("/api/v1/ingest", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...VALID_PAYLOAD, sessionId: undefined }), // missing required field
+      body: JSON.stringify(malformedPayload),
     });
 
     expect(res.status).toBe(400);

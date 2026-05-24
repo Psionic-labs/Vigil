@@ -23,9 +23,13 @@ export async function withTransaction<T>(
     const result = await callback(client);
     await client.query("COMMIT");
     return result;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
+  } catch (originalError) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackError) {
+      console.error("Failed to rollback transaction:", rollbackError);
+    }
+    throw originalError;
   } finally {
     client.release();
   }

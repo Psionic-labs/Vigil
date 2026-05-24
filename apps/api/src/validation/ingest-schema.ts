@@ -12,7 +12,7 @@ const SummaryEventSchema = z.object({
     "significant_click"
   ]),
   timestampMs: z.number().int().positive(),
-  target: z.any().optional(),
+  target: z.unknown().optional(),
   
   // JS/Console error fields
   errorMessage: z.string().max(5000).optional(),
@@ -20,10 +20,10 @@ const SummaryEventSchema = z.object({
   message: z.string().max(5000).optional(),
   stack: z.string().max(10000).optional(),
   source: z.string().max(2048).optional(),
-  line: z.number().int().optional(),
-  column: z.number().int().optional(),
+  line: z.number().int().nonnegative().optional(),
+  column: z.number().int().nonnegative().optional(),
   handled: z.boolean().optional(),
-  timestamp: z.number().optional(),
+  timestamp: z.number().int().positive().optional(),
   argumentSummaries: z.array(z.string().max(2000)).optional(),
 
   // Network error fields
