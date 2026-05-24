@@ -123,7 +123,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
 
         for (const event of payload.summary) {
           // Deterministic ID for idempotency (session + type + timestamp + target stringified)
-          let targetStr = "";
+          let targetStr: string;
           if (typeof event.target === "object" && event.target !== null) {
             try {
               targetStr = JSON.stringify(event.target);
@@ -176,14 +176,19 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
 
     // 5. Replay Persistence (Fire-and-forget to avoid blocking HTTP response)
     const blobTimeStart = performance.now();
-    persistReplayBlob(projectId, payload.sessionId, payload.events).catch((err) => {
-      console.error(`[Ingest] Background blob persistence failed | ReqID: ${reqId}`, err);
-    });
-    const blobTimeEnd = performance.now();
+    persistReplayBlob(projectId, payload.sessionId, payload.events)
+      .then(() => {
+        const blobTimeEnd = performance.now();
+        console.log(`[Ingest] Blob saved | ReqID: ${reqId} | Blob: ${(blobTimeEnd - blobTimeStart).toFixed(2)}ms`);
+      })
+      .catch((err) => {
+        const blobTimeEnd = performance.now();
+        console.error(`[Ingest] Background blob persistence failed | ReqID: ${reqId} | Blob: ${(blobTimeEnd - blobTimeStart).toFixed(2)}ms`, err);
+      });
 
     const totalMs = performance.now() - startMs;
     console.log(
-      `[Ingest] Success | ReqID: ${reqId} | Project: ${projectId} | DB: ${(dbTimeEnd - dbTimeStart).toFixed(2)}ms | Blob: ${(blobTimeEnd - blobTimeStart).toFixed(2)}ms | Total: ${totalMs.toFixed(2)}ms | Events: ${payload.events.length}`
+      `[Ingest] Success | ReqID: ${reqId} | Project: ${projectId} | DB: ${(dbTimeEnd - dbTimeStart).toFixed(2)}ms | Total: ${totalMs.toFixed(2)}ms | Events: ${payload.events.length}`
     );
 
     return c.json({ success: true });
