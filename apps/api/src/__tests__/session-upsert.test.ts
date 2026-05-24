@@ -18,22 +18,25 @@ vi.mock("../lib/blob-storage", () => ({
   persistReplayBlob: vi.fn().mockResolvedValue(undefined),
 }));
 
-const makePayload = (overrides: Record<string, unknown> = {}) => ({
-  projectKey: "pk_test_123",
-  sessionId: "sess_lifecycle_1",
-  isFinal: false,
-  sdkVersion: "1.0.0",
-  metadata: {
-    url: "http://localhost/page",
-    userAgent: "vitest",
-    startedAt: 1779000000000,
-    screenWidth: 1920,
-    screenHeight: 1080,
-  },
-  summary: [],
-  events: [{ type: 1, data: {} }],
-  ...overrides,
-});
+const makePayload = (overrides: Record<string, unknown> = {}) => {
+  const startedAt = Date.now() - 5000;
+  return {
+    projectKey: "pk_test_123",
+    sessionId: "sess_lifecycle_1",
+    isFinal: false,
+    sdkVersion: "1.0.0",
+    metadata: {
+      url: "http://localhost/page",
+      userAgent: "vitest",
+      startedAt,
+      screenWidth: 1920,
+      screenHeight: 1080,
+    },
+    summary: [],
+    events: [{ type: 1, data: {} }],
+    ...overrides,
+  };
+};
 
 const postIngest = async (payload: Record<string, unknown>) => {
   (pool.query as any).mockResolvedValueOnce({ rows: [{ id: "proj_abc" }] });
@@ -59,7 +62,8 @@ describe("Session Upsert Lifecycle", () => {
   });
 
   it("should create session on first ingest with correct initial values", async () => {
-    const res = await postIngest(makePayload());
+    const payload = makePayload();
+    const res = await postIngest(payload);
     expect(res.status).toBe(200);
 
     // Session upsert is the first client.query call
@@ -76,7 +80,7 @@ describe("Session Upsert Lifecycle", () => {
     // Verify key params: sessionId, projectId, startedAt, isFinal=false → ended_at=null
     expect(params[0]).toBe("sess_lifecycle_1"); // id
     expect(params[1]).toBe("proj_abc");          // project_id
-    expect(params[10]).toBe(1779000000000);          // started_at
+    expect(params[10]).toBe(payload.metadata.startedAt);          // started_at
     expect(params[18]).toBeNull();                // ended_at (isFinal=false)
     expect(params[19]).toBeNull();                // duration_ms (isFinal=false)
   });
@@ -117,7 +121,8 @@ describe("Session Upsert Lifecycle", () => {
   });
 
   it("should set ended_at and compute duration_ms on isFinal=true", async () => {
-    const res = await postIngest(makePayload({ isFinal: true }));
+    const payload = makePayload({ isFinal: true });
+    const res = await postIngest(payload);
     expect(res.status).toBe(200);
 
     const params = fakeClient.query.mock.calls[0]![1] as any[];
@@ -129,7 +134,7 @@ describe("Session Upsert Lifecycle", () => {
     expect(endedAt).toBe(createdAt);
 
     // duration_ms = server time - client startedAt
-    expect(durationMs).toBe(createdAt - 1779000000000);
+    expect(durationMs).toBe(createdAt - payload.metadata.startedAt);
     expect(durationMs).toBeGreaterThan(0);
   });
 
@@ -214,7 +219,7 @@ describe("Session Upsert Lifecycle", () => {
     expect(res.status).toBe(200);
 
     const sql = fakeClient.query.mock.calls[0]![0] as string;
-    expect(sql).toContain("updated_at = EXCLUDED.updated_at");
+    expect(sql).toContain("updated_at = GREATEST(sessions.updated_at, EXCLUDED.updated_at)");
   });
 
   it("should run session upsert and summary inserts in the same transaction", async () => {

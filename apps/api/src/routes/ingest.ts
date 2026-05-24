@@ -91,7 +91,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
         ) ON CONFLICT (id) DO UPDATE SET
-          updated_at = EXCLUDED.updated_at,
+          updated_at = GREATEST(sessions.updated_at, EXCLUDED.updated_at),
           -- ended_at and duration_ms use GREATEST for monotonic safety:
           -- a retried final flush with a slightly different server timestamp cannot regress these values.
           -- A non-final batch (NULL) cannot clear a previously finalized session (GREATEST ignores NULLs).
