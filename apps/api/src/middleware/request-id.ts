@@ -1,3 +1,9 @@
+/**
+ * @file request-id.ts
+ * @description Request tracing middleware.
+ * @how Inspects request header for X-Request-Id or generates a new UUID, attaching it to context and response headers.
+ * @why Enables distributed tracing and log correlation for incoming telemetry batches.
+ */
 import type { Context, Next } from "hono";
 import { randomUUID } from "node:crypto";
 
