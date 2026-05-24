@@ -15,6 +15,6 @@ if (!/^postgres(ql)?:\/\//i.test(databaseUrl)) {
 export const sql = neon(databaseUrl);
 
 export async function checkDatabaseConnection() {
-  const [row] = await sql<{ now: string }>`SELECT NOW() AS now`;
-  return row.now;
+  const rows = (await sql`SELECT NOW() AS now`) as { now: string }[];
+  return rows[0]?.now;
 }
