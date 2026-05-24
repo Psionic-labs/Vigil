@@ -16,5 +16,11 @@ export const sql = neon(databaseUrl);
 
 export async function checkDatabaseConnection() {
   const rows = (await sql`SELECT NOW() AS now`) as { now: string }[];
-  return rows[0]?.now;
+  const row = rows[0];
+
+  if (!row) {
+    throw new Error("Database connection check returned no rows.");
+  }
+
+  return row.now;
 }

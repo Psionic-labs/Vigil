@@ -8,6 +8,6 @@ import { randomUUID } from "node:crypto";
 export async function requestIdMiddleware(c: Context, next: Next) {
   const reqId = c.req.header("X-Request-Id") || randomUUID();
   c.set("requestId", reqId);
-  c.res.headers.set("X-Request-Id", reqId);
   await next();
+  c.res.headers.set("X-Request-Id", reqId);
 }
