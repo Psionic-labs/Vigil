@@ -16,6 +16,14 @@ const gzip = promisify(zlib.gzip);
 // For this milestone, a local 'blobs' directory is sufficient.
 const BLOBS_ROOT = process.env.BLOBS_ROOT || path.resolve(__dirname, "../../blobs/v1");
 
+export interface BlobPersistenceResult {
+  filePath: string;
+  compressedSize: number;
+  serializationDurationMs: number;
+  compressionDurationMs: number;
+  writeDurationMs: number;
+}
+
 /**
  * Ensures the target directory exists before writing.
  * @param dirPath The absolute path to the directory
@@ -35,34 +43,60 @@ export async function persistReplayBlob(
   projectId: string,
   sessionId: string,
   events: unknown[]
-): Promise<void> {
+): Promise<BlobPersistenceResult | null> {
   if (!events || events.length === 0) {
-    return;
+    return null;
   }
 
-  const safeIdRegex = /^[A-Za-z0-9._-]+$/;
-  if (!safeIdRegex.test(projectId) || !safeIdRegex.test(sessionId)) {
-    throw new Error("Invalid projectId or sessionId for blob storage.");
+  // 1. Sanitize & bound user-controlled identifiers
+  const safeIdRegex = /^[A-Za-z0-9_-]+$/;
+  if (
+    !projectId ||
+    projectId.length > 100 ||
+    !safeIdRegex.test(projectId) ||
+    !sessionId ||
+    sessionId.length > 100 ||
+    !safeIdRegex.test(sessionId)
+  ) {
+    throw new Error("Invalid or unsafe projectId/sessionId for blob storage.");
   }
 
-  // 1. Serialize
+  // 2. Measure Serialization
+  const serializationStart = performance.now();
   const serialized = JSON.stringify(events);
+  const serializationDurationMs = performance.now() - serializationStart;
 
-  // 2. Compress
+  // 3. Measure Compression
+  const compressionStart = performance.now();
   const compressed = await gzip(serialized);
+  const compressionDurationMs = performance.now() - compressionStart;
 
-  // 3. Construct immutable chunk path
+  // 4. Construct path and enforce directory traversal checks
   const timestamp = Date.now();
   const randomSuffix = crypto.randomBytes(4).toString("hex");
-  const dirPath = path.resolve(BLOBS_ROOT, projectId, sessionId);
+  
+  const resolvedBlobsRoot = path.resolve(BLOBS_ROOT);
+  const dirPath = path.resolve(resolvedBlobsRoot, projectId, sessionId);
 
-  if (!dirPath.startsWith(path.resolve(BLOBS_ROOT))) {
+  if (!dirPath.startsWith(resolvedBlobsRoot)) {
     throw new Error("Path traversal detected.");
   }
 
+  const tempFilePath = path.join(dirPath, `${timestamp}_${randomSuffix}_events.json.gz.tmp`);
   const filePath = path.join(dirPath, `${timestamp}_${randomSuffix}_events.json.gz`);
 
-  // 4. Ensure directory exists and write
+  // 5. Measure Atomic Disk Write
+  const writeStart = performance.now();
   await ensureDirectoryExists(dirPath);
-  await fs.writeFile(filePath, compressed);
+  await fs.writeFile(tempFilePath, compressed);
+  await fs.rename(tempFilePath, filePath);
+  const writeDurationMs = performance.now() - writeStart;
+
+  return {
+    filePath,
+    compressedSize: compressed.length,
+    serializationDurationMs,
+    compressionDurationMs,
+    writeDurationMs,
+  };
 }

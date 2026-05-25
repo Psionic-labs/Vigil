@@ -188,16 +188,16 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
     });
     const dbTimeEnd = performance.now();
 
-    // 5. Replay Persistence (Fire-and-forget to avoid blocking HTTP response)
-    const blobTimeStart = performance.now();
+    // 5. Replay Persistence (Async background persistence after DB commit)
     persistReplayBlob(projectId, payload.sessionId, payload.events)
-      .then(() => {
-        const blobTimeEnd = performance.now();
-        console.log(`[Ingest] Blob saved | ReqID: ${reqId} | Blob: ${(blobTimeEnd - blobTimeStart).toFixed(2)}ms`);
+      .then((result) => {
+        if (!result) return;
+        console.log(
+          `[Ingest] Blob saved | ReqID: ${reqId} | Path: ${result.filePath} | Size: ${result.compressedSize} B | Serialization: ${result.serializationDurationMs.toFixed(2)}ms | Compression: ${result.compressionDurationMs.toFixed(2)}ms | Write: ${result.writeDurationMs.toFixed(2)}ms`
+        );
       })
       .catch((err) => {
-        const blobTimeEnd = performance.now();
-        console.error(`[Ingest] Background blob persistence failed | ReqID: ${reqId} | Blob: ${(blobTimeEnd - blobTimeStart).toFixed(2)}ms`, err);
+        console.error(`[Ingest] Background blob persistence failed | ReqID: ${reqId}`, err);
       });
 
     const totalMs = performance.now() - startMs;
