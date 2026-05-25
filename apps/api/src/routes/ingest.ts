@@ -189,16 +189,19 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
     const dbTimeEnd = performance.now();
 
     // 5. Replay Persistence (Async background persistence after DB commit)
-    persistReplayBlob(projectId, payload.sessionId, payload.events)
-      .then((result) => {
-        if (!result) return;
-        console.log(
-          `[Ingest] Blob saved | ReqID: ${reqId} | Path: ${result.filePath} | Size: ${result.compressedSize} B | Serialization: ${result.serializationDurationMs.toFixed(2)}ms | Compression: ${result.compressionDurationMs.toFixed(2)}ms | Write: ${result.writeDurationMs.toFixed(2)}ms`
-        );
-      })
-      .catch((err) => {
-        console.error(`[Ingest] Background blob persistence failed | ReqID: ${reqId}`, err);
-      });
+    // Wrap in setImmediate to schedule the serialization (JSON.stringify) off the request's critical path.
+    setImmediate(() => {
+      persistReplayBlob(projectId, payload.sessionId, payload.events)
+        .then((result) => {
+          if (!result) return;
+          console.log(
+            `[Ingest] Blob saved | ReqID: ${reqId} | Path: ${result.filePath} | Size: ${result.compressedSize} B | Serialization: ${result.serializationDurationMs.toFixed(2)}ms | Compression: ${result.compressionDurationMs.toFixed(2)}ms | Write: ${result.writeDurationMs.toFixed(2)}ms`
+          );
+        })
+        .catch((err) => {
+          console.error(`[Ingest] Background blob persistence failed | ReqID: ${reqId}`, err);
+        });
+    });
 
     const totalMs = performance.now() - startMs;
     console.log(

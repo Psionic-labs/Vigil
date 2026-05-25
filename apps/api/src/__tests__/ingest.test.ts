@@ -70,6 +70,9 @@ describe("Ingest API", () => {
     // Verify transaction was used
     expect(withTransaction).toHaveBeenCalled();
     
+    // Wait for the deferred setImmediate persistence task to execute
+    await new Promise((resolve) => setImmediate(resolve));
+
     // Verify Blob persistence was called
     expect(persistReplayBlob).toHaveBeenCalledWith(
       "proj_123",

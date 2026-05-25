@@ -9,8 +9,12 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { promisify } from "node:util";
 import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 const gzip = promisify(zlib.gzip);
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Configure the root blobs directory
 // For this milestone, a local 'blobs' directory is sufficient.

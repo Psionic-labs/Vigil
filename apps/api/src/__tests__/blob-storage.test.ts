@@ -3,8 +3,12 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import zlib from "node:zlib";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 
 const gunzip = promisify(zlib.gunzip);
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const TEST_BLOBS_ROOT = path.resolve(__dirname, "../../test-blobs");
 

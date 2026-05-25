@@ -63,7 +63,7 @@ Accept SDK payloads, store them, extract signals, and queue triage.
 - [x] Validate `projectKey` against `projects.public_key`
 - [x] Enforce max batch size (500 events, 50 summary events, 2MB payload)
 - [x] Upsert session row in `sessions`
-- [x] Store raw rrweb events as gzipped blob on local disk (`/blobs/{project_id}/{session_id}/events.json.gz`)
+- [x] Store raw rrweb events as gzipped chunk files on local disk under `BLOBS_ROOT/{project_id}/{session_id}/` (for example: `${timestamp}_${randomSuffix}_events.json.gz`)
 - [ ] Write summary events to `events_summary`
 - [ ] Set session flags: `has_js_error`, `has_rage_click`, `has_network_err`, `has_dead_click`, `error_count`
 - [ ] Implement deterministic fingerprinting per signal type (see architecture doc)
