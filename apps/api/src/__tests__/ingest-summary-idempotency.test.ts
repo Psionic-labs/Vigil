@@ -45,6 +45,7 @@ const postIngest = async (payload: Record<string, unknown>) => {
 };
 
 describe("Ingest Summary Idempotency & Hashing", () => {
+  const PARAMS_PER_EVENT = 14;
   let fakeClient: { query: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
@@ -99,9 +100,13 @@ describe("Ingest Summary Idempotency & Hashing", () => {
     expect(res.status).toBe(200);
 
     const params = fakeClient.query.mock.calls[1]![1] as any[];
-    // params layout is sequential: [id1, sess, proj, type, ts, target, ... id2, sess, proj, type, ts, target, ...]
+    // Each event contributes exactly PARAMS_PER_EVENT = 14 fields:
+    // [0: id, 1: session_id, 2: project_id, 3: type, 4: timestamp_ms, 5: target,
+    //  6: error_message, 7: error_stack, 8: network_url, 9: network_status, 10: network_method,
+    //  11: click_count, 12: nav_to, 13: created_at]
+    expect(params.length).toBe(PARAMS_PER_EVENT * 2);
     const id1 = params[0] as string;
-    const id2 = params[14] as string;
+    const id2 = params[PARAMS_PER_EVENT] as string;
 
     expect(id1).not.toBe(id2);
   });
@@ -126,8 +131,9 @@ describe("Ingest Summary Idempotency & Hashing", () => {
     expect(res.status).toBe(200);
 
     const params = fakeClient.query.mock.calls[1]![1] as any[];
+    expect(params.length).toBe(PARAMS_PER_EVENT * 2);
     const id1 = params[0] as string;
-    const id2 = params[14] as string;
+    const id2 = params[PARAMS_PER_EVENT] as string;
 
     expect(id1).not.toBe(id2);
   });
@@ -152,8 +158,9 @@ describe("Ingest Summary Idempotency & Hashing", () => {
     expect(res.status).toBe(200);
 
     const params = fakeClient.query.mock.calls[1]![1] as any[];
+    expect(params.length).toBe(PARAMS_PER_EVENT * 2);
     const id1 = params[0] as string;
-    const id2 = params[14] as string;
+    const id2 = params[PARAMS_PER_EVENT] as string;
 
     expect(id1).not.toBe(id2);
   });
@@ -175,6 +182,30 @@ describe("Ingest Summary Idempotency & Hashing", () => {
     // Database limit check
     expect(savedTarget).toHaveLength(10000);
     expect(savedTarget).toBe(longTarget.substring(0, 10000));
+  });
+
+  it("should generate the same hash ID for events sharing the same 500-character target prefix", async () => {
+    const prefix = "a".repeat(500);
+    const click1 = {
+      type: "click",
+      timestampMs: 1234567890,
+      target: prefix + "suffix1",
+    };
+    const click2 = {
+      type: "click",
+      timestampMs: 1234567890,
+      target: prefix + "suffix2",
+    };
+
+    const res = await postIngest(makePayload([click1, click2]));
+    expect(res.status).toBe(200);
+
+    const params = fakeClient.query.mock.calls[1]![1] as any[];
+    expect(params.length).toBe(PARAMS_PER_EVENT * 2);
+    const id1 = params[0] as string;
+    const id2 = params[PARAMS_PER_EVENT] as string;
+
+    expect(id1).toBe(id2);
   });
 
   it("should handle optional/null values gracefully in hash generation without crashing", async () => {
