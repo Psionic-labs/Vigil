@@ -13,6 +13,10 @@ vi.mock("../db", () => ({
   }),
 }));
 
+vi.mock("../lib/blob-storage", () => ({
+  persistReplayBlob: vi.fn().mockResolvedValue(null),
+}));
+
 const makePayload = (summaryEvents: any[]) => {
   return {
     projectKey: "pk_test_123",
@@ -154,7 +158,7 @@ describe("Ingest Summary Idempotency & Hashing", () => {
     expect(id1).not.toBe(id2);
   });
 
-  it("should truncate extremely long target fields for stable hashing but store the full length in DB", async () => {
+  it("should truncate extremely long target fields for stable hashing and truncate for DB storage", async () => {
     const longTarget = "a".repeat(12000);
     const click = {
       type: "click",
