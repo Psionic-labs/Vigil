@@ -77,6 +77,9 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
     : null;
 
   // 4. Transactional Upsert
+  let insertedSummaryCount = 0;
+  const totalSummaryCount = payload.summary.length;
+
   try {
     const dbTimeStart = performance.now();
     await withTransaction(async (client) => {
@@ -136,7 +139,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
         let paramIndex = 1;
 
         for (const event of payload.summary) {
-          // Deterministic ID for idempotency (session + type + timestamp + target stringified)
+          // Normalize and stringify target safely
           let targetStr: string;
           if (typeof event.target === "object" && event.target !== null) {
             try {
@@ -147,9 +150,32 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           } else {
             targetStr = event.target ? String(event.target) : "";
           }
-          if (targetStr.length > 10000) targetStr = targetStr.substring(0, 10000);
+          const dbTargetStr = targetStr.length > 10000 ? targetStr.substring(0, 10000) : targetStr;
+          const hashTargetStr = targetStr.substring(0, 500);
 
-          const hashInput = `${payload.sessionId}:${event.type}:${event.timestampMs}:${targetStr}`;
+          // Construct a stable identifier string containing type-specific fields to prevent ID collisions
+          let stableExtra: string;
+          if (event.type === "js_error" || event.type === "console_error") {
+            const errMsg = (event.errorMessage || event.message || "").substring(0, 500);
+            const errStack = (event.errorStack || event.stack || "").substring(0, 500);
+            stableExtra = `${errMsg}:${errStack}`;
+          } else if (event.type === "network_error") {
+            const netUrl = (event.networkUrl || "").substring(0, 500);
+            const netMethod = (event.networkMethod || "").substring(0, 50);
+            const netStatus = event.networkStatus !== undefined ? String(event.networkStatus) : "";
+            stableExtra = `${netUrl}:${netMethod}:${netStatus}`;
+          } else if (event.type === "navigation") {
+            const navFromStr = (event.navFrom || "").substring(0, 500);
+            const navToStr = (event.navTo || "").substring(0, 500);
+            const navType = event.navigationType || "";
+            stableExtra = `${navFromStr}:${navToStr}:${navType}`;
+          } else {
+            // Clicks (click, rage_click, dead_click, significant_click)
+            const clickCount = event.clickCount !== undefined ? String(event.clickCount) : "";
+            stableExtra = `${hashTargetStr}:${clickCount}`;
+          }
+
+          const hashInput = `${payload.sessionId}:${event.type}:${event.timestampMs}:${stableExtra}`;
           const eventId = crypto.createHash("sha256").update(hashInput).digest("hex");
 
           placeholders.push(`($${paramIndex}, $${paramIndex+1}, $${paramIndex+2}, $${paramIndex+3}, $${paramIndex+4}, $${paramIndex+5}, $${paramIndex+6}, $${paramIndex+7}, $${paramIndex+8}, $${paramIndex+9}, $${paramIndex+10}, $${paramIndex+11}, $${paramIndex+12}, $${paramIndex+13})`);
@@ -160,7 +186,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
             projectId,
             event.type,
             event.timestampMs,
-            targetStr,
+            dbTargetStr,
             event.errorMessage || event.message || null,
             event.errorStack || event.stack || null,
             event.networkUrl || null,
@@ -173,7 +199,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           paramIndex += 14;
         }
 
-        await client.query(
+        const summaryResult = await client.query(
           `
           INSERT INTO events_summary (
             id, session_id, project_id, type, timestamp_ms, target,
@@ -184,6 +210,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           `,
           params
         );
+        insertedSummaryCount = summaryResult?.rowCount || 0;
       }
     });
     const dbTimeEnd = performance.now();
@@ -205,7 +232,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
 
     const totalMs = performance.now() - startMs;
     console.log(
-      `[Ingest] Success | ReqID: ${reqId} | Project: ${projectId} | DB: ${(dbTimeEnd - dbTimeStart).toFixed(2)}ms | Total: ${totalMs.toFixed(2)}ms | Events: ${payload.events.length}`
+      `[Ingest] Success | ReqID: ${reqId} | Project: ${projectId} | DB: ${(dbTimeEnd - dbTimeStart).toFixed(2)}ms | Total: ${totalMs.toFixed(2)}ms | Events: ${payload.events.length} | Summaries: ${totalSummaryCount} (Inserted: ${insertedSummaryCount}, Skipped: ${totalSummaryCount - insertedSummaryCount})`
     );
 
     return c.json({ success: true });
