@@ -57,12 +57,10 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
   let hasRageClick = false;
   let hasNetworkErr = false;
   let hasDeadClick = false;
-  let errorCount = 0;
 
   for (const event of payload.summary) {
     if (event.type === "js_error" || event.type === "console_error") {
       hasJsError = true;
-      errorCount++;
     }
     if (event.type === "rage_click") hasRageClick = true;
     if (event.type === "network_error") hasNetworkErr = true;
@@ -95,7 +93,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
           $14, $15, $16, $17, 0, -- error_count is initialized to 0 and updated in Step 3 based on actual inserts
-          $19, $20
+          $18, $19
         ) ON CONFLICT (id) DO UPDATE SET
           updated_at = GREATEST(sessions.updated_at, EXCLUDED.updated_at),
           ended_at = GREATEST(sessions.ended_at, EXCLUDED.ended_at),
@@ -124,7 +122,6 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           hasRageClick,
           hasNetworkErr,
           hasDeadClick,
-          errorCount, // Unused in VALUES but kept to avoid breaking parameter indexing in tests
           endedAt,
           durationMs,
         ]
@@ -227,7 +224,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           `
           UPDATE sessions SET
             error_count = error_count + $1,
-            updated_at = $2
+            updated_at = GREATEST(updated_at, $2)
           WHERE id = $3
           `,
           [newErrors, createdAt, payload.sessionId]

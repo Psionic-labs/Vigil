@@ -94,8 +94,8 @@ describe("Session Upsert Lifecycle", () => {
     expect(params[0]).toBe("sess_lifecycle_1"); // id
     expect(params[1]).toBe("proj_abc");          // project_id
     expect(params[10]).toBe(payload.metadata.startedAt);          // started_at
-    expect(params[18]).toBeNull();                // ended_at (isFinal=false)
-    expect(params[19]).toBeNull();                // duration_ms (isFinal=false)
+    expect(params[17]).toBeNull();                // ended_at (isFinal=false)
+    expect(params[18]).toBeNull();                // duration_ms (isFinal=false)
   });
 
   it("should set updated_at on every batch", async () => {
@@ -140,8 +140,8 @@ describe("Session Upsert Lifecycle", () => {
 
     const params = fakeClient.query.mock.calls[0]![1] as any[];
     const createdAt = params[11] as number;   // server timestamp
-    const endedAt = params[18] as number;     // ended_at
-    const durationMs = params[19] as number;  // duration_ms
+    const endedAt = params[17] as number;     // ended_at
+    const durationMs = params[18] as number;  // duration_ms
 
     // ended_at should be set (non-null)
     expect(endedAt).toBe(createdAt);
@@ -165,7 +165,7 @@ describe("Session Upsert Lifecycle", () => {
     }));
     expect(resFuture.status).toBe(200);
     const paramsFuture = fakeClient.query.mock.calls[0]![1] as any[];
-    expect(paramsFuture[19]).toBe(0); // Clamped to 0
+    expect(paramsFuture[18]).toBe(0); // Clamped to 0
 
     // Clear calls for next assertion
     fakeClient.query.mockClear();
@@ -183,7 +183,7 @@ describe("Session Upsert Lifecycle", () => {
     }));
     expect(resOld.status).toBe(200);
     const paramsOld = fakeClient.query.mock.calls[0]![1] as any[];
-    expect(paramsOld[19]).toBe(2147483647); // Clamped to max signed 32-bit int
+    expect(paramsOld[18]).toBe(2147483647); // Clamped to max signed 32-bit int
   });
 
   it("should pass null for ended_at and duration_ms on non-final batch", async () => {
@@ -191,8 +191,8 @@ describe("Session Upsert Lifecycle", () => {
     expect(res.status).toBe(200);
 
     const params = fakeClient.query.mock.calls[0]![1] as any[];
-    expect(params[18]).toBeNull(); // ended_at
-    expect(params[19]).toBeNull(); // duration_ms
+    expect(params[17]).toBeNull(); // ended_at
+    expect(params[18]).toBeNull(); // duration_ms
   });
 
   it("should use OR-accumulation for has_* boolean flags", async () => {
@@ -216,7 +216,11 @@ describe("Session Upsert Lifecycle", () => {
     expect(params[14]).toBe(true);  // has_rage_click
     expect(params[15]).toBe(false); // has_network_err (not in this batch)
     expect(params[16]).toBe(false); // has_dead_click (not in this batch)
-    expect(params[17]).toBe(1);     // error_count
+
+    // Assert on query semantics: Step 3 UPDATE should be called to increment error_count by 1
+    const updateCall = fakeClient.query.mock.calls.find(c => c[0].includes("UPDATE sessions SET"))!;
+    expect(updateCall).toBeDefined();
+    expect(updateCall[1][0]).toBe(1); // newErrors = 1
   });
 
   it("should preserve sessions.error_count on metadata upsert conflict to remain idempotent", async () => {
@@ -400,7 +404,7 @@ describe("Session Upsert Lifecycle", () => {
 
     let upsertCall = fakeClient.query.mock.calls[0]!;
     expect(upsertCall[1][13]).toBe(true); // has_js_error
-    expect(upsertCall[1][18]).toBeNull(); // ended_at
+    expect(upsertCall[1][17]).toBeNull(); // ended_at
 
     fakeClient.query.mockClear();
 
@@ -413,7 +417,7 @@ describe("Session Upsert Lifecycle", () => {
 
     upsertCall = fakeClient.query.mock.calls[0]!;
     expect(upsertCall[1][13]).toBe(false); // has_js_error parameter in this payload is false
-    expect(upsertCall[1][18]).not.toBeNull(); // ended_at parameter is set
+    expect(upsertCall[1][17]).not.toBeNull(); // ended_at parameter is set
     
     const sql = upsertCall[0] as string;
     expect(sql).toContain("has_js_error = sessions.has_js_error OR EXCLUDED.has_js_error");
