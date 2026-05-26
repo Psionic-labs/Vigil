@@ -54,7 +54,20 @@ describe("Session Upsert Lifecycle", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Override withTransaction to capture the fakeClient for inspection
-    fakeClient = { query: vi.fn() };
+    fakeClient = {
+      query: vi.fn(async (sql: string, params?: any[]) => {
+        if (sql.includes("INSERT INTO events_summary")) {
+          const rows: { type: string }[] = [];
+          if (params) {
+            for (let i = 3; i < params.length; i += 14) {
+              rows.push({ type: params[i] });
+            }
+          }
+          return { rows, rowCount: rows.length };
+        }
+        return { rows: [], rowCount: 0 };
+      })
+    };
     (withTransaction as any).mockImplementation(async (cb: any) => {
       await cb(fakeClient);
       return fakeClient;
@@ -206,12 +219,12 @@ describe("Session Upsert Lifecycle", () => {
     expect(params[17]).toBe(1);     // error_count
   });
 
-  it("should use GREATEST for error_count to stay idempotent across retries", async () => {
+  it("should preserve sessions.error_count on metadata upsert conflict to remain idempotent", async () => {
     const res = await postIngest(makePayload());
     expect(res.status).toBe(200);
 
     const sql = fakeClient.query.mock.calls[0]![0] as string;
-    expect(sql).toContain("GREATEST(sessions.error_count, EXCLUDED.error_count)");
+    expect(sql).toContain("error_count = sessions.error_count");
   });
 
   it("should include updated_at in the ON CONFLICT UPDATE clause", async () => {
@@ -260,5 +273,150 @@ describe("Session Upsert Lifecycle", () => {
 
     expect(res.status).toBe(500);
     expect(persistReplayBlob).not.toHaveBeenCalled();
+  });
+
+  it("should set has_js_error to true and update error_count for js_error and console_error", async () => {
+    const res = await postIngest(makePayload({
+      summary: [
+        { type: "js_error", timestampMs: 1000000100, errorMessage: "js err" },
+        { type: "console_error", timestampMs: 1000000200, message: "console err" },
+      ]
+    }));
+    expect(res.status).toBe(200);
+
+    const upsertCall = fakeClient.query.mock.calls.find(c => c[0].includes("INSERT INTO sessions"))!;
+    expect(upsertCall).toBeDefined();
+    const upsertParams = upsertCall[1] as any[];
+    expect(upsertParams[13]).toBe(true);  // has_js_error
+    expect(upsertParams[14]).toBe(false); // has_rage_click
+    expect(upsertParams[15]).toBe(false); // has_network_err
+    expect(upsertParams[16]).toBe(false); // has_dead_click
+
+    const updateCall = fakeClient.query.mock.calls.find(c => c[0].includes("UPDATE sessions SET"))!;
+    expect(updateCall).toBeDefined();
+    expect(updateCall[1][0]).toBe(2); // newErrors = 2
+  });
+
+  it("should set has_rage_click to true for rage_click events", async () => {
+    const res = await postIngest(makePayload({
+      summary: [
+        { type: "rage_click", timestampMs: 1000000100, clickCount: 4 }
+      ]
+    }));
+    expect(res.status).toBe(200);
+
+    const upsertCall = fakeClient.query.mock.calls.find(c => c[0].includes("INSERT INTO sessions"))!;
+    expect(upsertCall).toBeDefined();
+    const upsertParams = upsertCall[1] as any[];
+    expect(upsertParams[13]).toBe(false); // has_js_error
+    expect(upsertParams[14]).toBe(true);  // has_rage_click
+    expect(upsertParams[15]).toBe(false); // has_network_err
+    expect(upsertParams[16]).toBe(false); // has_dead_click
+  });
+
+  it("should set has_network_err to true for network_error events", async () => {
+    const res = await postIngest(makePayload({
+      summary: [
+        { type: "network_error", timestampMs: 1000000100, networkUrl: "http://api.com", networkStatus: 500, networkMethod: "GET" }
+      ]
+    }));
+    expect(res.status).toBe(200);
+
+    const upsertCall = fakeClient.query.mock.calls.find(c => c[0].includes("INSERT INTO sessions"))!;
+    expect(upsertCall).toBeDefined();
+    const upsertParams = upsertCall[1] as any[];
+    expect(upsertParams[13]).toBe(false); // has_js_error
+    expect(upsertParams[14]).toBe(false); // has_rage_click
+    expect(upsertParams[15]).toBe(true);  // has_network_err
+    expect(upsertParams[16]).toBe(false); // has_dead_click
+  });
+
+  it("should set has_dead_click to true for dead_click events", async () => {
+    const res = await postIngest(makePayload({
+      summary: [
+        { type: "dead_click", timestampMs: 1000000100 }
+      ]
+    }));
+    expect(res.status).toBe(200);
+
+    const upsertCall = fakeClient.query.mock.calls.find(c => c[0].includes("INSERT INTO sessions"))!;
+    expect(upsertCall).toBeDefined();
+    const upsertParams = upsertCall[1] as any[];
+    expect(upsertParams[13]).toBe(false); // has_js_error
+    expect(upsertParams[14]).toBe(false); // has_rage_click
+    expect(upsertParams[15]).toBe(false); // has_network_err
+    expect(upsertParams[16]).toBe(true);  // has_dead_click
+  });
+
+  it("should be idempotent under duplicate retries and skip Step 3 update", async () => {
+    fakeClient.query = vi.fn(async (sql: string) => {
+      if (sql.includes("INSERT INTO events_summary")) {
+        return { rows: [], rowCount: 0 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const res = await postIngest(makePayload({
+      summary: [
+        { type: "js_error", timestampMs: 1000000100, errorMessage: "js err" }
+      ]
+    }));
+    expect(res.status).toBe(200);
+
+    const updateCall = fakeClient.query.mock.calls.find(c => c[0].includes("UPDATE sessions SET"));
+    expect(updateCall).toBeUndefined();
+  });
+
+  it("should only increment error_count for newly inserted rows in a mixed batch", async () => {
+    fakeClient.query = vi.fn(async (sql: string) => {
+      if (sql.includes("INSERT INTO events_summary")) {
+        return { rows: [{ type: "console_error" }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const res = await postIngest(makePayload({
+      summary: [
+        { type: "js_error", timestampMs: 1000000100, errorMessage: "js err" }, // duplicate (skipped)
+        { type: "console_error", timestampMs: 1000000200, message: "new error" } // new (inserted)
+      ]
+    }));
+    expect(res.status).toBe(200);
+
+    const updateCall = fakeClient.query.mock.calls.find(c => c[0].includes("UPDATE sessions SET"))!;
+    expect(updateCall).toBeDefined();
+    expect(updateCall[1][0]).toBe(1); // newErrors = 1
+  });
+
+  it("should ensure aggregate flags never regress and final flushes preserve session state", async () => {
+    const payload1 = makePayload({
+      isFinal: false,
+      summary: [
+        { type: "js_error", timestampMs: 1000000100, errorMessage: "err" }
+      ]
+    });
+    const res1 = await postIngest(payload1);
+    expect(res1.status).toBe(200);
+
+    let upsertCall = fakeClient.query.mock.calls[0]!;
+    expect(upsertCall[1][13]).toBe(true); // has_js_error
+    expect(upsertCall[1][18]).toBeNull(); // ended_at
+
+    fakeClient.query.mockClear();
+
+    const payload2 = makePayload({
+      isFinal: true,
+      summary: []
+    });
+    const res2 = await postIngest(payload2);
+    expect(res2.status).toBe(200);
+
+    upsertCall = fakeClient.query.mock.calls[0]!;
+    expect(upsertCall[1][13]).toBe(false); // has_js_error parameter in this payload is false
+    expect(upsertCall[1][18]).not.toBeNull(); // ended_at parameter is set
+    
+    const sql = upsertCall[0] as string;
+    expect(sql).toContain("has_js_error = sessions.has_js_error OR EXCLUDED.has_js_error");
+    expect(sql).toContain("ended_at = GREATEST(sessions.ended_at, EXCLUDED.ended_at)");
   });
 });
