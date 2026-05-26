@@ -10,6 +10,7 @@ import { zValidator } from "@hono/zod-validator";
 import { IngestPayloadSchema } from "../validation/ingest-schema";
 import { pool, withTransaction } from "../db";
 import { persistReplayBlob } from "../lib/blob-storage";
+import { generateFingerprint } from "../lib/fingerprint";
 import crypto from "node:crypto";
 import * as util from "node:util";
 
@@ -173,7 +174,9 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           const hashInput = `${payload.sessionId}:${event.type}:${event.timestampMs}:${stableExtra}`;
           const eventId = crypto.createHash("sha256").update(hashInput).digest("hex");
 
-          placeholders.push(`($${paramIndex}, $${paramIndex+1}, $${paramIndex+2}, $${paramIndex+3}, $${paramIndex+4}, $${paramIndex+5}, $${paramIndex+6}, $${paramIndex+7}, $${paramIndex+8}, $${paramIndex+9}, $${paramIndex+10}, $${paramIndex+11}, $${paramIndex+12}, $${paramIndex+13})`);
+          const fingerprint = generateFingerprint(event, payload.metadata.url);
+
+          placeholders.push(`($${paramIndex}, $${paramIndex+1}, $${paramIndex+2}, $${paramIndex+3}, $${paramIndex+4}, $${paramIndex+5}, $${paramIndex+6}, $${paramIndex+7}, $${paramIndex+8}, $${paramIndex+9}, $${paramIndex+10}, $${paramIndex+11}, $${paramIndex+12}, $${paramIndex+13}, $${paramIndex+14})`);
           
           params.push(
             eventId,
@@ -189,9 +192,10 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
             event.networkMethod || null,
             event.clickCount || null,
             event.navTo || null,
+            fingerprint,
             createdAt
           );
-          paramIndex += 14;
+          paramIndex += 15;
         }
 
         const summaryResult = await client.query(
@@ -199,7 +203,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           INSERT INTO events_summary (
             id, session_id, project_id, type, timestamp_ms, target,
             error_message, error_stack, network_url, network_status, network_method,
-            click_count, nav_to, created_at
+            click_count, nav_to, fingerprint, created_at
           ) VALUES ${placeholders.join(", ")}
           ON CONFLICT (id) DO NOTHING
           RETURNING type

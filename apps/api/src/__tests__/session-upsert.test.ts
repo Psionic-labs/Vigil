@@ -59,7 +59,7 @@ describe("Session Upsert Lifecycle", () => {
         if (sql.includes("INSERT INTO events_summary")) {
           const rows: { type: string }[] = [];
           if (params) {
-            for (let i = 3; i < params.length; i += 14) {
+            for (let i = 3; i < params.length; i += 15) {
               rows.push({ type: params[i] });
             }
           }
