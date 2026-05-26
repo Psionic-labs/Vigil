@@ -10,6 +10,7 @@ import { zValidator } from "@hono/zod-validator";
 import { IngestPayloadSchema } from "../validation/ingest-schema";
 import { pool, withTransaction } from "../db";
 import { persistReplayBlob } from "../lib/blob-storage";
+import { generateFingerprint } from "../lib/fingerprint";
 import crypto from "node:crypto";
 import * as util from "node:util";
 
@@ -57,12 +58,10 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
   let hasRageClick = false;
   let hasNetworkErr = false;
   let hasDeadClick = false;
-  let errorCount = 0;
 
   for (const event of payload.summary) {
     if (event.type === "js_error" || event.type === "console_error") {
       hasJsError = true;
-      errorCount++;
     }
     if (event.type === "rage_click") hasRageClick = true;
     if (event.type === "network_error") hasNetworkErr = true;
@@ -79,11 +78,12 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
   // 4. Transactional Upsert
   let insertedSummaryCount = 0;
   const totalSummaryCount = payload.summary.length;
+  let newErrors = 0;
 
   try {
     const dbTimeStart = performance.now();
     await withTransaction(async (client) => {
-      // Upsert Session
+      // Upsert Session (Step 1: metadata and boolean flags)
       await client.query(
         `
         INSERT INTO sessions (
@@ -92,21 +92,18 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           has_js_error, has_rage_click, has_network_err, has_dead_click, error_count,
           ended_at, duration_ms
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+          $14, $15, $16, $17, 0, -- error_count is initialized to 0 and updated in Step 3 based on actual inserts
+          $18, $19
         ) ON CONFLICT (id) DO UPDATE SET
           updated_at = GREATEST(sessions.updated_at, EXCLUDED.updated_at),
-          -- ended_at and duration_ms use GREATEST for monotonic safety:
-          -- a retried final flush with a slightly different server timestamp cannot regress these values.
-          -- A non-final batch (NULL) cannot clear a previously finalized session (GREATEST ignores NULLs).
           ended_at = GREATEST(sessions.ended_at, EXCLUDED.ended_at),
           duration_ms = GREATEST(sessions.duration_ms, EXCLUDED.duration_ms),
-          -- has_* flags use OR-accumulation: once true, stays true across all future upserts.
           has_js_error = sessions.has_js_error OR EXCLUDED.has_js_error,
           has_rage_click = sessions.has_rage_click OR EXCLUDED.has_rage_click,
           has_network_err = sessions.has_network_err OR EXCLUDED.has_network_err,
           has_dead_click = sessions.has_dead_click OR EXCLUDED.has_dead_click,
-          -- error_count uses GREATEST to avoid double counting retried payloads.
-          error_count = GREATEST(sessions.error_count, EXCLUDED.error_count)
+          error_count = sessions.error_count -- Keep unchanged on conflict metadata updates
         `,
         [
           payload.sessionId,
@@ -121,18 +118,17 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           payload.sdkVersion,
           payload.metadata.startedAt,
           createdAt,
-          createdAt, // updated_at = server timestamp of this batch
+          createdAt, // updated_at
           hasJsError,
           hasRageClick,
           hasNetworkErr,
           hasDeadClick,
-          errorCount,
           endedAt,
           durationMs,
         ]
       );
 
-      // Batch Insert Summary Events
+      // Batch Insert Summary Events (Step 2)
       if (payload.summary.length > 0) {
         const params: any[] = [];
         const placeholders: string[] = [];
@@ -178,7 +174,9 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           const hashInput = `${payload.sessionId}:${event.type}:${event.timestampMs}:${stableExtra}`;
           const eventId = crypto.createHash("sha256").update(hashInput).digest("hex");
 
-          placeholders.push(`($${paramIndex}, $${paramIndex+1}, $${paramIndex+2}, $${paramIndex+3}, $${paramIndex+4}, $${paramIndex+5}, $${paramIndex+6}, $${paramIndex+7}, $${paramIndex+8}, $${paramIndex+9}, $${paramIndex+10}, $${paramIndex+11}, $${paramIndex+12}, $${paramIndex+13})`);
+          const fingerprint = generateFingerprint(event, payload.metadata.url);
+
+          placeholders.push(`($${paramIndex}, $${paramIndex+1}, $${paramIndex+2}, $${paramIndex+3}, $${paramIndex+4}, $${paramIndex+5}, $${paramIndex+6}, $${paramIndex+7}, $${paramIndex+8}, $${paramIndex+9}, $${paramIndex+10}, $${paramIndex+11}, $${paramIndex+12}, $${paramIndex+13}, $${paramIndex+14})`);
           
           params.push(
             eventId,
@@ -194,9 +192,10 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
             event.networkMethod || null,
             event.clickCount || null,
             event.navTo || null,
+            fingerprint,
             createdAt
           );
-          paramIndex += 14;
+          paramIndex += 15;
         }
 
         const summaryResult = await client.query(
@@ -204,13 +203,36 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           INSERT INTO events_summary (
             id, session_id, project_id, type, timestamp_ms, target,
             error_message, error_stack, network_url, network_status, network_method,
-            click_count, nav_to, created_at
+            click_count, nav_to, fingerprint, created_at
           ) VALUES ${placeholders.join(", ")}
           ON CONFLICT (id) DO NOTHING
+          RETURNING type
           `,
           params
         );
         insertedSummaryCount = summaryResult?.rowCount || 0;
+
+        if (summaryResult && summaryResult.rows) {
+          for (const row of summaryResult.rows) {
+            const type = row.type;
+            if (type === "js_error" || type === "console_error") {
+              newErrors++;
+            }
+          }
+        }
+      }
+
+      // Step 3: Monotonically apply cumulative updates to error_count based on actual inserted summary rows
+      if (newErrors > 0) {
+        await client.query(
+          `
+          UPDATE sessions SET
+            error_count = error_count + $1,
+            updated_at = GREATEST(updated_at, $2)
+          WHERE id = $3
+          `,
+          [newErrors, createdAt, payload.sessionId]
+        );
       }
     });
     const dbTimeEnd = performance.now();
@@ -232,7 +254,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
 
     const totalMs = performance.now() - startMs;
     console.log(
-      `[Ingest] Success | ReqID: ${reqId} | Project: ${projectId} | DB: ${(dbTimeEnd - dbTimeStart).toFixed(2)}ms | Total: ${totalMs.toFixed(2)}ms | Events: ${payload.events.length} | Summaries: ${totalSummaryCount} (Inserted: ${insertedSummaryCount}, Skipped: ${totalSummaryCount - insertedSummaryCount})`
+      `[Ingest] Success | ReqID: ${reqId} | Project: ${projectId} | DB: ${(dbTimeEnd - dbTimeStart).toFixed(2)}ms | Total: ${totalMs.toFixed(2)}ms | Events: ${payload.events.length} | Summaries: ${totalSummaryCount} (Inserted: ${insertedSummaryCount}, Skipped: ${totalSummaryCount - insertedSummaryCount}) | Aggregates: error_count=+${newErrors}`
     );
 
     return c.json({ success: true });

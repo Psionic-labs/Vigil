@@ -165,7 +165,7 @@ The endpoint returns quickly. AI work is asynchronous.
 
 ---
 
-### 3. Blob Storage
+### 3. Replay Blob Storage
 
 Raw rrweb event blobs are stored separately from the database.
 
@@ -173,6 +173,12 @@ MVP:
 
 - Local disk.
 - Gzipped JSON.
+
+#### Replay Blob Persistence Semantics
+- **Best-Effort Asynchronous Persistence**: Replay blob persistence occurs after database transaction commit and is operationally best-effort. The system intentionally prioritizes database throughput, short transactions, and ingestion responsiveness over transactionally durable replay persistence. Replay blob writes are completely decoupled from the database transaction and do not share ACID guarantees or transactional filesystem coupling.
+- **Potential Duplication**: Replay blobs are append-only and potentially duplicated under retries or repeated final flushes because replay persistence currently has no deduplication layer, no replay chunk identity system, and no compaction/indexing.
+- **Timestamp-Based Ordering**: Replay chunk filenames provide collision-safe uniqueness and timestamp-based ordering semantics, but do not provide globally strict ordering guarantees.
+- **Asynchronous Scheduling**: Replay processing is deferred off the critical request path, and heavy serialization/compression work is scheduled asynchronously (using `setImmediate`), though standard event-loop scheduling still applies (and CPU-bound work can overlap with subsequent request processing).
 
 Later:
 
@@ -224,6 +230,11 @@ The signal extractor does not decide whether something is a product bug. It give
 ### 6. Fingerprinting
 
 Fingerprinting is deterministic and cheap. It helps the AI reason about duplicates.
+
+#### Event ID vs Fingerprint Philosophy
+- **Event IDs**: Used for ingestion idempotency and occurrence identity. They incorporate volatile metadata (e.g. `sessionId`, `timestampMs`, etc.) to guarantee that each physical transmission has a unique identifier.
+- **Fingerprints**: Used for issue clustering and signal grouping. They purposely exclude volatile runtime contexts.
+- **Many-to-One Mapping**: Many individual event instances intentionally map to a single fingerprint. Fingerprints trade exact occurrence identity for stable grouping semantics, ensuring that occurrences of the same failure mode cluster together across sessions, builds, and retries.
 
 Examples:
 

@@ -45,7 +45,7 @@ const postIngest = async (payload: Record<string, unknown>) => {
 };
 
 describe("Ingest Summary Idempotency & Hashing", () => {
-  const PARAMS_PER_EVENT = 14;
+  const PARAMS_PER_EVENT = 15;
   let fakeClient: { query: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {

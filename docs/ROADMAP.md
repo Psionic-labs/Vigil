@@ -65,8 +65,8 @@ Accept SDK payloads, store them, extract signals, and queue triage.
 - [x] Upsert session row in `sessions`
 - [x] Store raw rrweb events as gzipped chunk files on local disk under `BLOBS_ROOT/{project_id}/{session_id}/` (for example: `${timestamp}_${randomSuffix}_events.json.gz`)
 - [x] Write summary events to `events_summary`
-- [ ] Set session flags: `has_js_error`, `has_rage_click`, `has_network_err`, `has_dead_click`, `error_count`
-- [ ] Implement deterministic fingerprinting per signal type (see architecture doc)
+- [x] Set session flags: `has_js_error`, `has_rage_click`, `has_network_err`, `has_dead_click`, `error_count`
+- [x] Implement deterministic fingerprinting per signal type (see architecture doc)
 - [ ] On `isFinal: true`: mark `sessions.ended_at`, compute `duration_ms`
 - [ ] On `isFinal: true`: evaluate noise skip conditions, set `ai_analysis_skipped` if applicable
 - [ ] On `isFinal: true` + not skipped: enqueue AI triage job
