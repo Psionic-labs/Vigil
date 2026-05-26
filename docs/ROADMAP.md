@@ -67,9 +67,9 @@ Accept SDK payloads, store them, extract signals, and queue triage.
 - [x] Write summary events to `events_summary`
 - [x] Set session flags: `has_js_error`, `has_rage_click`, `has_network_err`, `has_dead_click`, `error_count`
 - [x] Implement deterministic fingerprinting per signal type (see architecture doc)
-- [ ] On `isFinal: true`: mark `sessions.ended_at`, compute `duration_ms`
-- [ ] On `isFinal: true`: evaluate noise skip conditions, set `ai_analysis_skipped` if applicable
-- [ ] On `isFinal: true` + not skipped: enqueue AI triage job
+- [x] On `isFinal: true`: mark `sessions.ended_at`, compute `duration_ms`
+- [x] On `isFinal: true`: evaluate noise skip conditions, set `ai_analysis_skipped` if applicable
+- [x] On `isFinal: true` + not skipped: enqueue AI triage job
 - [ ] Configure CORS correctly for cross-origin SDK installs
 - [ ] Return `200 { ok: true }` quickly — all heavy work is async
 - [ ] Test end-to-end with the SDK test page from Milestone 1

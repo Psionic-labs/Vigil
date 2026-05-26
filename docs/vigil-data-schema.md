@@ -102,6 +102,7 @@ Notes:
 - `user_id_hash` is optional and should be hashed client-side or server-side before storage.
 - `issue_instance_count` counts per-session issue evidence rows.
 - `issue_group_count` counts distinct issue groups linked to the session.
+- `duration_ms` is computed server-side on finalization based on the database record lifecycle (difference between server-trusted end and start timestamps). It reflects session lifecycle ingestion timing rather than precise client-side active duration. Future optimizations (such as `first_seen_at / last_seen_at` style client-derived lifecycle timestamps) may provide more precise temporal modeling but are currently deferred.
 
 ---
 
@@ -408,10 +409,9 @@ CREATE INDEX idx_issue_instances_session
 
 ## AI Skip Conditions
 
-Set `sessions.ai_analysis_skipped = true` when:
+Set `sessions.ai_analysis_skipped = true` and store the reason in `ai_skip_reason` when:
 
-- `duration_ms < 5000`
-- no rows exist in `events_summary`
-- `blob_path` is null
+- `duration_ms < 5000` (skip reason: `duration_under_5s`)
+- no friction signals are detected (`has_js_error`, `has_rage_click`, `has_network_err`, `has_dead_click` are all false) (skip reason: `no_friction_signals`)
 
-Store the reason in `ai_skip_reason`.
+*Noise Heuristics Limitations*: These filters are simple, deterministic, and conservative MVP filters to avoid enqueuing normal/empty sessions to the AI triage engine. They do not constitute anomaly detection or behavioral analysis. Network errors captured by the SDK may include benign noise from browser extensions, adblockers, or CDN caching failures, which are handled at this stage via deterministic filters rather than intelligent categorization.

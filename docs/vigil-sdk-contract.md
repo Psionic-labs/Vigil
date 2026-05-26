@@ -251,13 +251,12 @@ Raw rrweb events are opaque to the backend and stored as replay blobs. Summary e
 - `release` max 100 chars.
 - `commitSha` max 64 chars.
 - `userId` max 200 chars before hashing.
-- `isFinal: true` sets `sessions.ended_at` and queues AI triage unless skip conditions apply.
+- `isFinal: true` sets `sessions.ended_at` and registers an AI triage job unless skip conditions apply.
 
 Skip AI triage when:
 
-- session duration is under 5 seconds;
-- there are zero summary events;
-- raw replay blob storage failed.
+- session duration is under 5 seconds (`duration_under_5s`);
+- no friction signals are detected (`no_friction_signals`).
 
 ---
 
