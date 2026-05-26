@@ -124,16 +124,17 @@ describe("Session Upsert Lifecycle", () => {
     expect(sql).not.toContain("COALESCE(EXCLUDED.ended_at");
   });
 
-  it("should use GREATEST for duration_ms to prevent regression", async () => {
+  it("should use GREATEST for duration_ms to prevent regression and negative values", async () => {
     const res = await postIngest(makePayload());
     expect(res.status).toBe(200);
 
     const sql = fakeClient.query.mock.calls[0]![0] as string;
-    expect(sql).toContain("GREATEST(sessions.duration_ms, EXCLUDED.duration_ms)");
-    expect(sql).not.toContain("COALESCE(EXCLUDED.duration_ms");
+    expect(sql).toContain("GREATEST(");
+    expect(sql).toContain("sessions.duration_ms");
+    expect(sql).toContain("EXCLUDED.ended_at - sessions.created_at");
   });
 
-  it("should set ended_at and compute duration_ms on isFinal=true", async () => {
+  it("should set ended_at and pass initial duration parameter on isFinal=true", async () => {
     const payload = makePayload({ isFinal: true });
     const res = await postIngest(payload);
     expect(res.status).toBe(200);
@@ -141,49 +142,13 @@ describe("Session Upsert Lifecycle", () => {
     const params = fakeClient.query.mock.calls[0]![1] as any[];
     const createdAt = params[11] as number;   // server timestamp
     const endedAt = params[17] as number;     // ended_at
-    const durationMs = params[18] as number;  // duration_ms
+    const durationMs = params[18] as number;  // initial duration_ms parameter
 
     // ended_at should be set (non-null)
     expect(endedAt).toBe(createdAt);
 
-    // duration_ms = server time - client startedAt
-    expect(durationMs).toBe(createdAt - payload.metadata.startedAt);
-    expect(durationMs).toBeGreaterThan(0);
-  });
-
-  it("should clamp duration_ms to safe integer limits on skew/invalid values", async () => {
-    // 1. startedAt is in the future relative to server time
-    const resFuture = await postIngest(makePayload({
-      isFinal: true,
-      metadata: {
-        url: "http://localhost/page",
-        userAgent: "vitest",
-        startedAt: Date.now() + 100000, // 100 seconds in the future
-        screenWidth: 1920,
-        screenHeight: 1080,
-      }
-    }));
-    expect(resFuture.status).toBe(200);
-    const paramsFuture = fakeClient.query.mock.calls[0]![1] as any[];
-    expect(paramsFuture[18]).toBe(0); // Clamped to 0
-
-    // Clear calls for next assertion
-    fakeClient.query.mockClear();
-
-    // 2. startedAt is extremely old or 0 (overflow case)
-    const resOld = await postIngest(makePayload({
-      isFinal: true,
-      metadata: {
-        url: "http://localhost/page",
-        userAgent: "vitest",
-        startedAt: 1, // extremely old
-        screenWidth: 1920,
-        screenHeight: 1080,
-      }
-    }));
-    expect(resOld.status).toBe(200);
-    const paramsOld = fakeClient.query.mock.calls[0]![1] as any[];
-    expect(paramsOld[18]).toBe(2147483647); // Clamped to max signed 32-bit int
+    // durationMs parameter is passed as 0 (delegating actual duration to the DB calculation)
+    expect(durationMs).toBe(0);
   });
 
   it("should pass null for ended_at and duration_ms on non-final batch", async () => {

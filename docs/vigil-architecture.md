@@ -159,9 +159,15 @@ Responsibilities:
 - Store structured summary events.
 - Update session flags.
 - Compute deterministic issue fingerprints.
-- On `isFinal: true`, mark the session ended and queue AI triage unless skipped as noise.
+- On `isFinal: true`, mark the session ended and register an AI triage job in `triage_jobs` unless skipped as noise.
 
 The endpoint returns quickly. AI work is asynchronous.
+
+#### Ingestion Scope & Scalability Limits
+The ingest architecture provides high-throughput ingestion foundations, featuring retry-safe persistence, transactional consistency, and bounded replay processing. It is designed to run efficiently on standard single-instance setups, but does not feature distributed replay workers, queue backpressure systems, partitioned ingestion pathways, object storage integration (such as R2/S3 in the core MVP), or horizontally scaled consumers.
+
+#### Session Duration Semantics
+Session duration (`duration_ms`) is computed using server-trusted timestamps (the delta between the server-trusted ingest time of the final flush and the session's database record creation time). This design choice avoids client clock skew issues but reflects session lifecycle ingest timing rather than precise client-side activity duration. More detailed temporal modeling (such as client-derived active time or `first_seen_at / last_seen_at` lifecycle markers) is intentionally deferred.
 
 ---
 
@@ -175,7 +181,7 @@ MVP:
 - Gzipped JSON.
 
 #### Replay Blob Persistence Semantics
-- **Best-Effort Asynchronous Persistence**: Replay blob persistence occurs after database transaction commit and is operationally best-effort. The system intentionally prioritizes database throughput, short transactions, and ingestion responsiveness over transactionally durable replay persistence. Replay blob writes are completely decoupled from the database transaction and do not share ACID guarantees or transactional filesystem coupling.
+- **Best-Effort Asynchronous Persistence**: Replay persistence is scheduled (via `setImmediate`) only after a successful database transaction commit and is operationally best-effort. If the transaction rolls back, replay persistence never executes. Replay blob writes are completely decoupled from the database transaction and do not share ACID guarantees, transactional filesystem coupling, or transactional rollback guarantees.
 - **Potential Duplication**: Replay blobs are append-only and potentially duplicated under retries or repeated final flushes because replay persistence currently has no deduplication layer, no replay chunk identity system, and no compaction/indexing.
 - **Timestamp-Based Ordering**: Replay chunk filenames provide collision-safe uniqueness and timestamp-based ordering semantics, but do not provide globally strict ordering guarantees.
 - **Asynchronous Scheduling**: Replay processing is deferred off the critical request path, and heavy serialization/compression work is scheduled asynchronously (using `setImmediate`), though standard event-loop scheduling still applies (and CPU-bound work can overlap with subsequent request processing).
@@ -247,15 +253,25 @@ Fingerprints are candidate evidence, not final truth. The AI can create a new is
 
 ---
 
-### 7. AI Triage Agent
+### 7. Job Queue Semantics
 
-Runs asynchronously for every completed non-noise session.
+Vigil uses a lightweight, Postgres-backed table (`triage_jobs`) to register session triage jobs when a session is finalized.
 
-Noise skip conditions:
+- **Durable Registration Semantics**: The queue currently provides durable job registration semantics, not a fully distributed worker orchestration system. Worker execution is deferred and handles asynchronous execution, but does not currently feature guaranteed worker delivery, distributed queue durability, or advanced retry/backpressure orchestration.
+- **Transactional Enqueueing**: Triage jobs are registered in the same transaction as session finalization (`ON CONFLICT (session_id) DO NOTHING`). If the transaction fails and rolls back, no job is registered.
 
-- Session duration under 5 seconds.
-- Zero summary events.
-- Missing replay blob.
+---
+
+### 8. AI Triage Agent
+
+Runs asynchronously for every completed session that is not skipped as noise.
+
+#### Deterministic Noise Skip Heuristics
+To optimize cost and avoid running expensive AI triage on low-value data, the ingest pipeline applies simple, deterministic, lightweight skip checks on session finalization:
+- **Session duration under 5 seconds** (`duration_under_5s`): Sessions shorter than 5 seconds are skipped.
+- **No friction signals** (`no_friction_signals`): Sessions containing no JS errors, console errors, network errors, rage clicks, or dead clicks are skipped.
+
+*Heuristics Limitations*: These filters are conservative MVP filters rather than intelligent behavioral analysis or anomaly detection. For instance, network errors may include benign browser extension/adblock noise. The AI skip logic is intentionally simple, deterministic, and executes synchronously inside the ingestion transaction.
 
 Input:
 

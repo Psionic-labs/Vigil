@@ -71,9 +71,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
   // 3. Finalization Logistics
   const createdAt = Date.now();
   const endedAt = payload.isFinal ? createdAt : null;
-  const durationMs = payload.isFinal
-    ? Math.max(0, Math.min(2147483647, createdAt - payload.metadata.startedAt))
-    : null;
+  const durationMs = payload.isFinal ? 0 : null; // ON CONFLICT will compute it from server timestamps
 
   // 4. Transactional Upsert
   let insertedSummaryCount = 0;
@@ -98,7 +96,12 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
         ) ON CONFLICT (id) DO UPDATE SET
           updated_at = GREATEST(sessions.updated_at, EXCLUDED.updated_at),
           ended_at = GREATEST(sessions.ended_at, EXCLUDED.ended_at),
-          duration_ms = GREATEST(sessions.duration_ms, EXCLUDED.duration_ms),
+          duration_ms = GREATEST(
+            sessions.duration_ms,
+            CASE WHEN EXCLUDED.ended_at IS NOT NULL THEN
+              GREATEST(EXCLUDED.ended_at - sessions.created_at, 0)
+            ELSE NULL END
+          ),
           has_js_error = sessions.has_js_error OR EXCLUDED.has_js_error,
           has_rage_click = sessions.has_rage_click OR EXCLUDED.has_rage_click,
           has_network_err = sessions.has_network_err OR EXCLUDED.has_network_err,
@@ -233,6 +236,79 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           `,
           [newErrors, createdAt, payload.sessionId]
         );
+      }
+
+      // Step 4: Finalization & AI Triage Queueing
+      if (payload.isFinal) {
+        // Query the finalized session state to apply skip heuristics
+        const sessionStateResult = await client.query(
+          `
+          SELECT duration_ms, has_js_error, has_rage_click, has_network_err, has_dead_click
+          FROM sessions
+          WHERE id = $1
+          `,
+          [payload.sessionId]
+        );
+        const sessionState = sessionStateResult.rows[0];
+        if (sessionState) {
+          const finalDurationMs = sessionState.duration_ms !== null ? Number(sessionState.duration_ms) : 0;
+          const finalHasJsError = Boolean(sessionState.has_js_error);
+          const finalHasRageClick = Boolean(sessionState.has_rage_click);
+          const finalHasNetworkErr = Boolean(sessionState.has_network_err);
+          const finalHasDeadClick = Boolean(sessionState.has_dead_click);
+
+          let skip = false;
+          let skipReason: string | null = null;
+
+          // Simple deterministic cheap noise skip heuristics
+          if (finalDurationMs < 5000) {
+            skip = true;
+            skipReason = "duration_under_5s";
+          } else if (!finalHasJsError && !finalHasRageClick && !finalHasNetworkErr && !finalHasDeadClick) {
+            skip = true;
+            skipReason = "no_friction_signals";
+          }
+
+          if (skip) {
+            await client.query(
+              `
+              UPDATE sessions SET
+                ai_analysis_skipped = true,
+                ai_skip_reason = $1
+              WHERE id = $2
+              `,
+              [skipReason, payload.sessionId]
+            );
+            console.log(`[Ingest] Session finalized & skipped | ReqID: ${reqId} | SessionID: ${payload.sessionId} | Duration: ${finalDurationMs}ms | Reason: ${skipReason}`);
+          } else {
+            // Not skipped: update skip flags in case it was previously marked skipped, then enqueue job
+            await client.query(
+              `
+              UPDATE sessions SET
+                ai_analysis_skipped = false,
+                ai_skip_reason = NULL
+              WHERE id = $1
+              `,
+              [payload.sessionId]
+            );
+
+            const jobResult = await client.query(
+              `
+              INSERT INTO triage_jobs (session_id, project_id, status, created_at, updated_at)
+              VALUES ($1, $2, 'pending', $3, $3)
+              ON CONFLICT (session_id) DO NOTHING
+              `,
+              [payload.sessionId, projectId, createdAt]
+            );
+
+            const enqueued = (jobResult.rowCount ?? 0) > 0;
+            if (enqueued) {
+              console.log(`[Ingest] Session finalized & triage job enqueued | ReqID: ${reqId} | SessionID: ${payload.sessionId} | Duration: ${finalDurationMs}ms | Enqueue: success`);
+            } else {
+              console.log(`[Ingest] Session finalized & triage job duplicate suppressed | ReqID: ${reqId} | SessionID: ${payload.sessionId} | Duration: ${finalDurationMs}ms | Enqueue: skipped_duplicate`);
+            }
+          }
+        }
       }
     });
     const dbTimeEnd = performance.now();
