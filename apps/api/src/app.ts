@@ -28,14 +28,28 @@ app.use("*", logger());
 // Assign a Request ID to trace ingestion payloads
 app.use("*", requestIdMiddleware);
 
+// CORS logging to monitor cross-origin requests, preflights, and SDK-origin verification
+app.use("/api/*", async (c, next) => {
+  const origin = c.req.header("Origin");
+  const method = c.req.method;
+  const reqId = c.get("requestId") || "unknown";
+  if (method === "OPTIONS") {
+    console.log(`[CORS] Preflight OPTIONS request | ReqID: ${reqId} | Origin: ${origin || "unknown"} | Request-Method: ${c.req.header("Access-Control-Request-Method") || "none"}`);
+  } else {
+    console.log(`[CORS] Cross-origin SDK request | ReqID: ${reqId} | Origin: ${origin || "self/non-browser"} | Method: ${method} | Path: ${c.req.path}`);
+  }
+  await next();
+});
+
 // Permissive CORS to accept SDK payloads from any host application
 // (Can be tightened later per project/domain rules)
 app.use(
   "/api/*",
   cors({
-    origin: "*",
+    origin: (origin) => origin || "*",
     allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
+    credentials: true,
   })
 );
 
@@ -48,6 +62,7 @@ app.notFound((c) => {
   const reqId = c.get("requestId") || "unknown";
   return c.json(
     {
+      ok: false,
       success: false,
       error: {
         message: "Not Found",

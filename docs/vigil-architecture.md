@@ -26,7 +26,7 @@
      v
 [Signal Extractor]
      |
-     |-- stores timeline events in events_summary
+     |-- stores summary events in events_summary
      |-- sets session flags and counts
      |-- computes candidate issue fingerprints
      |-- does not replace AI judgment
@@ -475,6 +475,18 @@ The AI never sees raw rrweb blobs or unmasked input values. Only structured summ
 
 Use the minimum viable scopes and clearly state that Vigil creates issues only. It does not read or write source code.
 
-### Cross-origin ingest
+### Cross-origin ingest & CORS Policy
+The ingest API currently prioritizes reliable browser ingestion and short request latency over advanced multi-tenant security policies.
+- **Trust Assumptions**: For the current milestone, CORS is configured to be permissive (`origin: "*"`) to support browser-based SDK installations, localhost development, and cross-origin telemetry ingestion from arbitrary customer domains.
+- **Allowed Headers & Methods**: Browsers may issue `POST` and `OPTIONS` (preflight) requests. Supported request headers include `Content-Type`, `Authorization`, and `X-Request-Id`.
+- **Preflight Handling**: OPTIONS preflight requests are caught by global middleware, logged with origin verification details, and return `204 No Content` with appropriate CORS headers to satisfy browser safety policies.
+- **Intentionally Deferred Hardening**: Dynamic origin registries, customer-specific origin blocklists, and token/credential checks are intentionally deferred.
 
-CORS must be configured correctly for SDK installs on customer domains.
+### Async Request Lifecycle & Execution Boundaries
+To maintain high responsiveness and avoid blocking browser threads, the ingest route maintains strict execution boundaries:
+1. **Synchronous & Transactionally Guaranteed Path**:
+   - Project validation and payload schema parsing are executed synchronously upon arrival.
+   - Database operations (session upsert, summary event batch inserts, error count adjustments, and triage job registration) run inside a database transaction block. These operations complete and commit *before* the success response is returned to the client. This guarantees transactional consistency and prevents data loss/orphaned records.
+2. **Asynchronous & Best-Effort Path**:
+   - Replay blob processing (JSON serialization, gzip compression, and atomic local disk writes) is heavy CPU/IO bound work and is deferred post-response.
+   - It is scheduled asynchronously using `setImmediate` to run outside the critical request-response path. Because standard single-threaded event-loop scheduling still applies, CPU-heavy JSON serialization and gzip compression tasks still compete for event-loop execution time and may overlap with subsequent request processing.

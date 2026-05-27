@@ -70,7 +70,7 @@ export function buildPayload(
   const events = drain(ctx.events);
   const summary = drain(ctx.summaryEvents);
 
-  if (events.length === 0 && summary.length === 0) {
+  if (events.length === 0 && summary.length === 0 && !isFinal) {
     return null;
   }
 

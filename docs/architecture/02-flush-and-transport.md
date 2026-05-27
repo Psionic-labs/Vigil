@@ -17,7 +17,7 @@ Driven by `setInterval` (defaulting to every 5 seconds).
 Driven by the `visibilitychange` event when `document.visibilityState === 'hidden'`.
 * **Behavior**: Mobile browsers (and modern desktop browsers) frequently freeze background tabs without firing `unload` events. To prevent data loss, the SDK flushes the queue the moment the tab is hidden.
 * **Ownership Transfer**: It performs a **non-destructive snapshot**. It sends a copy of the current queues but *leaves the items in the queues*.
-* **Tradeoff (Intentional Duplication)**: Why not drain the queues? Because if the `fetch` fails (or the browser throttles background network requests), the data would be lost. By keeping the data in the queue, we ensure that if the user returns to the tab, the next Periodic Flush will pick it up and successfully deliver it. We intentionally accept the possibility that the ingest backend will receive duplicate events; the backend is responsible for deduplicating payloads using internal IDs and timestamps.
+* **Tradeoff (Intentional Duplication)**: Why not drain the queues? Because if the `fetch` fails (or the browser throttles background network requests), the data would be lost. By keeping the data in the queue, we ensure that if the user returns to the tab, the next Periodic Flush will pick it up and successfully deliver it. We intentionally accept the possibility that the ingest backend will receive duplicate events. The backend deduplicates incoming summary events at the database layer using deterministic occurrence IDs, while raw replay event blobs are append-only and may duplicate under retries.
 
 ### 3. Final Flushes (Terminal Unwind)
 Driven by `pagehide` or `beforeunload`.

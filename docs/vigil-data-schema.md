@@ -108,7 +108,7 @@ Notes:
 
 ### `events_summary`
 
-Structured timeline events extracted from SDK summary payloads. This is what AI receives, not the raw rrweb blob.
+Structured summary events extracted from SDK summary payloads. This is what AI receives, not the raw rrweb blob.
 
 ```sql
 CREATE TABLE events_summary (

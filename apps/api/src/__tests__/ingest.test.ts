@@ -59,6 +59,7 @@ describe("Ingest API", () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
+    expect(body.ok).toBe(true);
     expect(body.success).toBe(true);
 
     // Verify project lookup uses the is_active filter
@@ -93,6 +94,7 @@ describe("Ingest API", () => {
 
     expect(res.status).toBe(401);
     const body = await res.json();
+    expect(body.ok).toBe(false);
     expect(body.success).toBe(false);
     expect(body.error).toBe("Unauthorized");
 
@@ -113,6 +115,7 @@ describe("Ingest API", () => {
 
     expect(res.status).toBe(401);
     const body = await res.json();
+    expect(body.ok).toBe(false);
     expect(body.success).toBe(false);
 
     // Verify the query was issued with the disabled key
@@ -138,6 +141,7 @@ describe("Ingest API", () => {
 
     expect(res.status).toBe(400);
     const body = await res.json();
+    expect(body.ok).toBe(false);
     expect(body.success).toBe(false);
     expect(body.error.message).toBe("Validation Error");
     expect(body.error.issues).toBeDefined();
@@ -194,6 +198,7 @@ describe("Ingest API", () => {
 
     expect(res.status).toBe(400);
     const body = await res.json();
+    expect(body.ok).toBe(false);
     expect(body.success).toBe(false);
 
     // Pipeline must NOT proceed
@@ -242,6 +247,7 @@ describe("Ingest API", () => {
 
     expect(res.status).toBe(400);
     const body = await res.json();
+    expect(body.ok).toBe(false);
     expect(body.success).toBe(false);
 
     // Pipeline must NOT proceed
@@ -272,5 +278,80 @@ describe("Ingest API", () => {
     expect(pool.query).not.toHaveBeenCalled();
     expect(withTransaction).not.toHaveBeenCalled();
     expect(persistReplayBlob).not.toHaveBeenCalled();
+  });
+
+  it("should complete transactional database writes before response, while deferring replay storage", async () => {
+    (pool.query as any).mockResolvedValueOnce({ rows: [{ id: "proj_123" }] });
+
+    const res = await app.request("/api/v1/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(VALID_PAYLOAD),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+
+    // Critical database operations must be executed BEFORE the response completes
+    expect(withTransaction).toHaveBeenCalled();
+
+    // Replay persistence must NOT have been called yet (as it is deferred asynchronously)
+    expect(persistReplayBlob).not.toHaveBeenCalled();
+
+    // Now wait for the deferred setImmediate persistence task to run
+    await new Promise((resolve) => setImmediate(resolve));
+
+    // Replay persistence should now have been executed
+    expect(persistReplayBlob).toHaveBeenCalledWith(
+      "proj_123",
+      "sess_abc",
+      VALID_PAYLOAD.events
+    );
+  });
+
+  it("should handle CORS preflight OPTIONS requests successfully", async () => {
+    const res = await app.request("/api/v1/ingest", {
+      method: "OPTIONS",
+      headers: {
+        "Origin": "http://localhost:5173",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "Content-Type, X-Request-Id",
+      },
+    });
+
+    expect(res.status).toBe(204);
+    expect(res.headers.get("access-control-allow-origin")).toBe("http://localhost:5173");
+    expect(res.headers.get("access-control-allow-credentials")).toBe("true");
+    expect(res.headers.get("access-control-allow-methods")).toContain("POST");
+    expect(res.headers.get("access-control-allow-headers")).toContain("Content-Type");
+  });
+
+  it("should attach CORS headers to cross-origin POST requests", async () => {
+    (pool.query as any).mockResolvedValueOnce({ rows: [{ id: "proj_123" }] });
+
+    const res = await app.request("/api/v1/ingest", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Origin": "http://localhost:5173",
+      },
+      body: JSON.stringify(VALID_PAYLOAD),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("access-control-allow-origin")).toBe("http://localhost:5173");
+    expect(res.headers.get("access-control-allow-credentials")).toBe("true");
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.success).toBe(true);
+  });
+
+  it("should return 404 for invalid request methods or undefined routes", async () => {
+    const res = await app.request("/api/v1/ingest", {
+      method: "GET",
+    });
+
+    expect(res.status).toBe(404);
   });
 });
