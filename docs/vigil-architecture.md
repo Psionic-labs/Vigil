@@ -477,10 +477,10 @@ Use the minimum viable scopes and clearly state that Vigil creates issues only. 
 
 ### Cross-origin ingest & CORS Policy
 The ingest API currently prioritizes reliable browser ingestion and short request latency over advanced multi-tenant security policies.
-- **Trust Assumptions**: For the current milestone, CORS is configured to be permissive (`origin: "*"`) to support browser-based SDK installations, localhost development, and cross-origin telemetry ingestion from arbitrary customer domains.
+- **Trust Assumptions**: For the current milestone, CORS reflects the caller's `Origin` header and allows credentialed cross-origin requests (`credentials: true`) to support browser-based SDK installations, localhost development, and cross-origin telemetry ingestion from arbitrary customer domains.
 - **Allowed Headers & Methods**: Browsers may issue `POST` and `OPTIONS` (preflight) requests. Supported request headers include `Content-Type`, `Authorization`, and `X-Request-Id`.
 - **Preflight Handling**: OPTIONS preflight requests are caught by global middleware, logged with origin verification details, and return `204 No Content` with appropriate CORS headers to satisfy browser safety policies.
-- **Intentionally Deferred Hardening**: Dynamic origin registries, customer-specific origin blocklists, and token/credential checks are intentionally deferred.
+- **Intentionally Deferred Hardening**: Dynamic origin allowlists/registries, customer-specific origin blocklists, and tighter credential/token validation are intentionally deferred even though the current policy already reflects request origins for browser compatibility.
 
 ### Async Request Lifecycle & Execution Boundaries
 To maintain high responsiveness and avoid blocking browser threads, the ingest route maintains strict execution boundaries:

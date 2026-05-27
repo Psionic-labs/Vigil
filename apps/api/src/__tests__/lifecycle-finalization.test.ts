@@ -84,8 +84,10 @@ describe("Final Session Lifecycle & AI Triage Enqueue", () => {
     )!;
     expect(upsertCall).toBeDefined();
     const sql = upsertCall[0] as string;
-    expect(sql).toContain("ended_at = GREATEST(sessions.ended_at, EXCLUDED.ended_at)");
+    expect(sql).toContain("ended_at = CASE");
+    expect(sql).toContain("GREATEST(sessions.ended_at, EXCLUDED.ended_at)");
     expect(sql).toContain("duration_ms = CASE");
+    expect(sql).toContain("LEAST(");
     expect(sql).toContain("EXCLUDED.ended_at - sessions.created_at, 0");
   });
 

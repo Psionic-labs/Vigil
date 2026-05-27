@@ -13,6 +13,7 @@ import { persistReplayBlob } from "../lib/blob-storage";
 import { generateFingerprint } from "../lib/fingerprint";
 import crypto from "node:crypto";
 import * as util from "node:util";
+import path from "node:path";
 
 const ingest = new Hono<{ Variables: { requestId: string } }>();
 
@@ -135,13 +136,23 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           $18, $19
         ) ON CONFLICT (id) DO UPDATE SET
           updated_at = GREATEST(sessions.updated_at, EXCLUDED.updated_at),
-          ended_at = GREATEST(sessions.ended_at, EXCLUDED.ended_at),
+          ended_at = CASE
+            WHEN EXCLUDED.ended_at IS NOT NULL THEN
+              CASE
+                WHEN sessions.ended_at IS NOT NULL THEN GREATEST(sessions.ended_at, EXCLUDED.ended_at)
+                ELSE EXCLUDED.ended_at
+              END
+            ELSE sessions.ended_at
+          END,
           duration_ms = CASE
             WHEN EXCLUDED.ended_at IS NOT NULL THEN
-              GREATEST(
-                COALESCE(sessions.duration_ms, 0),
-                GREATEST(EXCLUDED.ended_at - sessions.created_at, 0)
-              )
+              LEAST(
+                GREATEST(
+                  COALESCE(sessions.duration_ms, 0),
+                  GREATEST(EXCLUDED.ended_at - sessions.created_at, 0)
+                ),
+                2147483647
+              )::integer
             ELSE sessions.duration_ms
           END,
           has_js_error = sessions.has_js_error OR EXCLUDED.has_js_error,
@@ -362,9 +373,8 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
 
             // Lightweight async metadata update of the session row post-response
             const updateTime = Date.now();
-            const normalizedPath = result.path.replace(/\\/g, "/");
-            const pathParts = normalizedPath.split("/blobs/v1/");
-            const relativeBlobPath = pathParts[1] ? `blobs/v1/${pathParts[1]}` : result.path;
+            const filename = path.basename(result.path);
+            const relativeBlobPath = `blobs/v1/${projectId}/${payload.sessionId}/${filename}`;
 
             pool.query(
               `
