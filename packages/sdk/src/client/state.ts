@@ -15,6 +15,8 @@ export const MAX_EVENTS = 5000;
 export const MAX_SUMMARY = 1000;
 export const SUMMARY_TRIM_BATCH_SIZE = 50;
 
+export type SessionLifecycle = "active" | "finalizing" | "finalized";
+
 export interface SDKState {
   initialized: boolean;
   sessionId: string;
@@ -22,22 +24,38 @@ export interface SDKState {
   summaryEvents: SummaryEvent[];
   metadata: SessionMetadata | null;
   /**
-   * After a terminal flush attempt, the SDK prevents any future
-   * periodic or retry-based flush activity for that session lifecycle.
+   * Only active sessions can collect data or dispatch non-terminal payloads.
    */
-  finalFlushSent: boolean;
+  lifecycle: SessionLifecycle;
+  /**
+   * Transport-level single-dispatch lock for the terminal payload.
+   */
+  terminalPayloadDispatched: boolean;
   lifecycleEpoch: number;
 }
 
 export function createSDKState(): SDKState {
   const events: RrwebEvent[] = [];
-  
-  // Use a Proxy to enforce buffer limits universally on the array.
-  const summaryEvents = new Proxy([] as SummaryEvent[], {
+  const state: SDKState = {
+    initialized: false,
+    sessionId: "",
+    events,
+    summaryEvents: [],
+    metadata: null,
+    lifecycle: "active",
+    terminalPayloadDispatched: false,
+    lifecycleEpoch: 0,
+  };
+
+  // Guard every detector's shared queue without requiring detector-specific lifecycle wiring.
+  state.summaryEvents = new Proxy([] as SummaryEvent[], {
     get(target, prop, receiver) {
       const val = Reflect.get(target, prop, receiver);
       if (prop === "push") {
         return (...items: SummaryEvent[]) => {
+          if (state.lifecycle !== "active") {
+            return target.length;
+          }
           const res = Array.prototype.push.apply(target, items);
           if (target.length > MAX_SUMMARY) {
             target.splice(0, target.length - MAX_SUMMARY + SUMMARY_TRIM_BATCH_SIZE);
@@ -49,13 +67,5 @@ export function createSDKState(): SDKState {
     },
   });
 
-  return {
-    initialized: false,
-    sessionId: "",
-    events,
-    summaryEvents,
-    metadata: null,
-    finalFlushSent: false,
-    lifecycleEpoch: 0,
-  };
+  return state;
 }

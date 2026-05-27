@@ -11,7 +11,9 @@ import {
   type FlushContext,
   type FlushTimer,
   buildPayload,
-  restoreBuffer
+  registerScheduledFlushCleanup,
+  restoreBuffer,
+  unregisterScheduledFlushCleanup,
 } from "./shared";
 
 export * from "./transport";
@@ -40,9 +42,7 @@ export function startFlushTimer(
     // Capture the epoch to ensure we don't restore data if the lifecycle restarts
     const currentEpoch = state.lifecycleEpoch;
 
-    // [j76y39] After a terminal flush attempt, the SDK prevents any future periodic or retry-based flush activity for that session lifecycle.
-    // If a request is hanging on a bad connection, or a final flush has been sent/attempted, we immediately ignore this tick.
-    if (isFlushing || state.finalFlushSent) return;
+    if (isFlushing || state.lifecycle !== "active") return;
 
     const result = buildPayload(ctx, false);
     if (!result) return;
@@ -51,19 +51,17 @@ export function startFlushTimer(
     const { payload, events, summary } = result;
     currentInFlight = { events, summary };
 
-    const ok = await sendBatch(ctx.endpoint, payload, ctx.debug);
+    const ok = await sendBatch(ctx.endpoint, payload, ctx.debug, state);
 
     currentInFlight = null;
     isFlushing = false;
 
-    // If the lifecycle epoch has changed (e.g., shutdown was called), silently drop the batch
-    if (currentEpoch !== state.lifecycleEpoch) return;
+    // A terminal transition owns the drained batch once it begins.
+    if (currentEpoch !== state.lifecycleEpoch || state.lifecycle !== "active") return;
 
     if (!ok) {
       consecutiveFailures++;
-      // [j76y39] After a terminal flush attempt, the SDK prevents any future periodic or retry-based flush activity for that session lifecycle.
-      // Therefore, if state.finalFlushSent is true, we immediately bypass retry scheduling and restoration, allowing the failed batch to be dropped.
-      if (consecutiveFailures <= MAX_RETRIES && !state.finalFlushSent) {
+      if (consecutiveFailures <= MAX_RETRIES) {
         if (ctx.debug) {
           console.warn(
             `Vigil flush: network failed, re-queueing (retry ${consecutiveFailures}/${MAX_RETRIES})`,
@@ -73,13 +71,9 @@ export function startFlushTimer(
         restoreBuffer(ctx.summaryEvents, summary);
       } else {
         if (ctx.debug) {
-          if (state.finalFlushSent) {
-            console.log("Vigil flush: dropping failed batch because final flush was already sent");
-          } else {
-            console.error(
-              `Vigil flush: endpoint unreachable, dropping batch after ${MAX_RETRIES} retries`,
-            );
-          }
+          console.error(
+            `Vigil flush: endpoint unreachable, dropping batch after ${MAX_RETRIES} retries`,
+          );
         }
         consecutiveFailures = 0;
       }
@@ -89,14 +83,17 @@ export function startFlushTimer(
   };
 
   let id: ReturnType<typeof setInterval> | null = setInterval(tick, intervalMs);
+  const stop = () => {
+    if (id) {
+      clearInterval(id);
+      id = null;
+    }
+    unregisterScheduledFlushCleanup(stop);
+  };
+  registerScheduledFlushCleanup(stop);
 
   return {
-    stop: () => {
-      if (id) {
-        clearInterval(id);
-        id = null;
-      }
-    },
+    stop,
     getInFlight: () => currentInFlight,
   };
 }

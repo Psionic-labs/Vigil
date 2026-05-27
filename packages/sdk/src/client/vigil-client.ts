@@ -45,6 +45,8 @@ export const Vigil = {
       return; // Invalid config, abort
     }
 
+    state.lifecycle = "active";
+    state.terminalPayloadDispatched = false;
     state.lifecycleEpoch++;
 
     try {
@@ -102,7 +104,7 @@ export const Vigil = {
       lifecycle.addCleanup(flushTimer.stop);
 
       // Final flush on close
-      const finalFlush = setupFinalFlush(flushCtx, flushTimer, state);
+      const finalFlush = setupFinalFlush(flushCtx, flushTimer, state, () => lifecycle.cleanupAll());
       lifecycle.addCleanup(finalFlush.cleanup);
       triggerFinalFlush = finalFlush.triggerFinalFlush;
 
@@ -111,6 +113,7 @@ export const Vigil = {
         try {
           const stopRecording = record({
             emit(event: RrwebEvent) {
+              if (state.lifecycle !== "active") return;
               state.events.push(event);
               if (state.events.length > MAX_EVENTS) {
                 state.events.splice(0, state.events.length - MAX_EVENTS + 100);
@@ -187,9 +190,11 @@ export const Vigil = {
    * Completely shut down the SDK and remove all listeners.
    */
   shutdown() {
-    state.lifecycleEpoch++;
-    
     triggerFinalFlush?.();
+    if (state.lifecycle === "active") {
+      state.lifecycle = "finalized";
+      state.lifecycleEpoch++;
+    }
     triggerFinalFlush = null;
 
     // Run cleanups regardless of initialized state to prevent partial initialization leaks
@@ -199,8 +204,7 @@ export const Vigil = {
     state.sessionId = "";
     state.metadata = null;
     state.events.length = 0;
-    state.summaryEvents.length = 0; // The proxy interceptor handles this gracefully or just clears the underlying array
-    state.finalFlushSent = false;
+    state.summaryEvents.length = 0;
     if (typeof window !== "undefined" && window.__vigil) {
       delete window.__vigil;
     }
