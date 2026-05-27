@@ -129,13 +129,14 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
           id, project_id, url, user_agent, screen_width, screen_height,
           release, commit_sha, environment, sdk_version, started_at, created_at, updated_at,
           has_js_error, has_rage_click, has_network_err, has_dead_click, error_count,
-          ended_at, duration_ms
+          ended_at, duration_ms, last_ingest_at
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
           $14, $15, $16, $17, 0, -- error_count is initialized to 0 and updated in Step 3 based on actual inserts
-          $18, $19
+          $18, $19, $13
         ) ON CONFLICT (id) DO UPDATE SET
           updated_at = GREATEST(sessions.updated_at, EXCLUDED.updated_at),
+          last_ingest_at = GREATEST(sessions.last_ingest_at, EXCLUDED.last_ingest_at),
           ended_at = CASE
             WHEN EXCLUDED.ended_at IS NOT NULL THEN
               CASE
@@ -154,6 +155,14 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
                 2147483647
               )::integer
             ELSE sessions.duration_ms
+          END,
+          is_abandoned = CASE
+            WHEN EXCLUDED.ended_at IS NOT NULL THEN false
+            ELSE sessions.is_abandoned
+          END,
+          abandoned_at = CASE
+            WHEN EXCLUDED.ended_at IS NOT NULL THEN NULL
+            ELSE sessions.abandoned_at
           END,
           has_js_error = sessions.has_js_error OR EXCLUDED.has_js_error,
           has_rage_click = sessions.has_rage_click OR EXCLUDED.has_rage_click,

@@ -85,6 +85,10 @@ CREATE TABLE sessions (
   issue_instance_count  INTEGER NOT NULL DEFAULT 0,
   issue_group_count     INTEGER NOT NULL DEFAULT 0,
 
+  is_abandoned          BOOLEAN NOT NULL DEFAULT false,
+  abandoned_at          BIGINT,
+  last_ingest_at        BIGINT NOT NULL DEFAULT 0,
+
   ai_analyzed_at        BIGINT,
   ai_analysis_skipped   BOOLEAN NOT NULL DEFAULT false,
   ai_skip_reason        TEXT,
@@ -103,6 +107,8 @@ Notes:
 - `issue_instance_count` counts per-session issue evidence rows.
 - `issue_group_count` counts distinct issue groups linked to the session.
 - `duration_ms` is computed server-side on finalization based on the database record lifecycle (difference between server-trusted end and start timestamps). It reflects session lifecycle ingestion timing rather than precise client-side active duration. Future optimizations (such as `first_seen_at / last_seen_at` style client-derived lifecycle timestamps) may provide more precise temporal modeling but are currently deferred.
+- `is_abandoned`, `abandoned_at`, and `last_ingest_at` support server-side session timeout reconciliation for unfinalized sessions. `last_ingest_at` updates on every ingest batch monotonically. `is_abandoned` transitions to `true` via a background worker if the session remains unfinalized (`ended_at IS NULL`) and no ingest activity occurs for a configured timeout window.
+
 
 ---
 
@@ -403,6 +409,11 @@ CREATE INDEX idx_issue_instances_group
 
 CREATE INDEX idx_issue_instances_session
   ON issue_instances (session_id);
+
+CREATE INDEX idx_sessions_reconciliation
+  ON sessions (last_ingest_at)
+  WHERE ended_at IS NULL
+  AND is_abandoned = false;
 ```
 
 ---
