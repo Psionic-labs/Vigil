@@ -114,21 +114,21 @@ describe("Session Upsert Lifecycle", () => {
     expect(updatedAt).toBeLessThanOrEqual(afterMs);
   });
 
-  it("should use GREATEST for ended_at to prevent regression on duplicate finals", async () => {
+  it("should use CASE and GREATEST for ended_at to prevent regression on duplicate finals", async () => {
     const res = await postIngest(makePayload());
     expect(res.status).toBe(200);
 
     const sql = fakeClient.query.mock.calls[0]![0] as string;
-    // The ON CONFLICT clause should use GREATEST, not COALESCE
+    expect(sql).toContain("ended_at = CASE");
     expect(sql).toContain("GREATEST(sessions.ended_at, EXCLUDED.ended_at)");
-    expect(sql).not.toContain("COALESCE(EXCLUDED.ended_at");
   });
 
-  it("should use GREATEST for duration_ms to prevent regression and negative values", async () => {
+  it("should use LEAST and GREATEST for duration_ms to prevent regression and negative values", async () => {
     const res = await postIngest(makePayload());
     expect(res.status).toBe(200);
 
     const sql = fakeClient.query.mock.calls[0]![0] as string;
+    expect(sql).toContain("LEAST(");
     expect(sql).toContain("GREATEST(");
     expect(sql).toContain("sessions.duration_ms");
     expect(sql).toContain("EXCLUDED.ended_at - sessions.created_at");
@@ -386,6 +386,50 @@ describe("Session Upsert Lifecycle", () => {
     
     const sql = upsertCall[0] as string;
     expect(sql).toContain("has_js_error = sessions.has_js_error OR EXCLUDED.has_js_error");
-    expect(sql).toContain("ended_at = GREATEST(sessions.ended_at, EXCLUDED.ended_at)");
+    expect(sql).toContain("ended_at = CASE");
+  });
+
+  it("should ensure non-final retries never wipe finalized durations by passing null ended_at", async () => {
+    const payload = makePayload({ isFinal: false });
+    const res = await postIngest(payload);
+    expect(res.status).toBe(200);
+
+    const upsertCall = fakeClient.query.mock.calls[0]!;
+    const sql = upsertCall[0] as string;
+    const params = upsertCall[1] as any[];
+
+    // Ensure ended_at and duration_ms params are null (so EXCLUDED.ended_at is null)
+    expect(params[17]).toBeNull(); // ended_at parameter
+    expect(params[18]).toBeNull(); // duration_ms parameter
+
+    // Ensure the SQL contains the CASE expression to fall back to sessions.duration_ms
+    expect(sql).toContain("duration_ms = CASE");
+    expect(sql).toContain("ELSE sessions.duration_ms");
+  });
+
+  it("should ensure duplicate final flushes preserve duration by using GREATEST with COALESCE", async () => {
+    const payload = makePayload({ isFinal: true });
+    const res = await postIngest(payload);
+    expect(res.status).toBe(200);
+
+    const upsertCall = fakeClient.query.mock.calls[0]!;
+    const sql = upsertCall[0] as string;
+
+    // Ensure SQL uses GREATEST with COALESCE on duration_ms and new computed duration
+    expect(sql).toContain("COALESCE(sessions.duration_ms, 0)");
+    expect(sql).toContain("duration_ms = CASE");
+  });
+
+  it("should ensure duration remains monotonic under retries", async () => {
+    const payload = makePayload({ isFinal: true });
+    const res = await postIngest(payload);
+    expect(res.status).toBe(200);
+
+    const upsertCall = fakeClient.query.mock.calls[0]!;
+    const sql = upsertCall[0] as string;
+
+    // Ensure SQL monotonically compares previous duration and new duration
+    expect(sql).toContain("COALESCE(sessions.duration_ms, 0)");
+    expect(sql).toContain("EXCLUDED.ended_at - sessions.created_at");
   });
 });

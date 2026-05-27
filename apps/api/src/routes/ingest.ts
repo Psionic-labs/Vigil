@@ -13,6 +13,7 @@ import { persistReplayBlob } from "../lib/blob-storage";
 import { generateFingerprint } from "../lib/fingerprint";
 import crypto from "node:crypto";
 import * as util from "node:util";
+import path from "node:path";
 
 const ingest = new Hono<{ Variables: { requestId: string } }>();
 
@@ -22,7 +23,7 @@ ingest.use(
   bodyLimit({
     maxSize: 2 * 1024 * 1024,
     onError: (c) => {
-      return c.json({ success: false, error: "Payload Too Large" }, 413);
+      return c.json({ ok: false, success: false, error: "Payload Too Large" }, 413);
     },
   })
 );
@@ -30,6 +31,7 @@ ingest.use(
 ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
   if (!result.success) {
     return c.json({
+      ok: false,
       success: false,
       error: { message: "Validation Error", issues: result.error.issues }
     }, 400);
@@ -48,7 +50,7 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
 
   if (projectResult.rows.length === 0) {
     console.warn(`[Ingest] Rejected | ReqID: ${reqId} | Reason: invalid or inactive project key`);
-    return c.json({ success: false, error: "Unauthorized" }, 401);
+    return c.json({ ok: false, success: false, error: "Unauthorized" }, 401);
   }
 
   const projectId = projectResult.rows[0].id as string;
@@ -82,31 +84,53 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
     const dbTimeStart = performance.now();
     await withTransaction(async (client) => {
       // Upsert Session (Step 1: metadata and boolean flags)
-      await client.query(
+      const sessionResult = await client.query(
         `
         INSERT INTO sessions (
           id, project_id, url, user_agent, screen_width, screen_height,
           release, commit_sha, environment, sdk_version, started_at, created_at, updated_at,
           has_js_error, has_rage_click, has_network_err, has_dead_click, error_count,
-          ended_at, duration_ms
+          ended_at, duration_ms, last_ingest_at
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
           $14, $15, $16, $17, 0, -- error_count is initialized to 0 and updated in Step 3 based on actual inserts
-          $18, $19
+          $18, $19, $13
         ) ON CONFLICT (id) DO UPDATE SET
           updated_at = GREATEST(sessions.updated_at, EXCLUDED.updated_at),
-          ended_at = GREATEST(sessions.ended_at, EXCLUDED.ended_at),
-          duration_ms = GREATEST(
-            sessions.duration_ms,
-            CASE WHEN EXCLUDED.ended_at IS NOT NULL THEN
-              GREATEST(EXCLUDED.ended_at - sessions.created_at, 0)
-            ELSE NULL END
-          ),
+          last_ingest_at = GREATEST(sessions.last_ingest_at, EXCLUDED.last_ingest_at),
+          ended_at = CASE
+            WHEN EXCLUDED.ended_at IS NOT NULL THEN
+              CASE
+                WHEN sessions.ended_at IS NOT NULL THEN GREATEST(sessions.ended_at, EXCLUDED.ended_at)
+                ELSE EXCLUDED.ended_at
+              END
+            ELSE sessions.ended_at
+          END,
+          duration_ms = CASE
+            WHEN EXCLUDED.ended_at IS NOT NULL THEN
+              LEAST(
+                GREATEST(
+                  COALESCE(sessions.duration_ms, 0),
+                  GREATEST(EXCLUDED.ended_at - sessions.created_at, 0)
+                ),
+                2147483647
+              )::integer
+            ELSE sessions.duration_ms
+          END,
+          is_abandoned = CASE
+            WHEN EXCLUDED.ended_at IS NOT NULL THEN false
+            ELSE sessions.is_abandoned
+          END,
+          abandoned_at = CASE
+            WHEN EXCLUDED.ended_at IS NOT NULL THEN NULL
+            ELSE sessions.abandoned_at
+          END,
           has_js_error = sessions.has_js_error OR EXCLUDED.has_js_error,
           has_rage_click = sessions.has_rage_click OR EXCLUDED.has_rage_click,
           has_network_err = sessions.has_network_err OR EXCLUDED.has_network_err,
           has_dead_click = sessions.has_dead_click OR EXCLUDED.has_dead_click,
           error_count = sessions.error_count -- Keep unchanged on conflict metadata updates
+        RETURNING duration_ms, has_js_error, has_rage_click, has_network_err, has_dead_click
         `,
         [
           payload.sessionId,
@@ -240,16 +264,8 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
 
       // Step 4: Finalization & AI Triage Queueing
       if (payload.isFinal) {
-        // Query the finalized session state to apply skip heuristics
-        const sessionStateResult = await client.query(
-          `
-          SELECT duration_ms, has_js_error, has_rage_click, has_network_err, has_dead_click
-          FROM sessions
-          WHERE id = $1
-          `,
-          [payload.sessionId]
-        );
-        const sessionState = sessionStateResult.rows[0];
+        // Apply skip heuristics based on the finalized session state returned from Step 1
+        const sessionState = sessionResult.rows[0];
         if (sessionState) {
           const finalDurationMs = sessionState.duration_ms !== null ? Number(sessionState.duration_ms) : 0;
           const finalHasJsError = Boolean(sessionState.has_js_error);
@@ -315,28 +331,53 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
 
     // 5. Replay Persistence (Async background persistence after DB commit)
     // Wrap in setImmediate to schedule the serialization (JSON.stringify) off the request's critical path.
-    setImmediate(() => {
-      persistReplayBlob(projectId, payload.sessionId, payload.events)
-        .then((result) => {
-          if (!result) return;
-          console.log(
-            `[Ingest] Blob saved | ReqID: ${reqId} | Path: ${result.filePath} | Size: ${result.compressedSize} B | Serialization: ${result.serializationDurationMs.toFixed(2)}ms | Compression: ${result.compressionDurationMs.toFixed(2)}ms | Write: ${result.writeDurationMs.toFixed(2)}ms`
-          );
-        })
-        .catch((err) => {
-          console.error(`[Ingest] Background blob persistence failed | ReqID: ${reqId}`, err);
-        });
-    });
+    if (payload.events && payload.events.length > 0) {
+      console.log(`[Ingest] Scheduling async replay persistence | ReqID: ${reqId} | Events: ${payload.events.length}`);
+      setImmediate(() => {
+        persistReplayBlob(projectId, payload.sessionId, payload.events)
+          .then((result) => {
+            if (!result) return;
+            console.log(
+              `[Ingest] Blob saved | ReqID: ${reqId} | Path: ${result.path} | Size: ${result.compressedBytes} B | Serialization: ${result.serializationMs.toFixed(2)}ms | Compression: ${result.compressionMs.toFixed(2)}ms | Write: ${result.writeMs.toFixed(2)}ms`
+            );
+
+            // Lightweight async metadata update of the session row post-response
+            const updateTime = Date.now();
+            const filename = path.basename(result.path);
+            const relativeBlobPath = `blobs/v1/${projectId}/${payload.sessionId}/${filename}`;
+
+            pool.query(
+              `
+              UPDATE sessions
+              SET
+                blob_path = $1,
+                updated_at = $2
+              WHERE id = $3
+              `,
+              [relativeBlobPath, updateTime, payload.sessionId]
+            )
+              .then(() => {
+                console.log(`[Ingest] Session blob_path metadata updated | ReqID: ${reqId} | SessionID: ${payload.sessionId} | Path: ${relativeBlobPath}`);
+              })
+              .catch((dbErr) => {
+                console.error(`[Ingest] Failed to update session blob_path metadata | ReqID: ${reqId} | SessionID: ${payload.sessionId}`, dbErr);
+              });
+          })
+          .catch((err) => {
+            console.error(`[Ingest] Background blob persistence failed | ReqID: ${reqId}`, err);
+          });
+      });
+    }
 
     const totalMs = performance.now() - startMs;
     console.log(
       `[Ingest] Success | ReqID: ${reqId} | Project: ${projectId} | DB: ${(dbTimeEnd - dbTimeStart).toFixed(2)}ms | Total: ${totalMs.toFixed(2)}ms | Events: ${payload.events.length} | Summaries: ${totalSummaryCount} (Inserted: ${insertedSummaryCount}, Skipped: ${totalSummaryCount - insertedSummaryCount}) | Aggregates: error_count=+${newErrors}`
     );
 
-    return c.json({ success: true });
+    return c.json({ ok: true, success: true });
   } catch (err: any) {
     console.error(`[Ingest] Transaction failed | ReqID: ${reqId}`, err);
-    return c.json({ success: false, error: "Ingestion failed" }, 500);
+    return c.json({ ok: false, success: false, error: "Ingestion failed" }, 500);
   }
 });
 

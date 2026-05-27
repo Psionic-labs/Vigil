@@ -8,6 +8,14 @@ class MockBlob {
   }
 }
 
+function createFlushState() {
+  return {
+    lifecycle: 'active',
+    terminalPayloadDispatched: false,
+    lifecycleEpoch: 0,
+  } as any;
+}
+
 describe('flush mechanics', () => {
   let ctx: FlushContext;
 
@@ -26,6 +34,7 @@ describe('flush mechanics', () => {
       visibilityState: 'visible'
     });
     vi.stubGlobal('Blob', MockBlob);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => '' }));
     
     ctx = {
       sessionId: '123',
@@ -59,7 +68,7 @@ describe('flush mechanics', () => {
     });
 
     const mockTimer = { stop: vi.fn(), getInFlight: vi.fn().mockReturnValue(null) };
-    const mockState = { finalFlushSent: false } as any;
+    const mockState = createFlushState();
     setupFinalFlush(ctx, mockTimer, mockState);
     finalHandler();
 
@@ -84,7 +93,7 @@ describe('flush mechanics', () => {
     });
 
     const mockTimer = { stop: vi.fn(), getInFlight: vi.fn().mockReturnValue(null) };
-    const mockState = { finalFlushSent: false } as any;
+    const mockState = createFlushState();
     setupFinalFlush(ctx, mockTimer, mockState);
     
     pagehide();
@@ -102,7 +111,7 @@ describe('flush mechanics', () => {
     });
 
     const mockTimer = { stop: vi.fn(), getInFlight: vi.fn().mockReturnValue(null) };
-    const mockState = { finalFlushSent: false } as any;
+    const mockState = createFlushState();
     setupFinalFlush(ctx, mockTimer, mockState);
     pagehide();
 
@@ -113,7 +122,7 @@ describe('flush mechanics', () => {
     expect(sentPayload.metadata.url).toBe('https://example.com/path');
   });
 
-  it('sends isFinal: true for unload flush and sets finalFlushSent', () => {
+  it('sends isFinal: true for unload flush and finalizes lifecycle', () => {
     ctx.summaryEvents.push({ type: 'js_error', timestampMs: 123 } as any);
 
     let pagehide: any;
@@ -122,7 +131,7 @@ describe('flush mechanics', () => {
     });
 
     const mockTimer = { stop: vi.fn(), getInFlight: vi.fn().mockReturnValue(null) };
-    const mockState = { finalFlushSent: false } as any;
+    const mockState = createFlushState();
     setupFinalFlush(ctx, mockTimer, mockState);
     pagehide();
 
@@ -130,14 +139,15 @@ describe('flush mechanics', () => {
     const sentPayload = JSON.parse(mockBlob.parts[0]!);
 
     expect(sentPayload.isFinal).toBe(true);
-    expect(mockState.finalFlushSent).toBe(true);
+    expect(mockState.lifecycle).toBe('finalized');
+    expect(mockState.terminalPayloadDispatched).toBe(true);
   });
 
   it('programmatic triggerFinalFlush sends isFinal: true', () => {
     ctx.summaryEvents.push({ type: 'js_error', timestampMs: 123 } as any);
 
     const mockTimer = { stop: vi.fn(), getInFlight: vi.fn().mockReturnValue(null) };
-    const mockState = { finalFlushSent: false } as any;
+    const mockState = createFlushState();
     const finalFlush = setupFinalFlush(ctx, mockTimer, mockState);
     
     finalFlush.triggerFinalFlush();
@@ -146,11 +156,11 @@ describe('flush mechanics', () => {
     const sentPayload = JSON.parse(mockBlob.parts[0]!);
 
     expect(sentPayload.isFinal).toBe(true);
-    expect(mockState.finalFlushSent).toBe(true);
+    expect(mockState.lifecycle).toBe('finalized');
   });
 
   it('prevents any future periodic flushes after a terminal flush attempt', async () => {
-    const mockState = { finalFlushSent: false } as any;
+    const mockState = createFlushState();
     const fetchSpy = vi.fn().mockResolvedValue({ ok: true, text: async () => '' });
     vi.stubGlobal('fetch', fetchSpy);
 
@@ -161,8 +171,7 @@ describe('flush mechanics', () => {
     const finalFlush = setupFinalFlush(ctx, timer, mockState);
     finalFlush.triggerFinalFlush();
 
-    // Now finalFlushSent is true and timer is stopped
-    expect(mockState.finalFlushSent).toBe(true);
+    expect(mockState.lifecycle).toBe('finalized');
     
     // Clear fetch spy to reset count
     fetchSpy.mockClear();
@@ -178,7 +187,7 @@ describe('flush mechanics', () => {
   });
 
   it('prevents retry restoration if a final flush occurs while a periodic flush is in-flight', async () => {
-    const mockState = { finalFlushSent: false } as any;
+    const mockState = createFlushState();
     
     let resolveFetch: (value: any) => void = () => {};
     const fetchPromise = new Promise((resolve) => {
@@ -202,7 +211,10 @@ describe('flush mechanics', () => {
     const finalFlush = setupFinalFlush(ctx, timerFake, mockState);
     finalFlush.triggerFinalFlush();
     
-    expect(mockState.finalFlushSent).toBe(true);
+    expect(mockState.lifecycle).toBe('finalized');
+    const finalBlob = (globalThis as any).navigator.sendBeacon.mock.calls[0]![1] as MockBlob;
+    const finalPayload = JSON.parse(finalBlob.parts[0]!);
+    expect(finalPayload.events).toContainEqual({ type: 'periodic-event' });
     
     // Now resolve the in-flight periodic flush with failure (ok: false)
     resolveFetch({ ok: false, status: 500, text: async () => 'Error' });
@@ -211,7 +223,7 @@ describe('flush mechanics', () => {
     await vi.runAllTicks();
     
     // The events from the failed periodic flush should NOT be restored to the buffer
-    // because state.finalFlushSent is true.
+    // because the session has already become terminal.
     expect(ctx.events).toEqual([]);
     
     timerFake.stop();
@@ -221,13 +233,13 @@ describe('flush mechanics', () => {
     ctx.summaryEvents.push({ type: 'js_error', timestampMs: 123 } as any);
     
     const mockTimer = { stop: vi.fn(), getInFlight: vi.fn().mockReturnValue(null) };
-    const mockState = { finalFlushSent: false } as any;
+    const mockState = createFlushState();
     const finalFlush = setupFinalFlush(ctx, mockTimer, mockState);
     
     // First trigger
     finalFlush.triggerFinalFlush();
     expect((globalThis as any).navigator.sendBeacon).toHaveBeenCalledTimes(1);
-    expect(mockState.finalFlushSent).toBe(true);
+    expect(mockState.lifecycle).toBe('finalized');
     
     // Clear mock
     vi.mocked((globalThis as any).navigator.sendBeacon).mockClear();
@@ -250,7 +262,7 @@ describe('flush mechanics', () => {
     });
 
     const mockTimer = { stop: vi.fn(), getInFlight: vi.fn().mockReturnValue(null) };
-    const mockState = { finalFlushSent: false } as any;
+    const mockState = createFlushState();
     const finalFlush = setupFinalFlush(ctx, mockTimer, mockState);
     
     // Simulate pagehide, beforeunload, and programmatic trigger in quick succession
@@ -271,20 +283,21 @@ describe('flush mechanics', () => {
     });
 
     const mockTimer = { stop: vi.fn(), getInFlight: vi.fn().mockReturnValue(null) };
-    const mockState = { finalFlushSent: false } as any;
+    const mockState = createFlushState();
     setupFinalFlush(ctx, mockTimer, mockState);
     
     // Simulate visibility change to hidden
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
     visibilitychange();
 
-    expect((globalThis as any).navigator.sendBeacon).toHaveBeenCalledTimes(1);
-    const mockBlob = (globalThis as any).navigator.sendBeacon.mock.calls[0]![1] as MockBlob;
-    const sentPayload = JSON.parse(mockBlob.parts[0]!);
+    expect((globalThis as any).fetch).toHaveBeenCalledTimes(1);
+    const fetchOptions = (globalThis as any).fetch.mock.calls[0]![1];
+    const sentPayload = JSON.parse(fetchOptions.body);
 
     // Should NOT be marked as final flush
     expect(sentPayload.isFinal).toBe(false);
-    expect(mockState.finalFlushSent).toBe(false);
+    expect(mockState.lifecycle).toBe('active');
+    expect(fetchOptions.keepalive).toBe(true);
     
     // Timer should NOT be stopped
     expect(mockTimer.stop).not.toHaveBeenCalled();
@@ -298,7 +311,8 @@ describe('flush mechanics', () => {
   });
 
   it('drops in-flight payload if lifecycleEpoch changes during await', async () => {
-    const mockState = { finalFlushSent: false, lifecycleEpoch: 1 } as any;
+    const mockState = createFlushState();
+    mockState.lifecycleEpoch = 1;
     
     let resolveFetch: (value: any) => void = () => {};
     const fetchPromise = new Promise((resolve) => {
@@ -346,7 +360,7 @@ describe('flush mechanics', () => {
     });
 
     const mockTimer = { stop: vi.fn(), getInFlight: vi.fn().mockReturnValue(null) };
-    const mockState = { finalFlushSent: false } as any;
+    const mockState = createFlushState();
     setupFinalFlush(ctx, mockTimer, mockState);
     
     // Trigger the fetch fallback and explicitly observe the rejected promise.

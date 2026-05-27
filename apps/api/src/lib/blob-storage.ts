@@ -21,6 +21,12 @@ const __dirname = path.dirname(__filename);
 const BLOBS_ROOT = process.env.BLOBS_ROOT || path.resolve(__dirname, "../../blobs/v1");
 
 export interface BlobPersistenceResult {
+  path: string;
+  compressedBytes: number;
+  serializationMs: number;
+  compressionMs: number;
+  writeMs: number;
+  // Compatibility fields
   filePath: string;
   compressedSize: number;
   serializationDurationMs: number;
@@ -97,6 +103,11 @@ export async function persistReplayBlob(
   const writeDurationMs = performance.now() - writeStart;
 
   return {
+    path: filePath,
+    compressedBytes: compressed.length,
+    serializationMs: serializationDurationMs,
+    compressionMs: compressionDurationMs,
+    writeMs: writeDurationMs,
     filePath,
     compressedSize: compressed.length,
     serializationDurationMs,

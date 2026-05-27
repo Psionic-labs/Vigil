@@ -3,7 +3,7 @@ import { Vigil } from '@vigil/sdk';
 // 1. Initialize the SDK
 Vigil.init({
   projectKey: 'pk_playground',
-  endpoint: 'http://localhost:3000/api/ingest', // mock dev endpoint
+  endpoint: 'http://localhost:3001/api/v1/ingest',
   debug: true,
 });
 
@@ -11,7 +11,7 @@ Vigil.init({
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {
   const url = typeof args[0] === 'string' ? args[0] : (args[0] instanceof Request ? args[0].url : '');
-  if (url.includes('/api/ingest')) {
+  if (url.includes('/api/ingest') || url.includes('/api/v1/ingest')) {
     let bodyText: string | undefined;
     if (args[0] instanceof Request) {
       bodyText = await args[0].clone().text();
@@ -28,7 +28,8 @@ window.fetch = async (...args) => {
       }
     }
     logTransport('fetch', payload);
-    return new Response('{"ok":true}', { status: 200 });
+    // Execute real fetch for end-to-end verification
+    return originalFetch(...args);
   }
   return originalFetch(...args);
 };
@@ -36,7 +37,7 @@ window.fetch = async (...args) => {
 // 3. Mock sendBeacon to intercept final flushes
 const originalSendBeacon = navigator.sendBeacon;
 navigator.sendBeacon = (url, data) => {
-  if (typeof url === 'string' && url.includes('/api/ingest')) {
+  if (typeof url === 'string' && (url.includes('/api/ingest') || url.includes('/api/v1/ingest'))) {
     let payload;
     if (typeof data === 'string') {
       try {
@@ -49,7 +50,8 @@ navigator.sendBeacon = (url, data) => {
       payload = { _type: 'Blob', size: data.size };
     }
     logTransport('sendBeacon', payload);
-    return true;
+    // Execute real sendBeacon for end-to-end verification
+    return originalSendBeacon.call(navigator, url, data);
   }
   return originalSendBeacon.call(navigator, url, data);
 };

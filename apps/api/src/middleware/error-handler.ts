@@ -25,6 +25,7 @@ export function globalErrorHandler(err: Error | HTTPResponseError, c: Context) {
     console.error(`[ValidationError] RequestID: ${reqId}`, err.issues);
     return c.json(
       {
+        ok: false,
         success: false,
         error: {
           message: "Validation Error",
@@ -49,6 +50,7 @@ export function globalErrorHandler(err: Error | HTTPResponseError, c: Context) {
 
   return c.json(
     {
+      ok: false,
       success: false,
       error: {
         message: status === 500 ? "Internal Server Error" : err.message,

@@ -1,24 +1,61 @@
 /**
  * @file transport.ts
- * @description The low-level network layer of the SDK.
- * Implements `fetch` with AbortControllers for standard periodic flushes, and 
- * fallbacks via `navigator.sendBeacon` and `keepalive` for final unload flushes.
- * Enforces strict 64KB payload limits for beacon requests.
+ * @description Serialized transport for replay batches and one terminal unload dispatch.
  */
+import type { SDKState } from "../client/state";
 import type { IngestPayload } from "../types";
 
-/**
- * Send one batch to the ingest endpoint via `fetch`.
- *
- * Returns `true` on success (2xx), `false` on failure.
- * Never throws.
- */
-export async function sendBatch(
+const inflightRequests = new Set<AbortController>();
+let activeFlushPromise: Promise<void> | null = null;
+
+interface BatchTransportOptions {
+  keepalive?: boolean;
+}
+
+function logRejectedPayload(
+  payload: IngestPayload,
+  state: SDKState,
+  debug: boolean,
+): void {
+  if (!debug) return;
+
+  console.warn("[Transport] Rejected post-finalization payload", {
+    sessionId: payload.sessionId,
+    payloadType: payload.isFinal ? "final" : "non-final",
+    lifecycle: state.lifecycle,
+    eventCount: payload.events.length,
+    summaryCount: payload.summary.length,
+  });
+}
+
+function trackSerializedSend(send: Promise<boolean>): Promise<boolean> {
+  const completion = send.then(
+    () => undefined,
+    () => undefined,
+  );
+  activeFlushPromise = completion;
+  void completion.then(() => {
+    if (activeFlushPromise === completion) {
+      activeFlushPromise = null;
+    }
+  });
+  return send;
+}
+
+async function postBatch(
   endpoint: string,
   payload: IngestPayload,
   debug: boolean,
+  state: SDKState,
+  options: BatchTransportOptions,
 ): Promise<boolean> {
+  if (payload.isFinal || state.lifecycle !== "active") {
+    logRejectedPayload(payload, state, debug);
+    return false;
+  }
+
   const controller = new AbortController();
+  inflightRequests.add(controller);
   const timeoutId = setTimeout(() => controller.abort(), 10000);
 
   try {
@@ -27,6 +64,7 @@ export async function sendBatch(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       signal: controller.signal,
+      keepalive: options.keepalive,
     });
 
     if (!res.ok) {
@@ -51,38 +89,69 @@ export async function sendBatch(
     }
     return true;
   } catch (err) {
-    if (debug) {
+    if (debug && state.lifecycle === "active") {
       console.warn("Vigil flush: network error", err);
     }
     return false;
   } finally {
     clearTimeout(timeoutId);
+    inflightRequests.delete(controller);
   }
 }
 
 /**
- * Best-effort send during page unload or final flush.
- *
- * Priority:
- *  1. `navigator.sendBeacon` — purpose-built for unload, works reliably.
- *  2. `fetch` with `keepalive: true` — keeps the request alive after the
- *     page is gone. Supported in Chrome 66+, Firefox 120+, Safari 13+.
- *
- * Both are fire-and-forget with no response handling.
+ * Send a non-terminal batch. Calls are serialized so only one standard POST is
+ * active at once; queued work checks lifecycle again immediately before fetch.
+ */
+export function sendBatch(
+  endpoint: string,
+  payload: IngestPayload,
+  debug: boolean,
+  state: SDKState,
+  options: BatchTransportOptions = {},
+): Promise<boolean> {
+  const run = () => postBatch(endpoint, payload, debug, state, options);
+
+  if (!activeFlushPromise) {
+    return trackSerializedSend(run());
+  }
+
+  return trackSerializedSend(activeFlushPromise.then(run, run));
+}
+
+/** Abort the active standard POST before terminal payload dispatch. */
+export function abortInflightRequests(): void {
+  for (const controller of inflightRequests) {
+    controller.abort();
+  }
+}
+
+/**
+ * Best-effort one-time send during page unload or explicit terminal shutdown.
+ * It stays synchronous because unload handlers cannot reliably await work.
  */
 export function sendFinalBatch(
   endpoint: string,
   payload: IngestPayload,
   debug: boolean,
-): void {
+  state: SDKState,
+): boolean {
+  if (
+    !payload.isFinal ||
+    state.lifecycle !== "finalizing" ||
+    state.terminalPayloadDispatched
+  ) {
+    logRejectedPayload(payload, state, debug);
+    return false;
+  }
+  state.terminalPayloadDispatched = true;
+
   const encoder = new TextEncoder();
   let events = payload.events;
   let summary = payload.summary;
   let body = JSON.stringify(payload);
   let bodyBytes = encoder.encode(body).length;
 
-  // Chromium/Safari beacon and keepalive limit is exactly 64KB.
-  // We trim payload if it exceeds 60KB to guarantee delivery of summary triage signals.
   const MAX_PAYLOAD_BYTES = 60000;
   if (bodyBytes > MAX_PAYLOAD_BYTES && events.length > 0) {
     if (debug) {
@@ -90,7 +159,7 @@ export function sendFinalBatch(
         `Vigil final flush: payload too large (${bodyBytes} bytes), dropping raw rrweb events`,
       );
     }
-    events = []; // Drop opaque blobs, prioritize structured triage
+    events = [];
     body = JSON.stringify({ ...payload, events, summary });
     bodyBytes = encoder.encode(body).length;
   }
@@ -102,17 +171,14 @@ export function sendFinalBatch(
       );
     }
     while (bodyBytes > MAX_PAYLOAD_BYTES && summary.length > 0) {
-      if (summary.length === 1) {
-        summary = [];
-      } else {
-        summary = summary.slice(-Math.floor(summary.length / 2));
-      }
+      summary = summary.length === 1
+        ? []
+        : summary.slice(-Math.floor(summary.length / 2));
       body = JSON.stringify({ ...payload, events, summary });
       bodyBytes = encoder.encode(body).length;
     }
   }
 
-  // Try sendBeacon first
   if (
     typeof navigator !== "undefined" &&
     typeof navigator.sendBeacon === "function"
@@ -128,12 +194,9 @@ export function sendFinalBatch(
       );
     }
 
-    if (queued) return;
-    // sendBeacon can reject if payload is too large (64KB limit in some browsers).
-    // Fall through to fetch+keepalive.
+    if (queued) return true;
   }
 
-  // Fallback: fetch with keepalive
   try {
     fetch(endpoint, {
       method: "POST",
@@ -149,9 +212,10 @@ export function sendFinalBatch(
       );
     }
   } catch {
-    // Nothing more we can do during unload.
     if (debug) {
       console.warn("Vigil final flush: both sendBeacon and fetch failed");
     }
   }
+
+  return true;
 }

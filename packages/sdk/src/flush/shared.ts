@@ -26,6 +26,24 @@ export interface FlushTimer {
   getInFlight: () => { events: unknown[]; summary: SummaryEvent[] } | null;
 }
 
+const scheduledFlushCleanups = new Set<() => void>();
+
+export function registerScheduledFlushCleanup(cleanup: () => void): void {
+  scheduledFlushCleanups.add(cleanup);
+}
+
+export function unregisterScheduledFlushCleanup(cleanup: () => void): void {
+  scheduledFlushCleanups.delete(cleanup);
+}
+
+/** Cancel registered interval/debounce/retry scheduling before terminal dispatch. */
+export function cancelAllScheduledFlushes(): void {
+  for (const cleanup of [...scheduledFlushCleanups]) {
+    cleanup();
+  }
+  scheduledFlushCleanups.clear();
+}
+
 // Shared helpers
 
 /**
@@ -70,7 +88,7 @@ export function buildPayload(
   const events = drain(ctx.events);
   const summary = drain(ctx.summaryEvents);
 
-  if (events.length === 0 && summary.length === 0) {
+  if (events.length === 0 && summary.length === 0 && !isFinal) {
     return null;
   }
 

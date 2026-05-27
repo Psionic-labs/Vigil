@@ -50,7 +50,7 @@ describe("Final Session Lifecycle & AI Triage Enqueue", () => {
 
     fakeClient = {
       query: vi.fn(async (sql: string) => {
-        if (sql.includes("SELECT duration_ms")) {
+        if (sql.includes("INSERT INTO sessions")) {
           // Default mock session state that is not skipped (long duration, has error)
           return {
             rows: [
@@ -84,15 +84,17 @@ describe("Final Session Lifecycle & AI Triage Enqueue", () => {
     )!;
     expect(upsertCall).toBeDefined();
     const sql = upsertCall[0] as string;
-    expect(sql).toContain("ended_at = GREATEST(sessions.ended_at, EXCLUDED.ended_at)");
-    expect(sql).toContain("duration_ms = GREATEST");
+    expect(sql).toContain("ended_at = CASE");
+    expect(sql).toContain("GREATEST(sessions.ended_at, EXCLUDED.ended_at)");
+    expect(sql).toContain("duration_ms = CASE");
+    expect(sql).toContain("LEAST(");
     expect(sql).toContain("EXCLUDED.ended_at - sessions.created_at, 0");
   });
 
   it("should skip sessions with duration under 5 seconds", async () => {
-    // Override SELECT sessions to return a short duration session state
+    // Override INSERT INTO sessions to return a short duration session state
     fakeClient.query.mockImplementation(async (sql: string) => {
-      if (sql.includes("SELECT duration_ms")) {
+      if (sql.includes("INSERT INTO sessions")) {
         return {
           rows: [
             {
@@ -127,9 +129,9 @@ describe("Final Session Lifecycle & AI Triage Enqueue", () => {
   });
 
   it("should skip sessions with no user friction signals", async () => {
-    // Override SELECT sessions to return a session with no error/rage/dead/network flags
+    // Override INSERT INTO sessions to return a session with no error/rage/dead/network flags
     fakeClient.query.mockImplementation(async (sql: string) => {
-      if (sql.includes("SELECT duration_ms")) {
+      if (sql.includes("INSERT INTO sessions")) {
         return {
           rows: [
             {
