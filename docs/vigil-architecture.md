@@ -169,6 +169,13 @@ The ingest architecture provides high-throughput ingestion foundations, featurin
 #### Session Duration Semantics
 Session duration (`duration_ms`) is computed using server-trusted timestamps (the delta between the server-trusted ingest time of the final flush and the session's database record creation time). This design choice avoids client clock skew issues but reflects session lifecycle ingest timing rather than precise client-side activity duration. More detailed temporal modeling (such as client-derived active time or `first_seen_at / last_seen_at` lifecycle markers) is intentionally deferred.
 
+#### Session Timeout Reconciliation
+To handle abrupt client termination scenarios (e.g., process termination, browser crash, laptop sleep, network loss) that prevent the client SDK from sending final flushes, Vigil implements an in-process session timeout reconciliation loop:
+- **Worker Execution**: A lightweight background scheduler scans active unfinalized sessions using the partial index `idx_sessions_reconciliation`.
+- **Abandonment Semantics**: If a session remains unfinalized (`ended_at IS NULL`) and idle without new ingest activity past a configurable timeout threshold (defaults to 15 minutes, with a minimum bound of 10 seconds), it is transitioned to an abandoned state (`is_abandoned = true`, `abandoned_at = now`). The terminal timestamp is set to its `last_ingest_at`.
+- **Monotonic Duration**: The duration delta is calculated using monotonic non-negative bounds clamped to a 4-byte integer `2147483647`.
+- **Supersede/Late final flushes**: If the client SDK recovers and flushes a late `isFinal: true` payload for an already-reconciled abandoned session, the ingest pipeline un-abandons it (`is_abandoned = false`, `abandoned_at = NULL`) and transitions it to a finalized status. Late non-final retries preserve the abandonment.
+
 ---
 
 ### 3. Replay Blob Storage
