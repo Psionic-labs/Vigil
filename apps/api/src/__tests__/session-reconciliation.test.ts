@@ -134,6 +134,21 @@ describe("Session Timeout Reconciliation", () => {
       expect(updateCall[1][1]).toBe(10000); // Clamped to 10 seconds minimum
     });
 
+    it("should replace non-finite session timeouts with the minimum safe timeout", async () => {
+      (pool.query as any)
+        .mockResolvedValueOnce({
+          rows: [{ count: 0, oldest_last_ingest_at: null }],
+        })
+        .mockResolvedValueOnce({
+          rowCount: 0,
+        });
+
+      await reconcileAbandonedSessions(Number.NaN);
+
+      const updateCall = (pool.query as any).mock.calls[1];
+      expect(updateCall[1][1]).toBe(10000);
+    });
+
     it("should verify duplicate reconciliation runs are idempotent and ignore already abandoned sessions", async () => {
       (pool.query as any)
         .mockResolvedValueOnce({
@@ -173,6 +188,31 @@ describe("Session Timeout Reconciliation", () => {
       vi.useRealTimers();
 
       consoleWarnSpy.mockRestore();
+      consoleLogSpy.mockRestore();
+    });
+
+    it("should schedule a safe interval when worker inputs are invalid", () => {
+      const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+      vi.useFakeTimers();
+      const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+      (pool.query as any)
+        .mockResolvedValueOnce({
+          rows: [{ count: 0, oldest_last_ingest_at: null }],
+        })
+        .mockResolvedValueOnce({ rowCount: 0 });
+
+      startReconciliationWorker(Number.NaN, Number.NaN);
+      vi.advanceTimersByTime(0);
+
+      expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 10000);
+
+      stopReconciliationWorker();
+      vi.useRealTimers();
+      setIntervalSpy.mockRestore();
+      randomSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
       consoleLogSpy.mockRestore();
     });
   });

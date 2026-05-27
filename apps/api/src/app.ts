@@ -28,16 +28,38 @@ app.use("*", logger());
 // Assign a Request ID to trace ingestion payloads
 app.use("*", requestIdMiddleware);
 
-// CORS logging to monitor cross-origin requests, preflights, and SDK-origin verification
+const ENABLE_CORS_DEBUG = process.env.DEBUG_CORS === "true";
+
 app.use("/api/*", async (c, next) => {
+  if (!ENABLE_CORS_DEBUG) {
+    return next();
+  }
+
   const origin = c.req.header("Origin");
+
+  // Ignore non-browser/same-origin requests
+  if (!origin) {
+    return next();
+  }
+
   const method = c.req.method;
   const reqId = c.get("requestId") || "unknown";
+
+  // Prevent log poisoning / huge origins
+  const safeOrigin = origin.replace(/[\r\n\t]/g, "").slice(0, 200);
+
   if (method === "OPTIONS") {
-    console.log(`[CORS] Preflight OPTIONS request | ReqID: ${reqId} | Origin: ${origin || "unknown"} | Request-Method: ${c.req.header("Access-Control-Request-Method") || "none"}`);
+    console.debug(
+      `[CORS] Preflight | ReqID: ${reqId} | Origin: ${safeOrigin} | Request-Method: ${
+        c.req.header("Access-Control-Request-Method") || "unknown"
+      }`,
+    );
   } else {
-    console.log(`[CORS] Cross-origin SDK request | ReqID: ${reqId} | Origin: ${origin || "self/non-browser"} | Method: ${method} | Path: ${c.req.path}`);
+    console.debug(
+      `[CORS] Cross-origin request | ReqID: ${reqId} | Origin: ${safeOrigin} | Method: ${method} | Path: ${c.req.path}`,
+    );
   }
+
   await next();
 });
 
@@ -50,7 +72,7 @@ app.use(
     allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
     credentials: true,
-  })
+  }),
 );
 
 // 2. Global Error Handling
@@ -70,7 +92,7 @@ app.notFound((c) => {
         requestId: reqId,
       },
     },
-    404
+    404,
   );
 });
 

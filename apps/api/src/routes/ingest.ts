@@ -75,45 +75,6 @@ ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
   const endedAt = payload.isFinal ? createdAt : null;
   const durationMs = payload.isFinal ? 0 : null; // ON CONFLICT will compute it from server timestamps
 
-  // Temporary structured instrumentation for auditing finalization flow
-  console.info("[Finalization]", {
-    requestId: reqId,
-    sessionId: payload.sessionId,
-    isFinal: payload.isFinal,
-    endedAt,
-    durationMs,
-  });
-
-  if (payload.isFinal) {
-    console.info("[Finalization] Executing final session flush", {
-      requestId: reqId,
-      sessionId: payload.sessionId,
-    });
-  }
-
-  // Log bindings for audit
-  console.info("[Finalization] Upsert parameters:", [
-    payload.sessionId,
-    projectId,
-    payload.metadata.url,
-    payload.metadata.userAgent,
-    payload.metadata.screenWidth,
-    payload.metadata.screenHeight,
-    payload.metadata.release || null,
-    payload.metadata.commitSha || null,
-    payload.metadata.environment || null,
-    payload.sdkVersion,
-    payload.metadata.startedAt,
-    createdAt,
-    createdAt, // updated_at
-    hasJsError,
-    hasRageClick,
-    hasNetworkErr,
-    hasDeadClick,
-    endedAt,
-    durationMs,
-  ]);
-
   // 4. Transactional Upsert
   let insertedSummaryCount = 0;
   const totalSummaryCount = payload.summary.length;

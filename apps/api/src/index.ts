@@ -9,6 +9,22 @@ import "dotenv/config";
 import app from "./app";
 import { startReconciliationWorker, stopReconciliationWorker } from "./lib/reconciliation";
 
+const DEFAULT_SESSION_TIMEOUT_MS = 15 * 60 * 1000;
+const DEFAULT_RECONCILIATION_INTERVAL_MS = 60 * 1000;
+
+function readPositiveMilliseconds(name: string, fallback: number): number {
+  const value = process.env[name];
+  if (!value) return fallback;
+
+  const parsed = Number(value);
+  if (Number.isSafeInteger(parsed) && parsed > 0) {
+    return parsed;
+  }
+
+  console.warn(`Invalid ${name} environment variable "${value}". Falling back to ${fallback}ms.`);
+  return fallback;
+}
+
 let PORT = 3001;
 if (process.env.PORT) {
   const parsed = parseInt(process.env.PORT, 10);
@@ -27,12 +43,14 @@ serve({
 });
 
 if (process.env.NODE_ENV !== "test") {
-  const timeoutMs = process.env.SESSION_TIMEOUT_MS
-    ? parseInt(process.env.SESSION_TIMEOUT_MS, 10)
-    : 15 * 60 * 1000;
-  const intervalMs = process.env.RECONCILIATION_INTERVAL_MS
-    ? parseInt(process.env.RECONCILIATION_INTERVAL_MS, 10)
-    : 60 * 1000;
+  const timeoutMs = readPositiveMilliseconds(
+    "SESSION_TIMEOUT_MS",
+    DEFAULT_SESSION_TIMEOUT_MS,
+  );
+  const intervalMs = readPositiveMilliseconds(
+    "RECONCILIATION_INTERVAL_MS",
+    DEFAULT_RECONCILIATION_INTERVAL_MS,
+  );
 
   startReconciliationWorker(intervalMs, timeoutMs);
 
