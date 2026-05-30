@@ -13,14 +13,9 @@ import { healthRouter } from "./routes/health";
 import { metricsRouter } from "./routes/metrics";
 import ingestRouter from "./routes/ingest";
 
-// Define strict typing for application state/variables if needed later
-type AppBindings = {
-  Variables: {
-    requestId: string;
-  };
-};
+import type { AppEnv } from "./lib/types";
 
-const app = new Hono<AppBindings>();
+const app = new Hono<AppEnv>();
 
 // 1. Foundational Middleware
 // Log all requests (can be swapped for Pino/custom logger in production later)

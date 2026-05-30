@@ -24,7 +24,9 @@ import {
   sessionRateLimiter,
 } from "../middleware/rate-limit";
 
-const ingest = new Hono<{ Variables: { requestId: string; projectId?: string } }>();
+import type { AppEnv } from "../lib/types";
+
+const ingest = new Hono<AppEnv>();
 
 // 2. 2MB Body Limit for the ingestion endpoint
 ingest.use(

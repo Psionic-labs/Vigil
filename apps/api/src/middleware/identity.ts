@@ -13,9 +13,9 @@ const IdentitySchema = z.object({
   sessionId: z.string().min(1).max(128),
 });
 
-export type IngestIdentity = z.infer<typeof IdentitySchema>;
+import type { AppEnv } from "../lib/types";
 
-export const extractIdentityMiddleware: MiddlewareHandler = async (c, next) => {
+export const extractIdentityMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const contentType = c.req.header("Content-Type") || "";
   if (!contentType.includes("application/json")) {
     return c.json(
@@ -43,7 +43,7 @@ export const extractIdentityMiddleware: MiddlewareHandler = async (c, next) => {
       );
     }
 
-    c.set("ingestIdentity" as any, result.data);
+    c.set("ingestIdentity", result.data);
     await next();
   } catch {
     return c.json(

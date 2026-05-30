@@ -7,6 +7,7 @@ import {
   startLimiterCleanup,
   stopLimiterCleanup,
 } from "../lib/rate-limit-store";
+import { getEnvConfig } from "../middleware/rate-limit";
 
 vi.mock("../db", () => ({
   pool: {
@@ -67,6 +68,7 @@ describe("Rate Limiting & Abuse Protection Suite", () => {
     delete process.env.RATE_LIMIT_MAX_SESSION_BUCKETS;
     delete process.env.TRUST_PROXY;
     delete process.env.ENABLE_INTERNAL_METRICS;
+    delete process.env.INTERNAL_METRICS_TOKEN;
   });
 
   // 1. IP Rate Limiting Tests
@@ -463,6 +465,82 @@ describe("Rate Limiting & Abuse Protection Suite", () => {
       expect(body.metrics.ipLimitedCount).toBeDefined();
       expect(body.metrics.activeBuckets).toBeDefined();
       expect(body.metrics.memoryUsageEstimateBytes).toBeGreaterThan(0);
+    });
+
+    it("should enforce authentication on /metrics if INTERNAL_METRICS_TOKEN is set", async () => {
+      process.env.ENABLE_INTERNAL_METRICS = "true";
+      process.env.INTERNAL_METRICS_TOKEN = "secret_token_123";
+
+      // 1. Request without header -> 401
+      let res = await app.request("/metrics");
+      expect(res.status).toBe(401);
+
+      // 2. Request with invalid token -> 401
+      res = await app.request("/metrics", {
+        headers: { Authorization: "Bearer wrong_token" },
+      });
+      expect(res.status).toBe(401);
+
+      // 3. Request with valid token -> 200
+      res = await app.request("/metrics", {
+        headers: { Authorization: "Bearer secret_token_123" },
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.ok).toBe(true);
+    });
+  });
+
+  // 6. Defensive Env Var Parsing and Multi-Tenant Session Isolation Tests
+  describe("Defensive Parsing & Session Key Isolation", () => {
+    it("should safely fall back to defaults when RPM or multiplier env vars are invalid (NaN, 0, negative)", () => {
+      // Mock invalid environment variables
+      process.env.INGEST_IP_RPM = "0";
+      process.env.INGEST_PROJECT_RPM = "-50";
+      process.env.INGEST_SESSION_RPM = "invalid-number";
+      process.env.INGEST_BURST_MULTIPLIER = "-1.5";
+      process.env.RATE_LIMIT_MAX_IP_BUCKETS = "abc";
+
+      const config = getEnvConfig();
+
+      expect(config.ipRpm).toBe(120);
+      expect(config.projectRpm).toBe(500);
+      expect(config.sessionRpm).toBe(30);
+      expect(config.burstMultiplier).toBe(1.5);
+      expect(config.maxIpBuckets).toBe(50000);
+    });
+
+    it("should isolate session rate limits by projectKey to prevent cross-tenant collision", async () => {
+      process.env.INGEST_SESSION_RPM = "1";
+      process.env.INGEST_BURST_MULTIPLIER = "1.0";
+
+      (pool.query as any).mockResolvedValue({ rows: [{ id: "proj_abc" }] });
+
+      // Request 1: Project A, Session X (Allowed)
+      let res = await app.request("/api/v1/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...VALID_PAYLOAD, projectKey: "pk_proj_a", sessionId: "sess_shared" }),
+      });
+      expect(res.status).toBe(200);
+
+      // Request 2: Project B, Session X (Allowed - different project isolation!)
+      res = await app.request("/api/v1/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...VALID_PAYLOAD, projectKey: "pk_proj_b", sessionId: "sess_shared" }),
+      });
+      expect(res.status).toBe(200);
+
+      // Request 3: Project A, Session X (Blocked - exceeded session limit for Project A)
+      res = await app.request("/api/v1/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...VALID_PAYLOAD, projectKey: "pk_proj_a", sessionId: "sess_shared" }),
+      });
+      expect(res.status).toBe(429);
+      const body = await res.json();
+      expect(body.reason).toBe("session");
     });
   });
 });

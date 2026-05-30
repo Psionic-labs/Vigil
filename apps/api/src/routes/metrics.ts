@@ -7,10 +7,15 @@
 
 import { Hono } from "hono";
 import { globalLimiterStore, globalProjectCache } from "../lib/rate-limit-store";
+import type { AppEnv } from "../lib/types";
 
-export const metricsRouter = new Hono();
+export const metricsRouter = new Hono<AppEnv>();
 
 metricsRouter.get("/", (c) => {
+  if (c.env && (c.env as any).incoming) {
+    // If running in test environment or custom container setup, we can access Hono bindings
+  }
+
   if (process.env.ENABLE_INTERNAL_METRICS !== "true") {
     return c.json(
       {
@@ -24,6 +29,26 @@ metricsRouter.get("/", (c) => {
       403
     );
   }
+
+  const expectedToken = process.env.INTERNAL_METRICS_TOKEN;
+  if (expectedToken) {
+    const authHeader = c.req.header("Authorization") || "";
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (token !== expectedToken) {
+      return c.json(
+        {
+          ok: false,
+          success: false,
+          error: {
+            message: "Unauthorized",
+            code: 401,
+          },
+        },
+        401
+      );
+    }
+  }
+
 
   const sizes = globalLimiterStore.getSizes();
   const memoryBytes = globalLimiterStore.getEstimatedMemoryUsageBytes();

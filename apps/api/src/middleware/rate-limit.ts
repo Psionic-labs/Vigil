@@ -8,23 +8,35 @@
 import type { MiddlewareHandler, Context } from "hono";
 import { globalLimiterStore, globalProjectCache, type ProjectCacheEntry } from "../lib/rate-limit-store";
 import { pool } from "../db";
-import type { IngestIdentity } from "./identity";
+import type { AppEnv } from "../lib/types";
 
 // Share active lookups to prevent cache stampedes
 export const pendingProjectLookups = new Map<string, Promise<ProjectCacheEntry>>();
 
+function safeParseInt(val: string | undefined, defaultVal: number): number {
+  if (!val) return defaultVal;
+  const parsed = parseInt(val, 10);
+  return isNaN(parsed) || parsed <= 0 ? defaultVal : parsed;
+}
+
+function safeParseFloat(val: string | undefined, defaultVal: number): number {
+  if (!val) return defaultVal;
+  const parsed = parseFloat(val);
+  return isNaN(parsed) || parsed <= 0 ? defaultVal : parsed;
+}
+
 export function getEnvConfig() {
   return {
-    ipRpm: parseInt(process.env.INGEST_IP_RPM || "120", 10),
-    projectRpm: parseInt(process.env.INGEST_PROJECT_RPM || "500", 10),
-    sessionRpm: parseInt(process.env.INGEST_SESSION_RPM || "30", 10),
-    unknownProjectRpm: parseInt(process.env.INGEST_UNKNOWN_PROJECT_RPM || "1000", 10),
-    burstMultiplier: parseFloat(process.env.INGEST_BURST_MULTIPLIER || "1.5"),
-    unknownProjectBurstMultiplier: parseFloat(process.env.INGEST_UNKNOWN_PROJECT_BURST_MULTIPLIER || "3"),
-    knownProjectCacheTtlMs: parseInt(process.env.KNOWN_PROJECT_CACHE_TTL_MS || "60000", 10),
-    maxIpBuckets: parseInt(process.env.RATE_LIMIT_MAX_IP_BUCKETS || "50000", 10),
-    maxProjectBuckets: parseInt(process.env.RATE_LIMIT_MAX_PROJECT_BUCKETS || "10000", 10),
-    maxSessionBuckets: parseInt(process.env.RATE_LIMIT_MAX_SESSION_BUCKETS || "100000", 10),
+    ipRpm: safeParseInt(process.env.INGEST_IP_RPM, 120),
+    projectRpm: safeParseInt(process.env.INGEST_PROJECT_RPM, 500),
+    sessionRpm: safeParseInt(process.env.INGEST_SESSION_RPM, 30),
+    unknownProjectRpm: safeParseInt(process.env.INGEST_UNKNOWN_PROJECT_RPM, 1000),
+    burstMultiplier: safeParseFloat(process.env.INGEST_BURST_MULTIPLIER, 1.5),
+    unknownProjectBurstMultiplier: safeParseFloat(process.env.INGEST_UNKNOWN_PROJECT_BURST_MULTIPLIER, 3),
+    knownProjectCacheTtlMs: safeParseInt(process.env.KNOWN_PROJECT_CACHE_TTL_MS, 60000),
+    maxIpBuckets: safeParseInt(process.env.RATE_LIMIT_MAX_IP_BUCKETS, 50000),
+    maxProjectBuckets: safeParseInt(process.env.RATE_LIMIT_MAX_PROJECT_BUCKETS, 10000),
+    maxSessionBuckets: safeParseInt(process.env.RATE_LIMIT_MAX_SESSION_BUCKETS, 100000),
     trustProxy: process.env.TRUST_PROXY === "true",
   };
 }
@@ -53,7 +65,7 @@ export function getClientIp(c: Context): string {
 }
 
 // 1. IP Rate Limiter (Layer 1)
-export const ipRateLimiter: MiddlewareHandler = async (c, next) => {
+export const ipRateLimiter: MiddlewareHandler<AppEnv> = async (c, next) => {
   const ip = getClientIp(c);
   const config = getEnvConfig();
 
@@ -93,8 +105,8 @@ export const ipRateLimiter: MiddlewareHandler = async (c, next) => {
 };
 
 // 2. Unknown Project Limiter (Layer 2a)
-export const unknownProjectLimiter: MiddlewareHandler = async (c, next) => {
-  const identity = c.get("ingestIdentity") as IngestIdentity | undefined;
+export const unknownProjectLimiter: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const identity = c.get("ingestIdentity");
   if (!identity) {
     return next();
   }
@@ -149,9 +161,9 @@ export const unknownProjectLimiter: MiddlewareHandler = async (c, next) => {
 };
 
 // 3. Project Validation Middleware
-export const projectValidationMiddleware: MiddlewareHandler = async (c, next) => {
+export const projectValidationMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const reqId = c.get("requestId") || "unknown";
-  const identity = c.get("ingestIdentity") as IngestIdentity | undefined;
+  const identity = c.get("ingestIdentity");
   if (!identity) {
     return c.json({ ok: false, success: false, error: "Unauthorized" }, 401);
   }
@@ -215,8 +227,8 @@ export const projectValidationMiddleware: MiddlewareHandler = async (c, next) =>
 };
 
 // 4. Known Project Rate Limiter (Layer 2b)
-export const projectRateLimiter: MiddlewareHandler = async (c, next) => {
-  const identity = c.get("ingestIdentity") as IngestIdentity | undefined;
+export const projectRateLimiter: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const identity = c.get("ingestIdentity");
   if (!identity) {
     return next();
   }
@@ -262,18 +274,18 @@ export const projectRateLimiter: MiddlewareHandler = async (c, next) => {
 };
 
 // 5. Session Rate Limiter (Layer 3)
-export const sessionRateLimiter: MiddlewareHandler = async (c, next) => {
-  const identity = c.get("ingestIdentity") as IngestIdentity | undefined;
+export const sessionRateLimiter: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const identity = c.get("ingestIdentity");
   if (!identity) {
     return next();
   }
 
-  const { sessionId } = identity;
+  const { sessionId, projectKey } = identity;
   const config = getEnvConfig();
 
   const decision = await globalLimiterStore.consume(
     "session",
-    `session:${sessionId}`,
+    `session:${projectKey}:${sessionId}`,
     config.sessionRpm,
     60000,
     1,
