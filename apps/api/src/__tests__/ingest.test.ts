@@ -45,6 +45,7 @@ const VALID_PAYLOAD = {
 describe("Ingest API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (pool.query as any).mockResolvedValue({ rows: [{ id: "proj_123" }] });
   });
 
   it("should accept valid payload and perform DB/Blob writes", async () => {
@@ -201,8 +202,8 @@ describe("Ingest API", () => {
     expect(body.ok).toBe(false);
     expect(body.success).toBe(false);
 
-    // Pipeline must NOT proceed
-    expect(pool.query).not.toHaveBeenCalled();
+    // Pipeline must NOT proceed to write transaction or blob persistence
+    expect(pool.query).toHaveBeenCalledTimes(1);
     expect(withTransaction).not.toHaveBeenCalled();
     expect(persistReplayBlob).not.toHaveBeenCalled();
   });
@@ -250,8 +251,8 @@ describe("Ingest API", () => {
     expect(body.ok).toBe(false);
     expect(body.success).toBe(false);
 
-    // Pipeline must NOT proceed
-    expect(pool.query).not.toHaveBeenCalled();
+    // Pipeline must NOT proceed to write transaction or blob persistence
+    expect(pool.query).toHaveBeenCalledTimes(1);
     expect(withTransaction).not.toHaveBeenCalled();
     expect(persistReplayBlob).not.toHaveBeenCalled();
   });

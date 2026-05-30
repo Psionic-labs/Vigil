@@ -10,6 +10,7 @@ import { cors } from "hono/cors";
 import { requestIdMiddleware } from "./middleware/request-id";
 import { globalErrorHandler } from "./middleware/error-handler";
 import { healthRouter } from "./routes/health";
+import { metricsRouter } from "./routes/metrics";
 import ingestRouter from "./routes/ingest";
 
 // Define strict typing for application state/variables if needed later
@@ -98,6 +99,7 @@ app.notFound((c) => {
 
 // 3. Health & Utility Routes
 app.route("/health", healthRouter);
+app.route("/metrics", metricsRouter);
 
 // 4. Ingestion API V1
 app.route("/api/v1/ingest", ingestRouter);
