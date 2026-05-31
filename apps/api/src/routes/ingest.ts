@@ -4,7 +4,7 @@
  * @how Validates project credentials, enforces batch payload size limits, and performs atomic session upserts, summary logs, and background replay persistence.
  * @why Acts as the core entry gate for client-side SDK signals, ensuring fast, idempotent, and transactional recording.
  */
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { zValidator } from "@hono/zod-validator";
 import { IngestPayloadSchema } from "../validation/ingest-schema";
@@ -41,7 +41,7 @@ ingest.post(
   unknownProjectLimiter,
   projectValidationMiddleware,
   projectRateLimiter,
-  zValidator("json", IngestPayloadSchema, (result, c) => {
+  zValidator("json", IngestPayloadSchema, (result, c: Context<AppEnv>) => {
     if (!result.success) {
       return c.json({
         ok: false,
@@ -51,7 +51,7 @@ ingest.post(
     }
   }),
   sessionRateLimiter,
-  async (c) => {
+  async (c: Context<AppEnv>) => {
     const reqId = c.get("requestId") || "unknown";
     const startMs = performance.now();
     const payload = c.req.valid("json");

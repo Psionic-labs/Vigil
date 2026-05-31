@@ -5,7 +5,7 @@
  * @why Secures the ingest route from abuse and DB connection pools from exhaustion.
  */
 
-import type { MiddlewareHandler, Context } from "hono";
+import type { MiddlewareHandler, Context, Next } from "hono";
 import { globalLimiterStore, globalProjectCache, type ProjectCacheEntry } from "../lib/rate-limit-store";
 import { pool } from "../db";
 import type { AppEnv } from "../lib/types";
@@ -48,10 +48,14 @@ export function getClientIp(c: Context): string {
     const xForwardedFor = c.req.header("x-forwarded-for");
     if (xForwardedFor) {
       const firstIp = xForwardedFor.split(",")[0]?.trim();
-      if (firstIp) return firstIp;
+      if (firstIp) {
+        return firstIp.replace(/[\r\n\t]/g, "").slice(0, 64);
+      }
     }
     const xRealIp = c.req.header("x-real-ip");
-    if (xRealIp) return xRealIp;
+    if (xRealIp) {
+      return xRealIp.trim().replace(/[\r\n\t]/g, "").slice(0, 64);
+    }
   }
 
   // Fallback to socket remoteAddress
@@ -65,7 +69,7 @@ export function getClientIp(c: Context): string {
 }
 
 // 1. IP Rate Limiter (Layer 1)
-export const ipRateLimiter: MiddlewareHandler<AppEnv> = async (c, next) => {
+export const ipRateLimiter: MiddlewareHandler<AppEnv> = async (c: Context<AppEnv>, next: Next) => {
   const ip = getClientIp(c);
   const config = getEnvConfig();
 
@@ -105,7 +109,7 @@ export const ipRateLimiter: MiddlewareHandler<AppEnv> = async (c, next) => {
 };
 
 // 2. Unknown Project Limiter (Layer 2a)
-export const unknownProjectLimiter: MiddlewareHandler<AppEnv> = async (c, next) => {
+export const unknownProjectLimiter: MiddlewareHandler<AppEnv> = async (c: Context<AppEnv>, next: Next) => {
   const identity = c.get("ingestIdentity");
   if (!identity) {
     return next();
@@ -117,7 +121,9 @@ export const unknownProjectLimiter: MiddlewareHandler<AppEnv> = async (c, next) 
   const useCache = process.env.NODE_ENV !== "test" || process.env.ENABLE_TEST_CACHE === "true";
   if (useCache) {
     const cached = globalProjectCache.get(projectKey);
+    c.set("projectCacheEntry", cached);
     if (cached && cached.valid) {
+      c.set("projectId", cached.projectId);
       return next();
     }
   }
@@ -161,7 +167,7 @@ export const unknownProjectLimiter: MiddlewareHandler<AppEnv> = async (c, next) 
 };
 
 // 3. Project Validation Middleware
-export const projectValidationMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
+export const projectValidationMiddleware: MiddlewareHandler<AppEnv> = async (c: Context<AppEnv>, next: Next) => {
   const reqId = c.get("requestId") || "unknown";
   const identity = c.get("ingestIdentity");
   if (!identity) {
@@ -171,10 +177,20 @@ export const projectValidationMiddleware: MiddlewareHandler<AppEnv> = async (c, 
   const { projectKey } = identity;
   const config = getEnvConfig();
 
+  // If projectId is already set by unknownProjectLimiter (valid cached project), skip lookup
+  const currentProjectId = c.get("projectId");
+  if (currentProjectId) {
+    return next();
+  }
+
   // Check cache first
   const useCache = process.env.NODE_ENV !== "test" || process.env.ENABLE_TEST_CACHE === "true";
   if (useCache) {
-    const cached = globalProjectCache.get(projectKey);
+    let cached = c.get("projectCacheEntry");
+    if (cached === undefined) {
+      cached = globalProjectCache.get(projectKey);
+      c.set("projectCacheEntry", cached);
+    }
     if (cached) {
       if (!cached.valid) {
         console.warn(`[Ingest] Rejected | ReqID: ${reqId} | Reason: invalid or inactive project key (cached)`);
@@ -227,7 +243,7 @@ export const projectValidationMiddleware: MiddlewareHandler<AppEnv> = async (c, 
 };
 
 // 4. Known Project Rate Limiter (Layer 2b)
-export const projectRateLimiter: MiddlewareHandler<AppEnv> = async (c, next) => {
+export const projectRateLimiter: MiddlewareHandler<AppEnv> = async (c: Context<AppEnv>, next: Next) => {
   const identity = c.get("ingestIdentity");
   if (!identity) {
     return next();
@@ -274,7 +290,7 @@ export const projectRateLimiter: MiddlewareHandler<AppEnv> = async (c, next) => 
 };
 
 // 5. Session Rate Limiter (Layer 3)
-export const sessionRateLimiter: MiddlewareHandler<AppEnv> = async (c, next) => {
+export const sessionRateLimiter: MiddlewareHandler<AppEnv> = async (c: Context<AppEnv>, next: Next) => {
   const identity = c.get("ingestIdentity");
   if (!identity || !identity.sessionId) {
     return next();

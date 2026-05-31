@@ -5,13 +5,13 @@
  * @why Enables external telemetry/observability systems (e.g. Prometheus/Grafana) to monitor limiter health.
  */
 
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { globalLimiterStore, globalProjectCache } from "../lib/rate-limit-store";
 import type { AppEnv } from "../lib/types";
 
 export const metricsRouter = new Hono<AppEnv>();
 
-metricsRouter.get("/", (c) => {
+metricsRouter.get("/", (c: Context<AppEnv>) => {
   if (process.env.ENABLE_INTERNAL_METRICS !== "true") {
     return c.json(
       {

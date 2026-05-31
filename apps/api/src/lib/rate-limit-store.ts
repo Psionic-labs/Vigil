@@ -91,7 +91,7 @@ export class InMemoryLimiterStore implements LimiterStore {
     }
 
     this.cardinalityEvictions += keysToEvict.length;
-    console.warn(
+    console.debug(
       `[RateLimit] Cardinality threshold exceeded | Category: ${category} | Evicted ${keysToEvict.length} buckets (idle prioritized).`
     );
   }

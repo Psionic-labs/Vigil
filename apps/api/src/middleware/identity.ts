@@ -5,7 +5,7 @@
  * @why Adheres to the Single Parse Principle to prevent redundant parse and CPU usage.
  */
 
-import type { MiddlewareHandler } from "hono";
+import type { MiddlewareHandler, Context, Next } from "hono";
 import { z } from "zod";
 
 const IdentitySchema = z.object({
@@ -15,7 +15,7 @@ const IdentitySchema = z.object({
 
 import type { AppEnv } from "../lib/types";
 
-export const extractIdentityMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
+export const extractIdentityMiddleware: MiddlewareHandler<AppEnv> = async (c: Context<AppEnv>, next: Next) => {
   const contentType = c.req.header("Content-Type") || "";
   if (!contentType.includes("application/json")) {
     return c.json(
