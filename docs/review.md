@@ -14,7 +14,7 @@ Vigil is an early-stage session replay and AI triage platform with a sound archi
 **However, the system has fundamental gaps that will cause real failures under production load:**
 
 - **No authentication or authorization** on the dashboard API — anyone with the URL can read all customer data - plug in [better-auth](https://better-auth.com/)
-- **No rate limiting** on the ingest endpoint — a single malicious actor can exhaust the database
+- **Rate limiting exists but needs a durable/shared backend** on the ingest endpoint — in-memory limits won't protect a multi-instance deployment
 - **No foreign key constraints** anywhere in the schema — data integrity is best-effort
 - **Local disk blob storage** with no backup, retention, or replication — replay data will be lost
 - **In-process reconciliation worker** that creates single-point-of-failure coupling
@@ -32,8 +32,8 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### C-1: No Authentication or Authorization on Dashboard/API
 
-**File:** [app.ts](file:///d:/Coding/Vigil/apps/api/src/app.ts)  
-**File:** [web/app](file:///d:/Coding/Vigil/apps/web/app)
+**File:** [app.ts](../apps/api/src/app.ts)  
+**File:** [web/app](../apps/web/app)
 
 **Problem:** The ingest endpoint authenticates via `projectKey`, but there is zero authentication on the health endpoint, and the architecture doc mentions auth (Clerk/NextAuth) as a future item. More critically, the web dashboard has no API layer at all — it renders mock data. When a real API is added, there is no auth middleware, no session management, no RBAC.
 
@@ -56,38 +56,31 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ---
 
-### C-2: No Rate Limiting on Ingest Endpoint
+### C-2: Rate Limiting Needs a Durable/Shared Backend (Redis)
 
-**File:** [ingest.ts](file:///d:/Coding/Vigil/apps/api/src/routes/ingest.ts)
+**File:** [rate-limit-store.ts](../apps/api/src/lib/rate-limit-store.ts)
 
-**Problem:** The ingest endpoint has a 2MB body limit but no per-IP, per-project, or per-session rate limiting. A single client (or attacker with a valid `projectKey`) can flood the endpoint with legitimate-looking payloads.
+**Problem:** While process-local in-memory rate limiting has been added to the ingest endpoint, it does not share state across multiple server instances. In a load-balanced horizontal deployment, client limits are not synchronized, which can let clients bypass rate limits under high concurrency.
 
 **Failure mode:** 
-- A misbehaving SDK installation in a high-traffic SPA (e.g., a React app with a rendering loop triggering errors) will send thousands of payloads per minute
-- A malicious actor who obtains any `projectKey` (it's a public key, visible in client-side JS) can POST unlimited payloads
-- Each payload triggers a database transaction with multiple queries, exhausting the Neon connection pool
+- Client requests are distributed across multiple instances, allowing a client to consume `N * limit` requests (where `N` is the number of instances) before being rate-limited.
+- Sudden load spikes from an abusive client may still stress downstream database pools if requests hit different API servers.
 
-**When it hurts:** 100 users. Possibly sooner with a single abusive client.
+**When it hurts:** Horizontal scale-out to multiple instances.
 
-**Tradeoff:** Simplicity of MVP ingest path.
+**Tradeoff:** Simplicity of process-local state versus distributed coordination.
 
-**Severity:** 🔴 **Critical**
+**Severity:** 🟡 **Medium** (reduced from Critical now that local limits exist)
 
 **Remediation:**
-1. Add per-IP rate limiting (e.g., `hono-rate-limiter` or custom middleware with Redis/in-memory)
-2. Add per-project rate limiting (requests per minute per `projectKey`)
-3. Add per-session rate limiting (max flushes per session per minute)
-4. Consider a burst allowance pattern (token bucket)
-5. Return `429 Too Many Requests` with `Retry-After` header
-
-**Complexity:** Medium  
-**Timeline:** Immediately
+1. Migrate `InMemoryLimiterStore` to a Redis-backed storage engine.
+2. Keep the same `LimiterStore` interface to ensure zero-downtime routing and controller compatibility.
 
 ---
 
 ### C-3: No Foreign Key Constraints in Database Schema
 
-**File:** [0000_initial.sql](file:///d:/Coding/Vigil/apps/api/migrations/0000_initial.sql)
+**File:** [0000_initial.sql](../apps/api/migrations/0000_initial.sql)
 
 **Problem:** Not a single `REFERENCES` or `FOREIGN KEY` constraint exists across all tables. `sessions.project_id` doesn't reference `projects.id`. `events_summary.session_id` doesn't reference `sessions.id`. `issue_instances.issue_group_id` doesn't reference `issue_groups.id`. `triage_jobs.session_id` doesn't reference `sessions.id`.
 
@@ -116,7 +109,7 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### C-4: `events` Array Accepts Arbitrary Unknown JSON
 
-**File:** [ingest-schema.ts](file:///d:/Coding/Vigil/apps/api/src/validation/ingest-schema.ts#L77)
+**File:** [ingest-schema.ts](../apps/api/src/validation/ingest-schema.ts#L77)
 
 **Problem:** `events: z.array(z.unknown()).max(500)` — the server accepts up to 500 elements of completely arbitrary JSON, each of which can be a deeply nested object of unlimited size. The 2MB body limit provides some protection, but within that limit, a single event can be an extremely complex object that causes:
 - OOM during `JSON.stringify()` in the blob persistence path
@@ -144,7 +137,7 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### H-1: Local Disk Blob Storage with No Backup, Retention, or Multi-Instance Support
 
-**File:** [blob-storage.ts](file:///d:/Coding/Vigil/apps/api/src/lib/blob-storage.ts)
+**File:** [blob-storage.ts](../apps/api/src/lib/blob-storage.ts)
 
 **Problem:** Replay blobs are stored on the local filesystem relative to the API process. This means:
 - No replication — disk failure = permanent data loss
@@ -174,8 +167,8 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### H-2: In-Process Reconciliation Worker Creates Deployment Coupling
 
-**File:** [reconciliation.ts](file:///d:/Coding/Vigil/apps/api/src/lib/reconciliation.ts)  
-**File:** [index.ts](file:///d:/Coding/Vigil/apps/api/src/index.ts)
+**File:** [reconciliation.ts](../apps/api/src/lib/reconciliation.ts)  
+**File:** [index.ts](../apps/api/src/index.ts)
 
 **Problem:** The reconciliation worker runs inside the same Node.js process as the API server via `setInterval`. This means:
 - Deploying 2+ API instances runs 2+ reconciliation workers concurrently on the same data with no coordination
@@ -204,7 +197,7 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### H-3: No Connection Pool Configuration on Neon Serverless
 
-**File:** [db.ts](file:///d:/Coding/Vigil/apps/api/src/db.ts#L21)
+**File:** [db.ts](../apps/api/src/db.ts#L21)
 
 **Problem:** `new Pool({ connectionString: databaseUrl || "postgres://fake" })` — no `max`, `idleTimeoutMillis`, `connectionTimeoutMillis`, or statement timeout configuration. Neon's serverless connection limits are strict (often 100 concurrent connections on free/starter tiers). The default `pg` pool size is 10, which is fine for a single instance, but:
 - Each ingest request acquires a transaction connection
@@ -231,7 +224,7 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### H-4: Async Blob Persistence Can Silently Lose Replay Data
 
-**File:** [ingest.ts](file:///d:/Coding/Vigil/apps/api/src/routes/ingest.ts#L334-L369)
+**File:** [ingest.ts](../apps/api/src/routes/ingest.ts#L334-L369)
 
 **Problem:** After the DB transaction commits and the HTTP 200 is returned to the client, the replay blob is persisted via `setImmediate` → `persistReplayBlob`. If the process crashes, restarts, or the disk write fails, the replay data is permanently lost. The SDK has already drained its buffer. There is no retry mechanism, no dead-letter queue, and no reconciliation.
 
@@ -256,7 +249,7 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### H-5: No Multi-Tenant Data Isolation
 
-**File:** [0000_initial.sql](file:///d:/Coding/Vigil/apps/api/migrations/0000_initial.sql)
+**File:** [0000_initial.sql](../apps/api/migrations/0000_initial.sql)
 
 **Problem:** All projects share the same tables with no Row-Level Security (RLS), no tenant isolation, and no `project_id` partitioning. Every query must include a `WHERE project_id = $1` clause, and there's no enforcement if one is forgotten.
 
@@ -279,8 +272,8 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### H-6: Dashboard is Entirely Mock Data — Zero Backend Integration
 
-**File:** [page.tsx](file:///d:/Coding/Vigil/apps/web/app/page.tsx#L6)  
-**File:** [mock-data.ts](file:///d:/Coding/Vigil/apps/web/lib/mock-data.ts)
+**File:** [page.tsx](../apps/web/app/page.tsx#L6)  
+**File:** [mock-data.ts](../apps/web/lib/mock-data.ts)
 
 **Problem:** The entire web dashboard renders from `MOCK_ISSUES` and `MOCK_SESSIONS` hardcoded arrays. There are no API routes, no database queries, no SSR data fetching. The dashboard is a static design prototype, not a functional application.
 
@@ -303,7 +296,7 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### H-7: No CI/CD Pipeline
 
-**File:** [.github/](file:///d:/Coding/Vigil/.github)
+**File:** [.github/](../.github)
 
 **Problem:** The `.github/` directory contains only `dependabot.yml`. There are no GitHub Actions workflows for:
 - Running tests (`vitest run`)
@@ -331,7 +324,7 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### H-8: No AI Triage Worker Implementation
 
-**File:** [0003_add_triage_jobs.sql](file:///d:/Coding/Vigil/apps/api/migrations/0003_add_triage_jobs.sql)
+**File:** [0003_add_triage_jobs.sql](../apps/api/migrations/0003_add_triage_jobs.sql)
 
 **Problem:** The `triage_jobs` table is created and jobs are enqueued during session finalization, but there is no worker that consumes these jobs. No AI triage runs exist. The core value proposition of the product (AI-powered bug triage) is completely unimplemented.
 
@@ -357,8 +350,8 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### M-1: `sessionId` is Client-Generated and Untrusted
 
-**File:** [session.ts](file:///d:/Coding/Vigil/packages/sdk/src/session.ts)  
-**File:** [ingest.ts](file:///d:/Coding/Vigil/apps/api/src/routes/ingest.ts)
+**File:** [session.ts](../packages/sdk/src/session.ts)  
+**File:** [ingest.ts](../apps/api/src/routes/ingest.ts)
 
 **Problem:** The `sessionId` is a client-generated UUID stored in `sessionStorage`. It is used as the primary key of the `sessions` table. A malicious client can:
 - Send a `sessionId` that collides with another project's session (since `sessionId` is globally unique across all projects, but there's no composite PK)
@@ -383,7 +376,7 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### M-2: Database Migration Script Has No Transaction Safety
 
-**File:** [migrate.ts](file:///d:/Coding/Vigil/apps/api/scripts/migrate.ts#L62-L73)
+**File:** [migrate.ts](../apps/api/scripts/migrate.ts#L62-L73)
 
 **Problem:** Each migration file is executed with `pool.query(sql)` and then recorded in `_migrations`, but this is not wrapped in a transaction. If a migration file contains multiple statements and one fails partway through, the database is left in a partially migrated state, but the migration is not recorded as applied.
 
@@ -405,7 +398,7 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### M-3: `events_summary` Table Has No Partition Strategy and Will Grow Unbounded
 
-**File:** [0000_initial.sql](file:///d:/Coding/Vigil/apps/api/migrations/0000_initial.sql#L64-L83)
+**File:** [0000_initial.sql](../apps/api/migrations/0000_initial.sql#L64-L83)
 
 **Problem:** `events_summary` receives every JS error, click, navigation, and network error from every session. At scale:
 - 10,000 sessions/day × ~20 events/session = 200,000 rows/day = 73M rows/year
@@ -431,8 +424,8 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### M-4: Replay Blob Persistence Creates Duplicate Blobs with No Deduplication
 
-**File:** [blob-storage.ts](file:///d:/Coding/Vigil/apps/api/src/lib/blob-storage.ts)  
-**File:** [ingest.ts](file:///d:/Coding/Vigil/apps/api/src/routes/ingest.ts#L334-L369)
+**File:** [blob-storage.ts](../apps/api/src/lib/blob-storage.ts)  
+**File:** [ingest.ts](../apps/api/src/routes/ingest.ts#L334-L369)
 
 **Problem:** Every ingest call with `events.length > 0` creates a new blob file with a unique timestamp+random suffix. If the SDK retries a flush (e.g., network failure followed by success), identical events are persisted twice. The `blob_path` field in `sessions` is overwritten to the latest blob, orphaning earlier blobs.
 
@@ -458,7 +451,7 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### M-5: `blob_path` Update Happens Outside Transaction
 
-**File:** [ingest.ts](file:///d:/Coding/Vigil/apps/api/src/routes/ingest.ts#L349-L364)
+**File:** [ingest.ts](../apps/api/src/routes/ingest.ts#L349-L364)
 
 **Problem:** The `pool.query` that updates `session.blob_path` runs after the transaction commits, outside the response path, with a fire-and-forget `.catch()`. If this query fails:
 - The session row has `blob_path = NULL` even though the blob file exists on disk
@@ -483,7 +476,7 @@ The system is roughly 40% of the way to a beta-ready state.
 
 ### M-6: SDK Singleton Pattern Prevents Multi-Instance Usage
 
-**File:** [vigil-client.ts](file:///d:/Coding/Vigil/packages/sdk/src/client/vigil-client.ts#L27-L28)
+**File:** [vigil-client.ts](../packages/sdk/src/client/vigil-client.ts#L27-L28)
 
 **Problem:** The SDK uses module-level singletons:
 ```typescript
@@ -511,13 +504,13 @@ Only one Vigil instance can exist per JavaScript context. This prevents:
 
 ### M-7: No Idempotency Key for Ingest Requests
 
-**File:** [ingest.ts](file:///d:/Coding/Vigil/apps/api/src/routes/ingest.ts)
+**File:** [ingest.ts](../apps/api/src/routes/ingest.ts)
 
 **Problem:** While individual `events_summary` rows are deduplicated via `ON CONFLICT (id) DO NOTHING`, the session upsert always applies. If the SDK retries a flush after a network timeout (server processed it but the response was lost), the session's `updated_at`, `last_ingest_at`, error flags, and error count can be corrupted.
 
 Specifically, `error_count = error_count + $1` is additive. A retried payload will double-count errors because the `events_summary` dedup returns 0 new rows but the error_count increment happens based on the summary events in the *current* payload, not on what was actually inserted.
 
-**Wait — actually, looking closer:** The error count increment at [line 253-262](file:///d:/Coding/Vigil/apps/api/src/routes/ingest.ts#L253-L262) is based on `newErrors` which is computed from `summaryResult.rows` (only newly inserted rows). So this is actually correct. The real issue is:
+**Wait — actually, looking closer:** The error count increment at [line 253-262](../apps/api/src/routes/ingest.ts#L253-L262) is based on `newErrors` which is computed from `summaryResult.rows` (only newly inserted rows). So this is actually correct. The real issue is:
 - Session flags (`has_js_error OR EXCLUDED.has_js_error`) are idempotent ✓
 - Error count increment is based on actual inserts ✓  
 - But `last_ingest_at` and `updated_at` advance on every retry, which can cause premature reconciliation timeout resets
@@ -536,7 +529,7 @@ Specifically, `error_count = error_count + $1` is additive. A retried payload wi
 
 ### M-8: `BIGINT` Timestamps Instead of `TIMESTAMPTZ`
 
-**File:** [0000_initial.sql](file:///d:/Coding/Vigil/apps/api/migrations/0000_initial.sql)
+**File:** [0000_initial.sql](../apps/api/migrations/0000_initial.sql)
 
 **Problem:** All timestamp columns are `BIGINT` (epoch milliseconds). This creates:
 - No timezone awareness in the database layer
@@ -558,9 +551,9 @@ Specifically, `error_count = error_count + $1` is additive. A retried payload wi
 
 ### M-9: No Health Check for Database Connectivity
 
-**File:** [health.ts](file:///d:/Coding/Vigil/apps/api/src/routes/health.ts)
+**File:** [health.ts](../apps/api/src/routes/health.ts)
 
-**Problem:** The health endpoint returns `{ status: "ok" }` unconditionally without checking database connectivity. A `checkDatabaseConnection()` function exists in [db.ts](file:///d:/Coding/Vigil/apps/api/src/db.ts#L44) but is never called.
+**Problem:** The health endpoint returns `{ status: "ok" }` unconditionally without checking database connectivity. A `checkDatabaseConnection()` function exists in [db.ts](../apps/api/src/db.ts#L44) but is never called.
 
 **Failure mode:** The API process is alive but the database is unreachable (connection pool exhausted, Neon cold start, network partition). The health check returns 200, the load balancer continues routing traffic, and every ingest request fails with a 500.
 
@@ -583,7 +576,7 @@ Specifically, `error_count = error_count + $1` is additive. A retried payload wi
 
 ### L-1: CORS Policy Reflects Any Origin
 
-**File:** [app.ts](file:///d:/Coding/Vigil/apps/api/src/app.ts#L71)
+**File:** [app.ts](../apps/api/src/app.ts#L71)
 
 `origin: (origin) => origin || "*"` reflects any Origin header. This is intentionally permissive for SDK ingestion, but combined with `credentials: true`, it means any website can make authenticated cross-origin requests to the API. For the ingest endpoint this is acceptable (public key auth). For future dashboard API routes, this is a CSRF vector.
 
@@ -598,7 +591,7 @@ Specifically, `error_count = error_count + $1` is additive. A retried payload wi
 
 ### L-2: SDK Version is Hardcoded
 
-**File:** [vigil-client.ts](file:///d:/Coding/Vigil/packages/sdk/src/client/vigil-client.ts#L24)
+**File:** [vigil-client.ts](../packages/sdk/src/client/vigil-client.ts#L24)
 
 `const SDK_VERSION = "0.1.0"` is hardcoded instead of derived from `package.json`. This will inevitably drift from the actual published version.
 
@@ -613,8 +606,8 @@ Specifically, `error_count = error_count + $1` is additive. A retried payload wi
 
 ### L-3: Console Dedupe Cache Clears Entirely at MAX_DEDUPE
 
-**File:** [console.ts](file:///d:/Coding/Vigil/packages/sdk/src/console.ts#L109-L111)  
-**File:** [errors.ts](file:///d:/Coding/Vigil/packages/sdk/src/errors.ts#L63-L65)
+**File:** [console.ts](../packages/sdk/src/console.ts#L109-L111)  
+**File:** [errors.ts](../packages/sdk/src/errors.ts#L63-L65)
 
 When `recentErrors.size >= MAX_DEDUPE`, the entire set is cleared. This means errors that were being deduplicated suddenly get re-reported. A noisy error that fires 100 times will be deduped for the first 50, then the cache clears and it fires again.
 
@@ -629,7 +622,7 @@ When `recentErrors.size >= MAX_DEDUPE`, the entire set is cleared. This means er
 
 ### L-4: No `TEXT` Column Length Constraints in Database
 
-**File:** [0000_initial.sql](file:///d:/Coding/Vigil/apps/api/migrations/0000_initial.sql)
+**File:** [0000_initial.sql](../apps/api/migrations/0000_initial.sql)
 
 All string columns are `TEXT` with no length constraints (except validation at the Zod level). If validation is bypassed or changed, the database has no protection against unbounded string storage.
 
@@ -644,7 +637,7 @@ All string columns are `TEXT` with no length constraints (except validation at t
 
 ### L-5: `github_token` Stored in Plaintext
 
-**File:** [0000_initial.sql](file:///d:/Coding/Vigil/apps/api/migrations/0000_initial.sql#L15)
+**File:** [0000_initial.sql](../apps/api/migrations/0000_initial.sql#L15)
 
 `github_token TEXT` — the architecture doc says "Token is encrypted at rest" but there's no encryption implementation. The token is stored as plaintext in the database.
 
@@ -659,7 +652,7 @@ All string columns are `TEXT` with no length constraints (except validation at t
 
 ### L-6: No Request Timeout on Ingest Transactions
 
-**File:** [ingest.ts](file:///d:/Coding/Vigil/apps/api/src/routes/ingest.ts)
+**File:** [ingest.ts](../apps/api/src/routes/ingest.ts)
 
 The database transaction has no statement timeout or total execution timeout. A slow query (e.g., during database maintenance or lock contention) will hold a connection indefinitely.
 
@@ -745,7 +738,7 @@ The SDK and ingest transaction logic are the strongest areas. Everything downstr
 | Priority | Change | Severity | Complexity | Timeline |
 |---|---|---|---|---|
 | **1** | Add authentication and authorization to dashboard/API | Critical | Medium | Immediately |
-| **2** | Add rate limiting to ingest endpoint | Critical | Medium | Immediately |
+| **2** | Migrate rate limiting to shared backend (Redis) | High | Medium | Before scale |
 | **3** | Add foreign key constraints on non-hot-path tables | Critical | Small | Before beta |
 | **4** | Implement the AI triage worker | High | Large | Before beta |
 | **5** | Build real dashboard API (replace mock data) | High | Large | Before beta |
@@ -768,7 +761,7 @@ The SDK and ingest transaction logic are the strongest areas. Everything downstr
 ### Hidden Complexity
 
 1. **The upsert SQL in ingest.ts** (lines 88-155) is a 67-line SQL statement with 19 parameters, nested CASE/WHEN, GREATEST/COALESCE chains, and implicit type casting. This is the most critical query in the system and it has no comments explaining the CASE logic.
-2. **The SDK's `Proxy`-based summary event guard** ([state.ts:51-68](file:///d:/Coding/Vigil/packages/sdk/src/client/state.ts#L51-L68)) is clever but non-obvious. A new engineer will not understand why `push()` silently drops events.
+2. **The SDK's `Proxy`-based summary event guard** ([state.ts:51-68](../packages/sdk/src/client/state.ts#L51-L68)) is clever but non-obvious. A new engineer will not understand why `push()` silently drops events.
 
 ### Overengineering
 

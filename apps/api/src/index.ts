@@ -8,6 +8,7 @@ import { serve } from "@hono/node-server";
 import "dotenv/config";
 import app from "./app";
 import { startReconciliationWorker, stopReconciliationWorker } from "./lib/reconciliation";
+import { startLimiterCleanup, stopLimiterCleanup } from "./lib/rate-limit-store";
 
 const DEFAULT_SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 const DEFAULT_RECONCILIATION_INTERVAL_MS = 60 * 1000;
@@ -52,11 +53,18 @@ if (process.env.NODE_ENV !== "test") {
     DEFAULT_RECONCILIATION_INTERVAL_MS,
   );
 
+  const bucketTtlMs = readPositiveMilliseconds(
+    "RATE_LIMIT_BUCKET_TTL_MS",
+    900000,
+  );
+
   startReconciliationWorker(intervalMs, timeoutMs);
+  startLimiterCleanup(bucketTtlMs, 60000);
 
   const handleShutdown = (signal: string) => {
-    console.log(`Received ${signal}. Shutting down reconciliation worker gracefully...`);
+    console.log(`Received ${signal}. Shutting down workers gracefully...`);
     stopReconciliationWorker();
+    stopLimiterCleanup();
     process.exit(0);
   };
 

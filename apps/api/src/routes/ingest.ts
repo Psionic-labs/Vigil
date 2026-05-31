@@ -4,7 +4,7 @@
  * @how Validates project credentials, enforces batch payload size limits, and performs atomic session upserts, summary logs, and background replay persistence.
  * @why Acts as the core entry gate for client-side SDK signals, ensuring fast, idempotent, and transactional recording.
  */
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { zValidator } from "@hono/zod-validator";
 import { IngestPayloadSchema } from "../validation/ingest-schema";
@@ -15,45 +15,49 @@ import crypto from "node:crypto";
 import * as util from "node:util";
 import path from "node:path";
 
-const ingest = new Hono<{ Variables: { requestId: string } }>();
+import { extractIdentityMiddleware } from "../middleware/identity";
+import {
+  ipRateLimiter,
+  unknownProjectLimiter,
+  projectValidationMiddleware,
+  projectRateLimiter,
+  sessionRateLimiter,
+} from "../middleware/rate-limit";
 
-// 2MB Body Limit for the ingestion endpoint
-ingest.use(
+import type { AppEnv } from "../lib/types";
+
+const ingest = new Hono<AppEnv>();
+
+ingest.post(
   "/",
+  ipRateLimiter,
   bodyLimit({
     maxSize: 2 * 1024 * 1024,
     onError: (c) => {
       return c.json({ ok: false, success: false, error: "Payload Too Large" }, 413);
     },
-  })
-);
+  }),
+  extractIdentityMiddleware,
+  unknownProjectLimiter,
+  projectValidationMiddleware,
+  projectRateLimiter,
+  zValidator("json", IngestPayloadSchema, (result, c: Context<AppEnv>) => {
+    if (!result.success) {
+      return c.json({
+        ok: false,
+        success: false,
+        error: { message: "Validation Error", issues: result.error.issues }
+      }, 400);
+    }
+  }),
+  sessionRateLimiter,
+  async (c: Context<AppEnv>) => {
+    const reqId = c.get("requestId") || "unknown";
+    const startMs = performance.now();
+    const payload = c.req.valid("json");
 
-ingest.post("/", zValidator("json", IngestPayloadSchema, (result, c) => {
-  if (!result.success) {
-    return c.json({
-      ok: false,
-      success: false,
-      error: { message: "Validation Error", issues: result.error.issues }
-    }, 400);
-  }
-}), async (c) => {
-  const reqId = c.get("requestId") || "unknown";
-  const startMs = performance.now();
-  const payload = c.req.valid("json");
-
-  // 1. Project Validation — runs BEFORE transaction to avoid wasting DB resources on invalid payloads.
-  // Uses the partial index idx_projects_public_key_active for fast lookups.
-  const projectResult = await pool.query(
-    "SELECT id FROM projects WHERE public_key = $1 AND is_active = true",
-    [payload.projectKey]
-  );
-
-  if (projectResult.rows.length === 0) {
-    console.warn(`[Ingest] Rejected | ReqID: ${reqId} | Reason: invalid or inactive project key`);
-    return c.json({ ok: false, success: false, error: "Unauthorized" }, 401);
-  }
-
-  const projectId = projectResult.rows[0].id as string;
+    // 1. Project Validation — previously queried DB here; now consumed from context.
+    const projectId = c.get("projectId") as string;
 
   // 2. Compute Summary Flags
   let hasJsError = false;

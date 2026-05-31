@@ -45,6 +45,7 @@ const VALID_PAYLOAD = {
 describe("Ingest API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (pool.query as any).mockResolvedValue({ rows: [{ id: "proj_123" }] });
   });
 
   it("should accept valid payload and perform DB/Blob writes", async () => {
@@ -129,7 +130,7 @@ describe("Ingest API", () => {
     expect(persistReplayBlob).not.toHaveBeenCalled();
   });
 
-  it("should reject malformed payload with 400 Zod Error", async () => {
+  it("should reject malformed payload with 400 Zod Error (missing sessionId)", async () => {
     const malformedPayload = { ...VALID_PAYLOAD };
     delete (malformedPayload as any).sessionId;
 
@@ -146,7 +147,26 @@ describe("Ingest API", () => {
     expect(body.error.message).toBe("Validation Error");
     expect(body.error.issues).toBeDefined();
 
-    // Malformed payloads should never reach the DB at all
+    // Project key validation still executes since sessionId is optional for identity extraction
+    expect(pool.query).toHaveBeenCalledWith(
+      "SELECT id FROM projects WHERE public_key = $1 AND is_active = true",
+      [VALID_PAYLOAD.projectKey]
+    );
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(persistReplayBlob).not.toHaveBeenCalled();
+  });
+
+  it("should reject payload with missing projectKey before database lookup", async () => {
+    const malformedPayload = { ...VALID_PAYLOAD };
+    delete (malformedPayload as any).projectKey;
+
+    const res = await app.request("/api/v1/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(malformedPayload),
+    });
+
+    expect(res.status).toBe(400);
     expect(pool.query).not.toHaveBeenCalled();
     expect(withTransaction).not.toHaveBeenCalled();
     expect(persistReplayBlob).not.toHaveBeenCalled();
@@ -201,8 +221,8 @@ describe("Ingest API", () => {
     expect(body.ok).toBe(false);
     expect(body.success).toBe(false);
 
-    // Pipeline must NOT proceed
-    expect(pool.query).not.toHaveBeenCalled();
+    // Pipeline must NOT proceed to write transaction or blob persistence
+    expect(pool.query).toHaveBeenCalledTimes(1);
     expect(withTransaction).not.toHaveBeenCalled();
     expect(persistReplayBlob).not.toHaveBeenCalled();
   });
@@ -250,8 +270,8 @@ describe("Ingest API", () => {
     expect(body.ok).toBe(false);
     expect(body.success).toBe(false);
 
-    // Pipeline must NOT proceed
-    expect(pool.query).not.toHaveBeenCalled();
+    // Pipeline must NOT proceed to write transaction or blob persistence
+    expect(pool.query).toHaveBeenCalledTimes(1);
     expect(withTransaction).not.toHaveBeenCalled();
     expect(persistReplayBlob).not.toHaveBeenCalled();
   });
