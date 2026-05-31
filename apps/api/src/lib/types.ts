@@ -1,6 +1,6 @@
 export interface IngestIdentity {
   projectKey: string;
-  sessionId: string;
+  sessionId?: string;
 }
 
 export type AppEnv = {

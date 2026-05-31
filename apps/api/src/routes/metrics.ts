@@ -12,10 +12,6 @@ import type { AppEnv } from "../lib/types";
 export const metricsRouter = new Hono<AppEnv>();
 
 metricsRouter.get("/", (c) => {
-  if (c.env && (c.env as any).incoming) {
-    // If running in test environment or custom container setup, we can access Hono bindings
-  }
-
   if (process.env.ENABLE_INTERNAL_METRICS !== "true") {
     return c.json(
       {
@@ -31,7 +27,24 @@ metricsRouter.get("/", (c) => {
   }
 
   const expectedToken = process.env.INTERNAL_METRICS_TOKEN;
-  if (expectedToken) {
+  const isDevelopment = process.env.NODE_ENV === "development";
+
+  if (!isDevelopment || expectedToken) {
+    if (!expectedToken) {
+      console.warn("[Metrics] INTERNAL_METRICS_TOKEN is not configured in non-development environment.");
+      return c.json(
+        {
+          ok: false,
+          success: false,
+          error: {
+            message: "Unauthorized: INTERNAL_METRICS_TOKEN is not configured",
+            code: 401,
+          },
+        },
+        401
+      );
+    }
+
     const authHeader = c.req.header("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
     if (token !== expectedToken) {

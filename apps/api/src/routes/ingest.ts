@@ -28,20 +28,15 @@ import type { AppEnv } from "../lib/types";
 
 const ingest = new Hono<AppEnv>();
 
-// 2. 2MB Body Limit for the ingestion endpoint
-ingest.use(
+ingest.post(
   "/",
+  ipRateLimiter,
   bodyLimit({
     maxSize: 2 * 1024 * 1024,
     onError: (c) => {
       return c.json({ ok: false, success: false, error: "Payload Too Large" }, 413);
     },
-  })
-);
-
-ingest.post(
-  "/",
-  ipRateLimiter,
+  }),
   extractIdentityMiddleware,
   unknownProjectLimiter,
   projectValidationMiddleware,

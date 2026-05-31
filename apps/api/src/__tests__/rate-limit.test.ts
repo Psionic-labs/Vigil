@@ -441,53 +441,67 @@ describe("Rate Limiting & Abuse Protection Suite", () => {
 
   // 5. Metrics Route Tests
   describe("Metrics Endpoint", () => {
+    let originalNodeEnv: string | undefined;
+
+    beforeAll(() => {
+      originalNodeEnv = process.env.NODE_ENV;
+    });
+
+    afterAll(() => {
+      process.env.NODE_ENV = originalNodeEnv;
+    });
+
     it("should block metrics request with 403 by default", async () => {
       const res = await app.request("/metrics");
       expect(res.status).toBe(403);
     });
 
-    it("should expose metrics when ENABLE_INTERNAL_METRICS is true", async () => {
-      process.env.ENABLE_INTERNAL_METRICS = "true";
-
-      (pool.query as any).mockResolvedValue({ rows: [{ id: "proj_abc" }] });
-      await app.request("/api/v1/ingest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(VALID_PAYLOAD),
+    describe("Development Environment", () => {
+      beforeEach(() => {
+        process.env.NODE_ENV = "development";
+        process.env.ENABLE_INTERNAL_METRICS = "true";
       });
 
-      const res = await app.request("/metrics");
-      expect(res.status).toBe(200);
-
-      const body = await res.json();
-      expect(body.ok).toBe(true);
-      expect(body.metrics).toBeDefined();
-      expect(body.metrics.ipLimitedCount).toBeDefined();
-      expect(body.metrics.activeBuckets).toBeDefined();
-      expect(body.metrics.memoryUsageEstimateBytes).toBeGreaterThan(0);
+      it("should return 200 without authentication", async () => {
+        const res = await app.request("/metrics");
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.ok).toBe(true);
+        expect(body.metrics).toBeDefined();
+      });
     });
 
-    it("should enforce authentication on /metrics if INTERNAL_METRICS_TOKEN is set", async () => {
-      process.env.ENABLE_INTERNAL_METRICS = "true";
-      process.env.INTERNAL_METRICS_TOKEN = "secret_token_123";
-
-      // 1. Request without header -> 401
-      let res = await app.request("/metrics");
-      expect(res.status).toBe(401);
-
-      // 2. Request with invalid token -> 401
-      res = await app.request("/metrics", {
-        headers: { Authorization: "Bearer wrong_token" },
+    describe("Production Environment", () => {
+      beforeEach(() => {
+        process.env.NODE_ENV = "production";
+        process.env.ENABLE_INTERNAL_METRICS = "true";
       });
-      expect(res.status).toBe(401);
 
-      // 3. Request with valid token -> 200
-      res = await app.request("/metrics", {
-        headers: { Authorization: "Bearer secret_token_123" },
+      it("should return 401 if token is not configured", async () => {
+        const res = await app.request("/metrics");
+        expect(res.status).toBe(401);
+        const body = await res.json();
+        expect(body.ok).toBe(false);
+        expect(body.error.message).toContain("INTERNAL_METRICS_TOKEN");
       });
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.ok).toBe(true);
+
+      it("should return 401 for requests with invalid token", async () => {
+        process.env.INTERNAL_METRICS_TOKEN = "secret_prod_token";
+        const res = await app.request("/metrics", {
+          headers: { Authorization: "Bearer wrong_token" },
+        });
+        expect(res.status).toBe(401);
+      });
+
+      it("should return 200 for requests with a valid token", async () => {
+        process.env.INTERNAL_METRICS_TOKEN = "secret_prod_token";
+        const res = await app.request("/metrics", {
+          headers: { Authorization: "Bearer secret_prod_token" },
+        });
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.ok).toBe(true);
+      });
     });
   });
 
@@ -541,6 +555,82 @@ describe("Rate Limiting & Abuse Protection Suite", () => {
       expect(res.status).toBe(429);
       const body = await res.json();
       expect(body.reason).toBe("session");
+    });
+  });
+
+  describe("Middleware Ordering & Optional Session ID", () => {
+    it("should reject rate-limited IP with 429 before checking body limit (Middleware Ordering)", async () => {
+      process.env.INGEST_IP_RPM = "1";
+      process.env.INGEST_BURST_MULTIPLIER = "1.0";
+
+      (pool.query as any).mockResolvedValue({ rows: [{ id: "proj_abc" }] });
+
+      // Request 1: Allowed
+      let res = await app.request("/api/v1/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-forwarded-for": "9.9.9.9" },
+        body: JSON.stringify(VALID_PAYLOAD),
+      });
+      expect(res.status).toBe(200);
+
+      // Request 2: Rate limited IP sending oversized payload
+      const hugeBody = JSON.stringify({
+        ...VALID_PAYLOAD,
+        events: Array.from({ length: 1000 }).map(() => ({ data: "x".repeat(3000) })), // > 3MB
+      });
+
+      res = await app.request("/api/v1/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-forwarded-for": "9.9.9.9" },
+        body: hugeBody,
+      });
+
+      // It must return 429 (IP limit) instead of 413 (Payload Too Large)
+      expect(res.status).toBe(429);
+      const body = await res.json();
+      expect(body.reason).toBe("ip");
+    });
+
+    it("should reject non-rate-limited request with 413 when body is oversized", async () => {
+      process.env.INGEST_IP_RPM = "100";
+      process.env.INGEST_BURST_MULTIPLIER = "1.0";
+
+      const hugeBody = JSON.stringify({
+        ...VALID_PAYLOAD,
+        events: Array.from({ length: 1000 }).map(() => ({ data: "x".repeat(3000) })), // > 3MB
+      });
+
+      const res = await app.request("/api/v1/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-forwarded-for": "8.8.8.8" },
+        body: hugeBody,
+      });
+
+      expect(res.status).toBe(413);
+    });
+
+    it("should execute project protections but skip session rate limiter and fail on schema validation when sessionId is missing", async () => {
+      (pool.query as any).mockResolvedValue({ rows: [{ id: "proj_abc" }] });
+
+      const payloadWithoutSession = { ...VALID_PAYLOAD };
+      delete (payloadWithoutSession as any).sessionId;
+
+      const res = await app.request("/api/v1/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payloadWithoutSession),
+      });
+
+      // Should fail schema validation with 400
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toBe("Validation Error");
+
+      // Verify that project validation was still executed
+      expect(pool.query).toHaveBeenCalledWith(
+        "SELECT id FROM projects WHERE public_key = $1 AND is_active = true",
+        [VALID_PAYLOAD.projectKey]
+      );
     });
   });
 });

@@ -10,7 +10,7 @@ import { z } from "zod";
 
 const IdentitySchema = z.object({
   projectKey: z.string().min(1).max(128),
-  sessionId: z.string().min(1).max(128),
+  sessionId: z.string().min(1).max(128).optional(),
 });
 
 import type { AppEnv } from "../lib/types";

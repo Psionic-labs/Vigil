@@ -276,7 +276,7 @@ export const projectRateLimiter: MiddlewareHandler<AppEnv> = async (c, next) => 
 // 5. Session Rate Limiter (Layer 3)
 export const sessionRateLimiter: MiddlewareHandler<AppEnv> = async (c, next) => {
   const identity = c.get("ingestIdentity");
-  if (!identity) {
+  if (!identity || !identity.sessionId) {
     return next();
   }
 
