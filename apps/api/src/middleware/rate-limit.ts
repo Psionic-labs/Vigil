@@ -10,21 +10,41 @@ import { globalLimiterStore, globalProjectCache, type ProjectCacheEntry } from "
 import { pool } from "../db";
 import type { AppEnv } from "../lib/types";
 
-// Share active lookups to prevent cache stampedes
+// Share active database lookups to prevent cache stampedes (parallel requests waiting for the same key)
 export const pendingProjectLookups = new Map<string, Promise<ProjectCacheEntry>>();
 
+/**
+ * safeParseInt
+ * Helper function validating environment variables to prevent NaN or negative values.
+ *
+ * @param val String variable to parse
+ * @param defaultVal Fallback default integer value
+ * @returns Parsed positive integer or the default value.
+ */
 function safeParseInt(val: string | undefined, defaultVal: number): number {
   if (!val) return defaultVal;
   const parsed = parseInt(val, 10);
   return isNaN(parsed) || parsed <= 0 ? defaultVal : parsed;
 }
 
+/**
+ * safeParseFloat
+ * Helper function validating floating-point environment variables.
+ *
+ * @param val String variable to parse
+ * @param defaultVal Fallback default float value
+ * @returns Parsed positive float or the default value.
+ */
 function safeParseFloat(val: string | undefined, defaultVal: number): number {
   if (!val) return defaultVal;
   const parsed = parseFloat(val);
   return isNaN(parsed) || parsed <= 0 ? defaultVal : parsed;
 }
 
+/**
+ * getEnvConfig
+ * Aggregates all rate-limiting configuration variables and bucket limits with safe fallbacks.
+ */
 export function getEnvConfig() {
   return {
     ipRpm: safeParseInt(process.env.INGEST_IP_RPM, 120),
@@ -41,6 +61,11 @@ export function getEnvConfig() {
   };
 }
 
+/**
+ * getClientIp
+ * Retrieves client IP address from request context headers or socket connections.
+ * Sanitizes input (removes tabs/newlines) and limits character count to protect logs and maps.
+ */
 export function getClientIp(c: Context): string {
   const config = getEnvConfig();
 
@@ -68,7 +93,10 @@ export function getClientIp(c: Context): string {
   return "127.0.0.1";
 }
 
-// 1. IP Rate Limiter (Layer 1)
+/**
+ * ipRateLimiter (Layer 1)
+ * Limits requests per client IP. Runs before body parsing to protect against memory exhaustion.
+ */
 export const ipRateLimiter: MiddlewareHandler<AppEnv> = async (c: Context<AppEnv>, next: Next) => {
   const ip = getClientIp(c);
   const config = getEnvConfig();
@@ -108,7 +136,10 @@ export const ipRateLimiter: MiddlewareHandler<AppEnv> = async (c: Context<AppEnv
   await next();
 };
 
-// 2. Unknown Project Limiter (Layer 2a)
+/**
+ * unknownProjectLimiter (Layer 2a)
+ * Protects project lookups by throttling unrecognized/unvalidated keys into a shared bucket.
+ */
 export const unknownProjectLimiter: MiddlewareHandler<AppEnv> = async (c: Context<AppEnv>, next: Next) => {
   const identity = c.get("ingestIdentity");
   if (!identity) {
@@ -117,7 +148,7 @@ export const unknownProjectLimiter: MiddlewareHandler<AppEnv> = async (c: Contex
 
   const { projectKey } = identity;
 
-  // Skip unknown rate limiter if we already cached it as valid
+  // Skip unknown project rate limit check if project was previously verified and cached as valid.
   const useCache = process.env.NODE_ENV !== "test" || process.env.ENABLE_TEST_CACHE === "true";
   if (useCache) {
     const cached = globalProjectCache.get(projectKey);
@@ -166,7 +197,11 @@ export const unknownProjectLimiter: MiddlewareHandler<AppEnv> = async (c: Contex
   await next();
 };
 
-// 3. Project Validation Middleware
+/**
+ * projectValidationMiddleware
+ * Validates public key credentials against database projects.
+ * Shares lookup promises (pendingProjectLookups) to prevent cache stampedes under high concurrency.
+ */
 export const projectValidationMiddleware: MiddlewareHandler<AppEnv> = async (c: Context<AppEnv>, next: Next) => {
   const reqId = c.get("requestId") || "unknown";
   const identity = c.get("ingestIdentity");
@@ -177,13 +212,13 @@ export const projectValidationMiddleware: MiddlewareHandler<AppEnv> = async (c: 
   const { projectKey } = identity;
   const config = getEnvConfig();
 
-  // If projectId is already set by unknownProjectLimiter (valid cached project), skip lookup
+  // If unknownProjectLimiter already verified a cached valid project, bypass DB check.
   const currentProjectId = c.get("projectId");
   if (currentProjectId) {
     return next();
   }
 
-  // Check cache first
+  // Verify project key status inside in-memory LRU cache first.
   const useCache = process.env.NODE_ENV !== "test" || process.env.ENABLE_TEST_CACHE === "true";
   if (useCache) {
     let cached = c.get("projectCacheEntry");
@@ -201,7 +236,7 @@ export const projectValidationMiddleware: MiddlewareHandler<AppEnv> = async (c: 
     }
   }
 
-  // Cache stampede protection
+  // Cache stampede protection lookup
   let lookupPromise = pendingProjectLookups.get(projectKey);
   if (!lookupPromise) {
     lookupPromise = (async () => {
@@ -212,6 +247,7 @@ export const projectValidationMiddleware: MiddlewareHandler<AppEnv> = async (c: 
         );
 
         if (projectResult.rows.length === 0) {
+          // Negative cache invalid project keys to prevent repeated database query attempts
           globalProjectCache.set(projectKey, false, undefined, config.knownProjectCacheTtlMs);
           return { valid: false, expiresAt: Date.now() + config.knownProjectCacheTtlMs };
         } else {
@@ -242,7 +278,10 @@ export const projectValidationMiddleware: MiddlewareHandler<AppEnv> = async (c: 
   }
 };
 
-// 4. Known Project Rate Limiter (Layer 2b)
+/**
+ * projectRateLimiter (Layer 2b)
+ * Limits overall telemetry ingestion rate for a specific valid project key.
+ */
 export const projectRateLimiter: MiddlewareHandler<AppEnv> = async (c: Context<AppEnv>, next: Next) => {
   const identity = c.get("ingestIdentity");
   if (!identity) {
@@ -289,7 +328,11 @@ export const projectRateLimiter: MiddlewareHandler<AppEnv> = async (c: Context<A
   await next();
 };
 
-// 5. Session Rate Limiter (Layer 3)
+/**
+ * sessionRateLimiter (Layer 3)
+ * Limits ingestion rate per user session tab (session:projectKey:sessionId).
+ * Scoped under projectKey to prevent multi-tenant session ID collisions.
+ */
 export const sessionRateLimiter: MiddlewareHandler<AppEnv> = async (c: Context<AppEnv>, next: Next) => {
   const identity = c.get("ingestIdentity");
   if (!identity || !identity.sessionId) {

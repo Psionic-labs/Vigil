@@ -1,10 +1,21 @@
+/**
+ * @file fingerprint.ts
+ * @description Hash fingerprinting system for client-side telemetry events.
+ * @how Normalizes variables (URLs, selectors, error callstacks) using regex parsers and hashes them using SHA-256.
+ * @why Enables noise-filtering and deduplication by generating identical hashes for issues sharing the same root cause.
+ */
+
 import crypto from "node:crypto";
 import type { SummaryEvent } from "../validation/ingest-schema";
 
 /**
- * Normalizes a URL path by stripping protocol, host, query parameters,
- * hashes, and replacing dynamic identifiers (e.g. numbers, UUIDs, hex hashes)
- * with a standard placeholder ":id".
+ * normalizeUrlPath
+ * Normalizes URL strings by stripping protocol, domains, port, query params, and hashes.
+ * Replaces dynamic variables (e.g. integer IDs, UUIDs, hex tokens) with a static ":id" token.
+ * Prevents route parameter variations (e.g., `/user/123` vs `/user/456`) from generating separate issues.
+ *
+ * @param urlStr URL address to normalize
+ * @returns Cleaned path string (e.g., `/user/:id/profile`)
  */
 export function normalizeUrlPath(urlStr: string | null | undefined): string {
   if (!urlStr) return "";
@@ -24,6 +35,7 @@ export function normalizeUrlPath(urlStr: string | null | undefined): string {
   const normalized = parts.map(part => {
     const p = part.trim();
     if (!p) return "";
+    // Replace raw digits, UUID strings, or hex/hash blocks with ':id'
     if (/^\d+$/.test(p)) return ":id";
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p)) return ":id";
     if (/^[0-9a-f]{8,}$/i.test(p)) return ":id";
@@ -33,8 +45,12 @@ export function normalizeUrlPath(urlStr: string | null | undefined): string {
 }
 
 /**
- * Normalizes element identities (JSON selector or string targets) by removing
- * dynamic classes/IDs and sorting class names to ensure order-insensitivity.
+ * normalizeTarget
+ * Cleans selector/target metadata string or object by filtering dynamic identifiers and class names.
+ * Classes are sorted alphabetically to guarantee order-insensitivity.
+ *
+ * @param target Raw selector target value (JSON string or simple selector string)
+ * @returns Standardized selector string
  */
 export function normalizeTarget(target: string | null | undefined): string {
   if (!target) return "";
@@ -54,18 +70,19 @@ export function normalizeTarget(target: string | null | undefined): string {
       let classStr = "";
       const classVal = obj.className || obj.class || "";
       if (classVal) {
+        // Filter out class names containing numbers or hex sequences (often generated dynamic tailwind/webpack CSS hashes)
         const classes = String(classVal)
           .split(/\s+/)
           .map(c => c.trim())
           .filter(c => c && !/\d{4,}/.test(c) && !/[a-f0-9]{8,}/i.test(c))
-          .sort();
+          .sort(); // Sort to ensure css order variations yield identical strings
         if (classes.length > 0) {
           classStr = `.${classes.join(".")}`;
         }
       }
       return `${tag}${idStr}${classStr}`;
     } catch {
-      // fallback to string normalizer
+      // Fallback to string normalizer below
     }
   }
 
@@ -80,8 +97,13 @@ export function normalizeTarget(target: string | null | undefined): string {
 }
 
 /**
- * Normalizes error messages and extracts up to the top 3 stable frames,
- * stripping release hashes and ignoring col numbers to prevent over-fragmentation.
+ * normalizeError
+ * Generates a stable signature of a JS error by normalizing the error message
+ * and parsing the top 3 stable frame traces from the callstack.
+ *
+ * @param message Error message
+ * @param stack Exception callstack string
+ * @returns Standardized diagnostic signature string
  */
 export function normalizeError(
   message: string | null | undefined,
@@ -104,12 +126,12 @@ export function normalizeError(
   const frames: string[] = [];
 
   for (const line of lines) {
-    if (frames.length >= 3) break;
+    if (frames.length >= 3) break; // Limit stack parse to top 3 frames for grouping stability
     
     const trimmedLine = line.trim();
     if (!trimmedLine) continue;
 
-    // V8 format: "at functionName (path/to/file.js:12:34)"
+    // V8 Callstack line parse format: "at functionName (path/to/file.js:12:34)"
     const v8Match = trimmedLine.match(/^\s*at\s+(?:(?<func>[^(]+?)\s+\()?(?<file>[^\s)]+?):(?<line>\d+):(?<col>\d+)\)?/i);
     if (v8Match && v8Match.groups) {
       const func = (v8Match.groups.func || "anonymous").trim().toLowerCase();
@@ -117,6 +139,7 @@ export function normalizeError(
       const lineNum = v8Match.groups.line || "";
       
       const filename = file.split("/").pop() || file;
+      // Strip webpack dynamic bundle/source map hashes (e.g. bundle.abcdef12.js -> bundle.js)
       const cleanFilename = filename
         .replace(/\.[a-z0-9]{8,}(?=\.[a-z0-9]+$)/i, "")
         .replace(/-[a-z0-9]{8,}(?=\.[a-z0-9]+$)/i, "");
@@ -125,7 +148,7 @@ export function normalizeError(
       continue;
     }
 
-    // Firefox/Safari format: "functionName@path/to/file.js:12:34"
+    // Firefox/Safari Callstack line parse format: "functionName@path/to/file.js:12:34"
     const ffMatch = trimmedLine.match(/^(?:(?<func>[^@\s]+?))?@(?<file>[^\s]+?):(?<line>\d+):(?<col>\d+)/i);
     if (ffMatch && ffMatch.groups) {
       const func = (ffMatch.groups.func || "anonymous").trim().toLowerCase();
@@ -150,7 +173,12 @@ export function normalizeError(
 }
 
 /**
- * Generates a stable, deterministic signal fingerprint for a summary event.
+ * generateFingerprint
+ * Compiles normalizations for an event and hashes the signature deterministically using SHA-256.
+ *
+ * @param event The summary telemetry event
+ * @param pageUrl The URL path where the event occurred
+ * @returns Hex-encoded SHA-256 signature
  */
 export function generateFingerprint(event: SummaryEvent, pageUrl?: string): string {
   let payload: string;
@@ -196,7 +224,7 @@ export function generateFingerprint(event: SummaryEvent, pageUrl?: string): stri
     }
   }
 
-  // Bounded input length to prevent dynamic overflow / memory bloat
+  // Bounds payload length limit to 10KB to prevent memory overflow issues
   const boundedPayload = payload.substring(0, 10000);
 
   return crypto.createHash("sha256").update(boundedPayload).digest("hex");

@@ -80,8 +80,8 @@ Accept SDK payloads, store them, extract signals, and queue triage.
 
 Run the triage loop for every completed non-noise session.
 
-- [ ] Set up job queue (BullMQ + Redis, or a simple Postgres-backed queue for MVP)
-- [ ] Implement triage job worker
+- [x] Set up job queue (BullMQ + Redis, or a simple Postgres-backed queue for MVP)
+- [x] Implement triage job worker
 - [ ] Assemble compact timeline from `events_summary` for a session
 - [ ] Fetch candidate issue groups by fingerprint match
 - [ ] Build Claude API prompt (see architecture doc for input/output schema)
