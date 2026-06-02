@@ -15,7 +15,7 @@ export const AISchema = z.object({
   friction_score: z.number().int().min(0).max(100), // Score representing estimated frustration levels (0-100)
   issue_detected: z.boolean(),                 // Flag stating if a real bug/issue is identified
   issue_group_action: z.enum(["skipped/noise", "duplicate issue group", "new issue group"]), // Categorization decision
-  issue_group_id: z.string().max(255).optional().nullable(), // Target issue group to attach if duplicate
+  issue_group_id: z.string().min(1).max(255).optional().nullable(), // Target issue group to attach if duplicate
   issues: z.array(
     z.object({
       title: z.string().max(500),              // Summarized title of the issue
@@ -38,18 +38,18 @@ export const AISchema = z.object({
   if (!data.issue_detected) {
     // If no issue is detected, action must be skipped/noise and no group ID or issues should be provided.
     if (data.issue_group_action !== "skipped/noise") return false;
-    if (data.issue_group_id) return false;
-    if (data.issues && data.issues.length > 0) return false;
+    if (data.issue_group_id !== null && data.issue_group_id !== undefined) return false;
+    if (data.issues !== null && data.issues !== undefined && data.issues.length > 0) return false;
   } else {
     // If an issue is detected, action cannot be skipped/noise
     if (data.issue_group_action === "skipped/noise") return false;
 
     if (data.issue_group_action === "duplicate issue group") {
       // Must have a target issue_group_id
-      if (!data.issue_group_id) return false;
+      if (data.issue_group_id === null || data.issue_group_id === undefined) return false;
     } else if (data.issue_group_action === "new issue group") {
       // Cannot have issue_group_id, and must have at least one issue detail
-      if (data.issue_group_id) return false;
+      if (data.issue_group_id !== null && data.issue_group_id !== undefined) return false;
       if (!data.issues || data.issues.length === 0) return false;
     }
   }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import app from "../app";
 import { pool } from "../db";
 
@@ -16,36 +16,16 @@ vi.mock("../db", () => ({
 }));
 
 describe("AI Triage Queue Metrics Endpoint", () => {
-  let originalNodeEnv: string | undefined;
-  let originalEnableInternalMetrics: string | undefined;
-
-  // Preserve the original node environment before executing any tests.
-  beforeAll(() => {
-    originalNodeEnv = process.env.NODE_ENV;
-    originalEnableInternalMetrics = process.env.ENABLE_INTERNAL_METRICS;
-  });
-
-  // Restore the original node environment after all tests run.
-  afterAll(() => {
-    if (originalNodeEnv === undefined) {
-      delete process.env.NODE_ENV;
-    } else {
-      process.env.NODE_ENV = originalNodeEnv;
-    }
-
-    if (originalEnableInternalMetrics === undefined) {
-      delete process.env.ENABLE_INTERNAL_METRICS;
-    } else {
-      process.env.ENABLE_INTERNAL_METRICS = originalEnableInternalMetrics;
-    }
-  });
-
   // Reset test configuration before each execution.
   beforeEach(() => {
     vi.clearAllMocks();
     // Configure environment to 'development' and enable metrics to bypass Bearer token authentication gates.
-    process.env.NODE_ENV = "development";
-    process.env.ENABLE_INTERNAL_METRICS = "true";
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("ENABLE_INTERNAL_METRICS", "true");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   // Test Case 1: Empty Queue
@@ -68,6 +48,11 @@ describe("AI Triage Queue Metrics Endpoint", () => {
     const res = await app.request("/metrics");
     expect(res.status).toBe(200);
     const body = await res.json() as any;
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("SUM(GREATEST(attempts - 1, 0))"),
+      expect.any(Array)
+    );
 
     expect(body.ok).toBe(true);
     // Assert flat keys are numeric zeros
@@ -166,5 +151,48 @@ describe("AI Triage Queue Metrics Endpoint", () => {
       expect.any(Error)
     );
     consoleErrorSpy.mockRestore();
+  });
+
+  // Test Case 4: Enforce lease timeout parsing and query parameter delegation
+  it("should parse TRIAGE_LEASE_TIMEOUT_MS and pass it to the SQL query parameter array", async () => {
+    vi.stubEnv("TRIAGE_LEASE_TIMEOUT_MS", "600000"); // 10 minutes
+
+    vi.mocked(pool.query).mockResolvedValueOnce({
+      rows: [
+        {
+          queue_depth: "0",
+          oldest_job_age_ms: "0",
+          jobs_leased: "0",
+          jobs_dead_letter: "0",
+          jobs_retried: "0",
+          jobs_completed: "0",
+        },
+      ],
+    } as any);
+
+    const nowBefore = Date.now();
+    const res = await app.request("/metrics");
+    const nowAfter = Date.now();
+
+    expect(res.status).toBe(200);
+
+    // Verify parameters passed to pool.query
+    const calls = vi.mocked(pool.query).mock.calls;
+    const lastCall = calls[calls.length - 1];
+    expect(lastCall).toBeDefined();
+    const queryParams = (lastCall?.[1] ?? []) as any[];
+    expect(queryParams).toBeDefined();
+    expect(queryParams.length).toBe(3);
+
+    const passedNow = queryParams[0];
+    const passedMaxAttempts = queryParams[1];
+    const passedStaleThreshold = queryParams[2];
+
+    expect(passedNow).toBeGreaterThanOrEqual(nowBefore);
+    expect(passedNow).toBeLessThanOrEqual(nowAfter);
+    expect(passedMaxAttempts).toBe(3); // default max attempts
+
+    // Stale threshold should be: now - 600000 (10 minutes)
+    expect(passedStaleThreshold).toBe(passedNow - 600000);
   });
 });

@@ -57,40 +57,17 @@ export function buildTriagePrompt(context: TriageContext): string {
 </session>
 `.trim();
 
-  // Format timeline events chronologically into index-keyed event tags.
-  // Truncates long fields like targets, error messages, stack traces, and network URLs to optimize prompt size.
-  const timelineEventsXml = timeline
-    .map((event, idx) => {
-      const parts = [
-        `  <event index="${idx}">`,
-        `    <type>${escapeXml(event.type)}</type>`,
-        `    <timestamp_ms>${event.timestamp_ms}</timestamp_ms>`,
-      ];
+  // Format session-timeline into XML tags, using escapeXml for security.
+  const timelineXml = `
+<session_timeline>
+${escapeXml(timeline.summary)}
+</session_timeline>
+`.trim();
 
-      if (event.target) parts.push(`    <target>${escapeXml(event.target, 200)}</target>`);
-      if (event.error_message) parts.push(`    <error_message>${escapeXml(event.error_message, 500)}</error_message>`);
-      if (event.error_stack) parts.push(`    <error_stack>${escapeXml(event.error_stack, 1000)}</error_stack>`);
-      if (event.network_url) parts.push(`    <network_url>${escapeXml(event.network_url, 500)}</network_url>`);
-      if (event.network_status !== undefined && event.network_status !== null) {
-        parts.push(`    <network_status>${event.network_status}</network_status>`);
-      }
-      if (event.network_method) parts.push(`    <network_method>${escapeXml(event.network_method)}</network_method>`);
-      if (event.click_count !== undefined && event.click_count !== null) {
-        parts.push(`    <click_count>${event.click_count}</click_count>`);
-      }
-      if (event.nav_to) parts.push(`    <nav_to>${escapeXml(event.nav_to, 500)}</nav_to>`);
-      if (event.fingerprint) parts.push(`    <fingerprint>${escapeXml(event.fingerprint)}</fingerprint>`);
-
-      parts.push("  </event>");
-      return parts.join("\n");
-    })
-    .join("\n");
-
-  const timelineXml = `<timeline>\n${timelineEventsXml}\n</timeline>`;
-
-  // Format candidate issue groups to match fingerprints
-  const candidatesXml = candidates.length > 0
-    ? candidates
+  // Format candidate issue groups to match fingerprints, capped to 10 to protect prompt tokens budget.
+  const cappedCandidates = candidates.slice(0, 10);
+  const candidatesXml = cappedCandidates.length > 0
+    ? cappedCandidates
         .map((group) => {
           return `
   <issue_group>
@@ -98,8 +75,7 @@ export function buildTriagePrompt(context: TriageContext): string {
     <title>${escapeXml(group.title, 500)}</title>
     <fingerprint>${escapeXml(group.fingerprint)}</fingerprint>
     <severity>${escapeXml(group.severity)}</severity>
-    <status>${escapeXml(group.status)}</status>
-    <last_seen_at>${group.last_seen_at}</last_seen_at>
+    <last_seen_at>${group.lastSeenAt}</last_seen_at>
   </issue_group>
 `.trim();
         })
@@ -122,7 +98,7 @@ ${candidatesContainerXml}
 
 Task Instructions:
 1. Analyze the timeline for user friction (JS errors, network request failures, rage clicks, dead clicks).
-2. If there are no actual bugs or issues in this session (e.g. only normal navigation, or expected/benign network requests, or no errors at all), set "issue_detected" to false and "issue_group_action" to "skipped/noise".
+2. If there are no actual bugs or issues in this session (e.g. only normal navigation, or expected/benign network requests, or no errors at all), set "issue_detected" to false, "issue_group_action" to "skipped/noise", set "issue_group_id" to null, and set "issues" to an empty array.
 3. If you detect an actual issue, try to see if it matches any of the candidate issue groups provided above based on matching fingerprint and symptoms:
    - If it matches a candidate issue group, set "issue_detected" to true, "issue_group_action" to "duplicate issue group", and set "issue_group_id" to the matching candidate's id.
    - If it does NOT match any existing candidate issue groups, set "issue_detected" to true, "issue_group_action" to "new issue group", leave "issue_group_id" null, and fill in the "issues" array with a detailed description of the new issue to create.
@@ -135,7 +111,7 @@ Task Instructions:
 
 You must output strictly valid JSON matching the following schema. Do not include any explanations, markdown code blocks, or additional text.
 
-\`\`\`json
+JSON Schema structure:
 {
   "session_summary": "string describing the user session",
   "goal_completed": true | false,
@@ -161,7 +137,6 @@ You must output strictly valid JSON matching the following schema. Do not includ
     }
   ]
 }
-\`\`\`
 
 Strict Constraint:
 Output ONLY the raw JSON string (no markdown fences, no extra text).

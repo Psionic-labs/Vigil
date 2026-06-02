@@ -7,9 +7,10 @@
 
 import crypto from "node:crypto";
 import { pool, withTransaction } from "../db";
-import type { TimelineEvent, CandidateIssueGroup } from "./triage-types";
 import { invokeModel } from "./triage-service";
 import { buildTriagePrompt } from "./triage-prompts";
+import { buildSessionTimeline } from "./triage/timeline";
+import { findCandidateIssueGroups } from "./triage/candidate-groups";
 
 /**
  * RunnerOptions
@@ -98,41 +99,13 @@ export async function processTriageJob(
       return;
     }
 
-    // 2. Retrieve Timeline Events (compact summary events, max 100)
-    const timelineRes = await pool.query<TimelineEvent>(
-      `
-      SELECT type, timestamp_ms, target, error_message, error_stack, network_url, network_status, network_method, click_count, nav_to, fingerprint
-      FROM events_summary
-      WHERE session_id = $1
-      ORDER BY timestamp_ms ASC
-      LIMIT 100
-      `,
-      [sessionId]
-    );
-    const timeline = timelineRes.rows;
+    // 2. Build Timeline (and extract fingerprints in a single pass)
+    const timeline = await buildSessionTimeline(sessionId);
 
-    // 3. Retrieve Candidate Issue Groups matching session event fingerprints
-    const fingerprints = timeline
-      .map((e) => e.fingerprint)
-      .filter((fp): fp is string => !!fp);
-
-    let candidates: CandidateIssueGroup[] = [];
-    if (fingerprints.length > 0) {
-      // Query up to 20 candidate groups that are currently open in this project
-      const candidatesRes = await pool.query<CandidateIssueGroup>(
-        `
-        SELECT id, title, fingerprint, severity, status, last_seen_at
-        FROM issue_groups
-        WHERE project_id = $1
-          AND fingerprint = ANY($2::text[])
-          AND status = 'open'
-        ORDER BY last_seen_at DESC
-        LIMIT 20
-        `,
-        [projectId, fingerprints]
-      );
-      candidates = candidatesRes.rows;
-    }
+    // 3. Find Candidate Issue Groups using fingerprints collected during the timeline query
+    const allCandidates = await findCandidateIssueGroups(projectId, timeline.rawFingerprints);
+    // Cap to 10 candidates to ensure prompt context and duplicate validation boundaries match exactly
+    const candidates = allCandidates.slice(0, 10);
 
     // 4. Assemble Prompt
     const context = {
@@ -213,10 +186,14 @@ export async function processTriageJob(
         );
       } else {
         // Step B: Issue detected. Determine action: Attach or Create
+        const candidateIds = new Set(candidates.map((c) => c.id));
+        const isDuplicateAction = triageData.issue_group_action === "duplicate issue group" && triageData.issue_group_id;
+        const isCandidateValid = isDuplicateAction && triageData.issue_group_id && candidateIds.has(triageData.issue_group_id);
+
         let targetGroupId: string;
 
-        if (triageData.issue_group_action === "duplicate issue group" && triageData.issue_group_id) {
-          targetGroupId = triageData.issue_group_id;
+        if (isDuplicateAction && isCandidateValid) {
+          targetGroupId = triageData.issue_group_id!;
 
           // Increment affected sessions and update last seen timestamp of existing group
           const updateRes = await client.query(
@@ -233,19 +210,26 @@ export async function processTriageJob(
             throw new Error(`Target issue group ${targetGroupId} not found in project ${projectId}`);
           }
         } else {
+          if (isDuplicateAction && !isCandidateValid) {
+            console.warn(`[TriageRunner] LLM returned issue_group_id ${triageData.issue_group_id} which is not in candidate groups. Falling back to creating a new issue group.`);
+          }
           // Create new issue group
           targetGroupId = `igr_${crypto.randomUUID().replace(/-/g, "").substring(0, 16)}`;
           const firstIssue = triageData.issues?.[0] || {
-            title: "Unknown Issue",
-            root_cause: "No detail provided",
-            suggested_fix: "No fix provided",
+            title: triageData.session_summary || "Unknown Issue",
+            root_cause: isDuplicateAction
+              ? "Automatically created because LLM returned an invalid/hallucinated duplicate issue group ID."
+              : "No detail provided",
+            suggested_fix: isDuplicateAction
+              ? "Review this issue group and associate it with a correct group if needed."
+              : "No fix provided",
             severity: "P2" as const,
             confidence: 0.5,
             reproduction_steps: [],
             evidence: [],
           };
 
-          const primaryFp = timeline.find((e) => e.fingerprint)?.fingerprint || crypto.createHash("sha256").update(sessionId).digest("hex");
+          const primaryFp = timeline.fingerprints[0] || crypto.createHash("sha256").update(sessionId).digest("hex");
 
           await client.query(
             `
@@ -273,11 +257,16 @@ export async function processTriageJob(
 
         // Create issue instance record linked to the target group
         const instanceId = `inst_${crypto.randomUUID().replace(/-/g, "").substring(0, 16)}`;
+        const isInvalidDuplicateFallback = isDuplicateAction && !isCandidateValid;
         const issueDetail = triageData.issues?.[0] || {
-          title: "Session Issue Instance",
-          root_cause: null,
-          suggested_fix: null,
-          severity: "P2",
+          title: triageData.session_summary || "Session Issue Instance",
+          root_cause: isInvalidDuplicateFallback
+            ? "Automatically created because LLM returned an invalid/hallucinated duplicate issue group ID."
+            : null,
+          suggested_fix: isInvalidDuplicateFallback
+            ? "Review this issue group and associate it with a correct group if needed."
+            : null,
+          severity: "P2" as const,
           confidence: 0.5,
           evidence: [],
           reproduction_steps: [],
@@ -301,7 +290,7 @@ export async function processTriageJob(
             issueDetail.root_cause,
             issueDetail.suggested_fix,
             issueDetail.severity,
-            timeline[0]?.timestamp_ms ?? 0,
+            Number(sessionRow.started_at),
             issueDetail.confidence,
             JSON.stringify(issueDetail.evidence),
             JSON.stringify(issueDetail.reproduction_steps),
