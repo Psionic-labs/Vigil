@@ -4,6 +4,7 @@
  * @how Periodically identifies inactive, unfinalized sessions and transitionally marks them as abandoned.
  * @why Resolves permanently unfinalized sessions caused by browser crashes, mobile app suspensions, and process termination.
  */
+
 import { pool } from "../db";
 
 let reconciliationInterval: NodeJS.Timeout | null = null;
@@ -13,14 +14,29 @@ let isReconciling = false;
 const MIN_SESSION_TIMEOUT_MS = 10_000;
 const MIN_RECONCILIATION_INTERVAL_MS = 1_000;
 const DEFAULT_RECONCILIATION_INTERVAL_MS = 60_000;
-const MAX_TIMER_DELAY_MS = 2_147_483_647;
+const MAX_TIMER_DELAY_MS = 2_147_483_647; // Maximum safe timeout value for setTimeout/setInterval in node
 
+/**
+ * sanitizeTimeoutMs
+ * Enforces safety boundaries on session timeout durations.
+ *
+ * @param timeoutMs The configured timeout threshold in milliseconds.
+ * @returns Sanitized positive milliseconds value.
+ */
 function sanitizeTimeoutMs(timeoutMs: number): number {
   return Number.isFinite(timeoutMs)
     ? Math.min(Math.max(Math.trunc(timeoutMs), MIN_SESSION_TIMEOUT_MS), Number.MAX_SAFE_INTEGER)
     : MIN_SESSION_TIMEOUT_MS;
 }
 
+/**
+ * sanitizeIntervalMs
+ * Enforces safety bounds on reconciliation worker poll intervals.
+ *
+ * @param intervalMs The configured interval in milliseconds.
+ * @param timeoutMs Enforced upper bound limit.
+ * @returns Sanitized positive milliseconds value.
+ */
 function sanitizeIntervalMs(intervalMs: number, timeoutMs: number): number {
   const fallback = Math.min(DEFAULT_RECONCILIATION_INTERVAL_MS, timeoutMs);
   const finiteIntervalMs = Number.isFinite(intervalMs)
@@ -35,15 +51,29 @@ function sanitizeIntervalMs(intervalMs: number, timeoutMs: number): number {
 }
 
 export interface ReconciliationResult {
-  scanned: number;
-  reconciled: number;
-  duration: number;
-  oldestUnreconciledAgeMs: number;
+  scanned: number;                 // Count of active unfinalized sessions scanned
+  reconciled: number;              // Count of abandoned sessions successfully closed in this batch
+  duration: number;                // Execution elapsed time in milliseconds
+  oldestUnreconciledAgeMs: number; // Age of the oldest un-reconciled active session in the database
 }
 
 /**
- * Atomic batch scan and update of abandoned sessions.
- * Highly defensive, monotonic-safe, and index-optimized.
+ * reconcileAbandonedSessions
+ * Performs an atomic batch scan and update of abandoned idle sessions.
+ *
+ * @param timeoutMs Inactivity duration threshold.
+ * @param nowMs Override timestamp for testing purposes.
+ * @returns ReconciliationResult statistics.
+ *
+ * Execution Steps:
+ * 1. Load Statistics: queries the database to count active sessions (`ended_at IS NULL AND is_abandoned = false`)
+ *    and fetch the oldest `last_ingest_at` timestamp.
+ * 2. Atomic Batch Update: executes a single database UPDATE query targeting sessions where `now - last_ingest_at > timeoutMs`.
+ *    - Transitions status to `is_abandoned = true`.
+ *    - Sets `abandoned_at = now`.
+ *    - Finalizes session duration monotonically using:
+ *      `LEAST(GREATEST(COALESCE(duration_ms, 0), GREATEST(last_ingest_at - started_at, 0)), 2147483647)`
+ *      which bounds outcomes to valid PostgreSQL integer limits and avoids negative durations.
  */
 export async function reconcileAbandonedSessions(
   timeoutMs: number,
@@ -77,7 +107,7 @@ export async function reconcileAbandonedSessions(
     ? currentNow - oldestLastIngest
     : 0;
 
-  // 2. Perform the atomic update using monotonic-safe duration_ms
+  // 2. Perform the atomic update using monotonic-safe duration calculations
   const updateResult = await pool.query(
     `
     UPDATE sessions
@@ -113,7 +143,11 @@ export async function reconcileAbandonedSessions(
 }
 
 /**
- * Spawns the in-process reconciliation scheduler with startup jitter protection.
+ * startReconciliationWorker
+ * Spawns the background session reconciliation loop with startup jitter protection.
+ *
+ * @param intervalMs Polling check frequency interval.
+ * @param timeoutMs Inactivity timeout limit.
  */
 export function startReconciliationWorker(
   intervalMs: number,
@@ -146,7 +180,7 @@ export function startReconciliationWorker(
     }
   };
 
-  // Introduce random startup jitter (up to 5 seconds) to prevent DB connection spikes
+  // Introduce random startup jitter (up to 5 seconds) to prevent DB connection spikes across server replicas on startup
   const startupJitterMs = Math.random() * 5000;
 
   console.log(
@@ -155,7 +189,7 @@ export function startReconciliationWorker(
 
   jitterTimeout = setTimeout(() => {
     jitterTimeout = null;
-    // Run immediately after jitter
+    // Run immediately after jitter delay
     run();
     // Schedule repeating intervals
     reconciliationInterval = setInterval(run, sanitizedIntervalMs);
@@ -163,7 +197,8 @@ export function startReconciliationWorker(
 }
 
 /**
- * Clears active timers and stops the worker loop cleanly.
+ * stopReconciliationWorker
+ * Clears active timers and stops the worker loop cleanly on server shutdown.
  */
 export function stopReconciliationWorker(): void {
   if (jitterTimeout) {

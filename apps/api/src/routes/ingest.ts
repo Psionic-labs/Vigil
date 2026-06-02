@@ -7,7 +7,7 @@
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { zValidator } from "@hono/zod-validator";
-import { IngestPayloadSchema } from "../validation/ingest-schema";
+import { IngestPayloadSchema, type IngestPayload } from "../validation/ingest-schema";
 import { pool, withTransaction } from "../db";
 import { persistReplayBlob } from "../lib/blob-storage";
 import { generateFingerprint } from "../lib/fingerprint";
@@ -41,7 +41,10 @@ ingest.post(
   unknownProjectLimiter,
   projectValidationMiddleware,
   projectRateLimiter,
-  zValidator("json", IngestPayloadSchema, (result, c: Context<AppEnv>) => {
+  // We cast zValidator and c.req.valid to any because Hono's middleware array signature
+  // has typescript compilation limits under certain TS versions when combined with custom contexts.
+  // This bypasses the compiler error without changing the runtime payload validation behavior.
+  zValidator("json", IngestPayloadSchema, (result, c: any) => {
     if (!result.success) {
       return c.json({
         ok: false,
@@ -49,12 +52,13 @@ ingest.post(
         error: { message: "Validation Error", issues: result.error.issues }
       }, 400);
     }
-  }),
+  }) as any,
   sessionRateLimiter,
   async (c: Context<AppEnv>) => {
     const reqId = c.get("requestId") || "unknown";
     const startMs = performance.now();
-    const payload = c.req.valid("json");
+    // Retrieve validated json payload from Hono context
+    const payload = (c.req.valid as any)("json") as IngestPayload;
 
     // 1. Project Validation — previously queried DB here; now consumed from context.
     const projectId = c.get("projectId") as string;

@@ -167,6 +167,11 @@ export class InMemoryLimiterStore implements LimiterStore {
     }
   }
 
+  /**
+   * getSizes
+   * Returns the current number of active tracking buckets for each rate limiter category.
+   * Useful for telemetry, cardinality monitoring, and health status reporting.
+   */
   public getSizes() {
     return {
       ip: this.ipBuckets.size,
@@ -175,6 +180,13 @@ export class InMemoryLimiterStore implements LimiterStore {
     };
   }
 
+  /**
+   * getEstimatedMemoryUsageBytes
+   * Calculates a heuristic approximation of the memory footprint of the rate-limiter maps.
+   * Counts UTF-16 character memory allocations, JS objects, and Map metadata overheads.
+   * 
+   * @returns Approximated allocated memory size in bytes.
+   */
   public getEstimatedMemoryUsageBytes(): number {
     const ipSize = this.ipBuckets.size;
     const projectSize = this.projectBuckets.size;
@@ -190,6 +202,14 @@ export class InMemoryLimiterStore implements LimiterStore {
     return ipKeyMem + projectKeyMem + sessionKeyMem + valAndMapOverhead;
   }
 
+  /**
+   * performCleanup
+   * Iterates through the rate limiter maps and evicts expired or completely refilled/idle buckets.
+   * Frees memory and keeps heap utilization optimized under continuous request loads.
+   *
+   * @param ttlMs Inactivity duration threshold before bucket eviction (e.g. 15 minutes).
+   * @returns Total number of cleared rate limiting buckets.
+   */
   public performCleanup(ttlMs: number) {
     const now = Date.now();
     let cleaned = 0;
@@ -215,6 +235,11 @@ export class InMemoryLimiterStore implements LimiterStore {
     return cleaned;
   }
 
+  /**
+   * clearAll
+   * Force resets all rate limiting buckets and telemetry counters.
+   * Primarily used for clearing state between unit tests.
+   */
   public clearAll() {
     this.ipBuckets.clear();
     this.projectBuckets.clear();
@@ -226,17 +251,33 @@ export class InMemoryLimiterStore implements LimiterStore {
   }
 }
 
+/**
+ * ProjectCacheEntry
+ * Defines the structure for cached project credential validation results.
+ */
 export interface ProjectCacheEntry {
-  valid: boolean;
-  projectId?: string;
-  expiresAt: number;
+  valid: boolean;         // Indication of project key validity
+  projectId?: string;     // Unique database project ID if valid
+  expiresAt: number;      // Epoch timestamp when cache entry expires
 }
 
+/**
+ * KnownProjectCache
+ * Light-weight, in-memory cache to store project validation query outcomes.
+ * Prevents redundant database hits for project validation during ingestion.
+ */
 export class KnownProjectCache {
   private cache = new Map<string, ProjectCacheEntry>();
-  public hits = 0;
-  public misses = 0;
+  public hits = 0;        // Track cache lookup successes
+  public misses = 0;      // Track cache lookup misses
 
+  /**
+   * get
+   * Retrieves a cached project validation entry if it exists and has not expired.
+   *
+   * @param key The public project key credentials.
+   * @returns ProjectCacheEntry object or null if not found or expired.
+   */
   get(key: string): ProjectCacheEntry | null {
     const entry = this.cache.get(key);
     if (!entry) {
@@ -252,6 +293,15 @@ export class KnownProjectCache {
     return entry;
   }
 
+  /**
+   * set
+   * Stores project key validation state with a configurable Time-To-Live (TTL).
+   *
+   * @param key The public project key credentials.
+   * @param valid Validity status flag.
+   * @param projectId Resolved database project ID.
+   * @param ttlMs Time to live in milliseconds (defaults to 1 minute).
+   */
   set(key: string, valid: boolean, projectId?: string, ttlMs: number = 60000) {
     this.cache.set(key, {
       valid,
@@ -260,10 +310,20 @@ export class KnownProjectCache {
     });
   }
 
+  /**
+   * getCacheSize
+   * Returns current count of entries tracked in cache.
+   */
   getCacheSize(): number {
     return this.cache.size;
   }
 
+  /**
+   * performCleanup
+   * Scans and evicts expired project validation cache entries.
+   * 
+   * @returns Count of evicted cache entries.
+   */
   performCleanup() {
     const now = Date.now();
     let cleaned = 0;
@@ -276,6 +336,10 @@ export class KnownProjectCache {
     return cleaned;
   }
 
+  /**
+   * clear
+   * Empties cache map and resets hits/misses metrics tracker.
+   */
   clear() {
     this.cache.clear();
     this.hits = 0;
@@ -283,12 +347,20 @@ export class KnownProjectCache {
   }
 }
 
-// Global Singleton Instances
+// Global Singleton Instances shared across request routers and middlewares
 export const globalLimiterStore = new InMemoryLimiterStore();
 export const globalProjectCache = new KnownProjectCache();
 
 let cleanupInterval: NodeJS.Timeout | null = null;
 
+/**
+ * startLimiterCleanup
+ * Sets up a background garbage-collection interval timer.
+ * Periodically purges idle rate-limiting buckets and expired project key caches.
+ *
+ * @param storeTtlMs Time-to-live expiration limit for inactive rate limit buckets.
+ * @param intervalMs Cycle execution interval frequency.
+ */
 export function startLimiterCleanup(
   storeTtlMs: number = 900000,
   intervalMs: number = 60000
@@ -305,9 +377,14 @@ export function startLimiterCleanup(
   }, intervalMs);
 }
 
+/**
+ * stopLimiterCleanup
+ * Terminates the background garbage collection timers for safe process shutdown.
+ */
 export function stopLimiterCleanup() {
   if (cleanupInterval) {
     clearInterval(cleanupInterval);
     cleanupInterval = null;
   }
 }
+

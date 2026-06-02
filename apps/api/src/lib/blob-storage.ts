@@ -4,6 +4,7 @@
  * @how Compresses raw rrweb replay arrays into gzip and writes them to unique file paths.
  * @why Stores heavy DOM replay timelines efficiently on local disk without bloating the relational DB.
  */
+
 import fs from "node:fs/promises";
 import path from "node:path";
 import zlib from "node:zlib";
@@ -16,17 +17,21 @@ const gzip = promisify(zlib.gzip);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configure the root blobs directory
-// For this milestone, a local 'blobs' directory is sufficient.
+// Configure the root blobs directory (local directory for this architecture phase).
 const BLOBS_ROOT = process.env.BLOBS_ROOT || path.resolve(__dirname, "../../blobs/v1");
 
+/**
+ * BlobPersistenceResult
+ * Aggregates diagnostic results returned upon successful file writes.
+ * Enables tracking serialization, compression, and write performance statistics.
+ */
 export interface BlobPersistenceResult {
-  path: string;
-  compressedBytes: number;
-  serializationMs: number;
-  compressionMs: number;
-  writeMs: number;
-  // Compatibility fields
+  path: string;                      // Final resolved absolute file path
+  compressedBytes: number;           // Gzip compressed byte count size
+  serializationMs: number;           // Time spent converting JSON array to string
+  compressionMs: number;             // Time spent running Gzip compression algorithm
+  writeMs: number;                   // Time spent performing disk writes
+  // Compatibility fields mapping
   filePath: string;
   compressedSize: number;
   serializationDurationMs: number;
@@ -35,19 +40,31 @@ export interface BlobPersistenceResult {
 }
 
 /**
- * Ensures the target directory exists before writing.
- * @param dirPath The absolute path to the directory
+ * ensureDirectoryExists
+ * Checks and creates the directory paths recursively if they do not exist.
+ *
+ * @param dirPath The absolute path to verify/create.
  */
 async function ensureDirectoryExists(dirPath: string): Promise<void> {
   await fs.mkdir(dirPath, { recursive: true });
 }
 
 /**
- * Persists raw rrweb events as a compressed gzip chunk.
- * 
- * @param projectId The project ID.
- * @param sessionId The session ID.
- * @param events The raw events array to persist.
+ * persistReplayBlob
+ * Compresses and saves raw rrweb events as a gzipped file chunk.
+ *
+ * @param projectId Scope project ID identifier
+ * @param sessionId Scope session ID identifier
+ * @param events Array of raw replay interaction event frames
+ * @returns BlobPersistenceResult details or null if events array was empty.
+ *
+ * How it works:
+ * 1. Checks bounds: validates that projectId and sessionId match expected alphanumeric patterns to block path injections.
+ * 2. Serialization: converts events array to JSON string.
+ * 3. Compression: applies gzip compression asynchronously.
+ * 4. Resolves path: verifies that the resolved write target starts with the BLOBS_ROOT path prefix to block path traversal.
+ * 5. Atomic Disk Write: writes to a temporary (.tmp) file first, then atomically renames it to the target file name
+ *    to avoid partial reads during parallel ingestion cycles.
  */
 export async function persistReplayBlob(
   projectId: string,
@@ -58,7 +75,7 @@ export async function persistReplayBlob(
     return null;
   }
 
-  // 1. Sanitize & bound user-controlled identifiers
+  // 1. Sanitize & bound user-controlled identifiers to prevent injection
   const safeIdRegex = /^[A-Za-z0-9_-]+$/;
   if (
     !projectId ||
@@ -88,7 +105,8 @@ export async function persistReplayBlob(
   const resolvedBlobsRoot = path.resolve(BLOBS_ROOT);
   const dirPath = path.resolve(resolvedBlobsRoot, projectId, sessionId);
 
-  if (!dirPath.startsWith(resolvedBlobsRoot)) {
+  const relativeDir = path.relative(resolvedBlobsRoot, dirPath);
+  if (relativeDir.startsWith("..") || path.isAbsolute(relativeDir)) {
     throw new Error("Path traversal detected.");
   }
 
