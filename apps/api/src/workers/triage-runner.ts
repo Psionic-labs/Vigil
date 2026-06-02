@@ -103,7 +103,9 @@ export async function processTriageJob(
     const timeline = await buildSessionTimeline(sessionId);
 
     // 3. Find Candidate Issue Groups using fingerprints collected during the timeline query
-    const candidates = await findCandidateIssueGroups(projectId, timeline.rawFingerprints);
+    const allCandidates = await findCandidateIssueGroups(projectId, timeline.rawFingerprints);
+    // Cap to 10 candidates to ensure prompt context and duplicate validation boundaries match exactly
+    const candidates = allCandidates.slice(0, 10);
 
     // 4. Assemble Prompt
     const context = {
