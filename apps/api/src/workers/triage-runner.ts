@@ -103,7 +103,7 @@ export async function processTriageJob(
     const timeline = await buildSessionTimeline(sessionId);
 
     // 3. Find Candidate Issue Groups using fingerprints collected during the timeline query
-    const candidates = await findCandidateIssueGroups(projectId, timeline.fingerprints);
+    const candidates = await findCandidateIssueGroups(projectId, timeline.rawFingerprints);
 
     // 4. Assemble Prompt
     const context = {
@@ -184,10 +184,14 @@ export async function processTriageJob(
         );
       } else {
         // Step B: Issue detected. Determine action: Attach or Create
+        const candidateIds = new Set(candidates.map((c) => c.id));
+        const isDuplicateAction = triageData.issue_group_action === "duplicate issue group" && triageData.issue_group_id;
+        const isCandidateValid = isDuplicateAction && triageData.issue_group_id && candidateIds.has(triageData.issue_group_id);
+
         let targetGroupId: string;
 
-        if (triageData.issue_group_action === "duplicate issue group" && triageData.issue_group_id) {
-          targetGroupId = triageData.issue_group_id;
+        if (isDuplicateAction && isCandidateValid) {
+          targetGroupId = triageData.issue_group_id!;
 
           // Increment affected sessions and update last seen timestamp of existing group
           const updateRes = await client.query(
@@ -204,12 +208,19 @@ export async function processTriageJob(
             throw new Error(`Target issue group ${targetGroupId} not found in project ${projectId}`);
           }
         } else {
+          if (isDuplicateAction && !isCandidateValid) {
+            console.warn(`[TriageRunner] LLM returned issue_group_id ${triageData.issue_group_id} which is not in candidate groups. Falling back to creating a new issue group.`);
+          }
           // Create new issue group
           targetGroupId = `igr_${crypto.randomUUID().replace(/-/g, "").substring(0, 16)}`;
           const firstIssue = triageData.issues?.[0] || {
-            title: "Unknown Issue",
-            root_cause: "No detail provided",
-            suggested_fix: "No fix provided",
+            title: triageData.session_summary || "Unknown Issue",
+            root_cause: isDuplicateAction
+              ? "Automatically created because LLM returned an invalid/hallucinated duplicate issue group ID."
+              : "No detail provided",
+            suggested_fix: isDuplicateAction
+              ? "Review this issue group and associate it with a correct group if needed."
+              : "No fix provided",
             severity: "P2" as const,
             confidence: 0.5,
             reproduction_steps: [],
@@ -245,10 +256,14 @@ export async function processTriageJob(
         // Create issue instance record linked to the target group
         const instanceId = `inst_${crypto.randomUUID().replace(/-/g, "").substring(0, 16)}`;
         const issueDetail = triageData.issues?.[0] || {
-          title: "Session Issue Instance",
-          root_cause: null,
-          suggested_fix: null,
-          severity: "P2",
+          title: triageData.session_summary || "Session Issue Instance",
+          root_cause: isDuplicateAction
+            ? "Automatically created because LLM returned an invalid/hallucinated duplicate issue group ID."
+            : null,
+          suggested_fix: isDuplicateAction
+            ? "Review this issue group and associate it with a correct group if needed."
+            : null,
+          severity: "P2" as const,
           confidence: 0.5,
           evidence: [],
           reproduction_steps: [],

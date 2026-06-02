@@ -11,6 +11,7 @@ export interface SessionTimeline {
   eventCount: number;    // Number of events included in the final timeline
   truncated: boolean;    // Flag indicating if events were dropped due to limits
   fingerprints: string[]; // Deduplicated list of error fingerprints present in the session events
+  rawFingerprints: string[]; // Non-deduplicated list of error fingerprints present in the session events
 }
 
 interface DBEvent {
@@ -220,18 +221,18 @@ export async function buildSessionTimeline(sessionId: string): Promise<SessionTi
       summary: "No significant user activity recorded.",
       eventCount: 0,
       truncated: false,
-      fingerprints: []
+      fingerprints: [],
+      rawFingerprints: []
     };
   }
 
+  // Extract non-deduplicated list of fingerprints from all filtered events in this session
+  const rawFingerprints = filteredEvents
+    .map((e) => e.fingerprint)
+    .filter((fp): fp is string => !!fp);
+
   // Extract deduplicated fingerprints from all filtered events in this session
-  const fingerprints = Array.from(
-    new Set(
-      filteredEvents
-        .map((e) => e.fingerprint)
-        .filter((fp): fp is string => !!fp)
-    )
-  );
+  const fingerprints = Array.from(new Set(rawFingerprints));
 
   let maxLowLimit = 50;
   let maxMediumLimit = 10;
@@ -327,6 +328,7 @@ export async function buildSessionTimeline(sessionId: string): Promise<SessionTi
     summary,
     eventCount: selected.length,
     truncated: isTruncated,
-    fingerprints
+    fingerprints,
+    rawFingerprints
   };
 }

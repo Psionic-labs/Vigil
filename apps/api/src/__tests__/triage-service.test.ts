@@ -146,6 +146,53 @@ describe("AI Triage Service API Client & Parser", () => {
             evidence: [],
           }
         ]
+      },
+      {
+        session_summary: "Issue detected with empty group id",
+        goal_completed: false,
+        friction_score: 80,
+        issue_detected: true,
+        issue_group_action: "new issue group",
+        issue_group_id: "", // Invalid empty string
+        issues: [
+          {
+            title: "Error 500",
+            root_cause: "Crash",
+            suggested_fix: "Fix it",
+            severity: "P1",
+            confidence: 0.9,
+            reproduction_steps: [],
+            evidence: [],
+          }
+        ]
+      },
+      {
+        session_summary: "No issue detected but empty issues array provided",
+        goal_completed: true,
+        friction_score: 10,
+        issue_detected: false,
+        issue_group_action: "skipped/noise",
+        issue_group_id: null,
+        issues: [] // Invalid: should not be defined at all (not even empty array) when issue_detected is false
+      },
+      {
+        session_summary: "New issue group action with a non-null group ID",
+        goal_completed: false,
+        friction_score: 85,
+        issue_detected: true,
+        issue_group_action: "new issue group",
+        issue_group_id: "igr_abc123", // Invalid: new issue group should not specify an ID
+        issues: [
+          {
+            title: "Error 500",
+            root_cause: "Crash",
+            suggested_fix: "Fix it",
+            severity: "P1",
+            confidence: 0.9,
+            reproduction_steps: [],
+            evidence: [],
+          }
+        ]
       }
     ];
 

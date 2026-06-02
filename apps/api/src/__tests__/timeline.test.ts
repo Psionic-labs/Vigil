@@ -77,6 +77,7 @@ describe("Session Timeline Builder", () => {
 
     const result = await buildSessionTimeline("sess_fp");
     expect(result.fingerprints).toEqual(["fp1", "fp2"]);
+    expect(result.rawFingerprints).toEqual(["fp1", "fp2", "fp1"]);
   });
 
   // Test priority based truncation

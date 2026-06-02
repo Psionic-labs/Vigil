@@ -111,7 +111,7 @@ Task Instructions:
 
 You must output strictly valid JSON matching the following schema. Do not include any explanations, markdown code blocks, or additional text.
 
-\`\`\`json
+JSON Schema structure:
 {
   "session_summary": "string describing the user session",
   "goal_completed": true | false,
@@ -137,7 +137,6 @@ You must output strictly valid JSON matching the following schema. Do not includ
     }
   ]
 }
-\`\`\`
 
 Strict Constraint:
 Output ONLY the raw JSON string (no markdown fences, no extra text).

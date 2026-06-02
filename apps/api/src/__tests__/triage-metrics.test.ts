@@ -172,4 +172,47 @@ describe("AI Triage Queue Metrics Endpoint", () => {
     );
     consoleErrorSpy.mockRestore();
   });
+
+  // Test Case 4: Enforce lease timeout parsing and query parameter delegation
+  it("should parse TRIAGE_LEASE_TIMEOUT_MS and pass it to the SQL query parameter array", async () => {
+    process.env.TRIAGE_LEASE_TIMEOUT_MS = "600000"; // 10 minutes
+
+    vi.mocked(pool.query).mockResolvedValueOnce({
+      rows: [
+        {
+          queue_depth: "0",
+          oldest_job_age_ms: "0",
+          jobs_leased: "0",
+          jobs_dead_letter: "0",
+          jobs_retried: "0",
+          jobs_completed: "0",
+        },
+      ],
+    } as any);
+
+    const nowBefore = Date.now();
+    const res = await app.request("/metrics");
+    const nowAfter = Date.now();
+
+    expect(res.status).toBe(200);
+
+    // Verify parameters passed to pool.query
+    const calls = vi.mocked(pool.query).mock.calls;
+    const lastCall = calls[calls.length - 1];
+    expect(lastCall).toBeDefined();
+    const queryParams = (lastCall?.[1] ?? []) as any[];
+    expect(queryParams).toBeDefined();
+    expect(queryParams.length).toBe(3);
+
+    const passedNow = queryParams[0];
+    const passedMaxAttempts = queryParams[1];
+    const passedStaleThreshold = queryParams[2];
+
+    expect(passedNow).toBeGreaterThanOrEqual(nowBefore);
+    expect(passedNow).toBeLessThanOrEqual(nowAfter);
+    expect(passedMaxAttempts).toBe(3); // default max attempts
+
+    // Stale threshold should be: now - 600000 (10 minutes)
+    expect(passedStaleThreshold).toBe(passedNow - 600000);
+  });
 });
