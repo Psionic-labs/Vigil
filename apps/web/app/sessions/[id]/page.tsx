@@ -38,16 +38,6 @@ export default async function SessionReplayPage({ params }: { params: Promise<{ 
             </div>
           </div>
         </div>
-        
-        {/* AI Summary Card */}
-        <div className="sm:max-w-md bg-ui-2 border border-ui-3 rounded-lg p-3.5 text-sm shadow-sm">
-          <div className="font-medium text-text-1 mb-1.5 flex items-center gap-1.5">
-            <span className="text-blue-500">✨</span> AI Summary
-          </div>
-          <p className="text-text-2 leading-relaxed">
-            {session.ai_session_summary}
-          </p>
-        </div>
       </div>
 
       {/* Player */}

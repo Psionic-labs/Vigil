@@ -45,13 +45,13 @@ export default function IssueDetailPage({ params }: { params: { id: string } }) 
         <div className="flex-1 min-w-0 overflow-y-auto px-6 py-6 space-y-6">
           {/* AI Bug Report */}
           <div className="space-y-4">
+            <h1 className="text-xl font-bold text-text-1 leading-snug">{issue.title}</h1>
+
             <div className="flex items-center gap-3">
               <IssueBadge severity={issue.severity} />
               <ConfidenceBadge confidence={issue.confidence} />
               <span className="text-xs text-text-3">confidence</span>
             </div>
-
-            <h1 className="text-xl font-bold text-text-1 leading-snug">{issue.title}</h1>
 
             {/* Meta row */}
             <div className="flex items-center gap-4 text-xs text-text-2">
