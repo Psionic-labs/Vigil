@@ -3,7 +3,7 @@
 import { Highlight, themes, type Language } from "prism-react-renderer";
 import { Copy, Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useToast } from "./Toast";
+import { useToast } from "@/components/shared/Toast";
 
 const LANGUAGE_ALIASES: Record<string, Language> = {
   html: "markup",
@@ -38,6 +38,7 @@ export function CodeBlock({ code, language = "typescript" }: { code: string; lan
   const highlightedLanguage = normalizeLanguage(language);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       if (copyTimeoutRef.current) {
@@ -72,16 +73,25 @@ export function CodeBlock({ code, language = "typescript" }: { code: string; lan
   };
 
   return (
-    <div className="relative rounded-lg border border-border bg-surface overflow-hidden group">
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border">
-        <span className="text-text-3 text-xs font-mono">{language}</span>
+    <div className="relative rounded-lg border border-slate-800/80 bg-[#0B0F19] overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-800/60 bg-slate-900/20">
+        <span className="text-slate-400 text-xs font-mono">{language}</span>
         <button
           onClick={handleCopy}
           aria-label={copied ? "Copied" : "Copy code"}
-          className="text-text-3 hover:text-text-1 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="text-slate-400 hover:text-slate-100 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent flex items-center gap-1.5 text-xs font-medium"
         >
-          {copied ? <Check size={14} /> : <Copy size={14} />}
-          <span className="sr-only">{copied ? "Copied" : "Copy code"}</span>
+          {copied ? (
+            <>
+              <Check size={13} className="text-success" />
+              <span className="text-success">Copied</span>
+            </>
+          ) : (
+            <>
+              <Copy size={13} />
+              <span>Copy</span>
+            </>
+          )}
         </button>
       </div>
       <Highlight theme={themes.vsDark} code={code.trim()} language={highlightedLanguage}>

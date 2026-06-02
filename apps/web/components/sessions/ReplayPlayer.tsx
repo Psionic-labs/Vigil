@@ -28,9 +28,9 @@ export function ReplayPlayer({ session }: ReplayPlayerProps) {
         <div className="flex-1 bg-surface-2 flex items-center justify-center relative overflow-hidden">
           {/* Mock cursor */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-1000 ease-in-out">
-             <MousePointer2 className="w-6 h-6 text-text-3 drop-shadow-md" fill="currentColor" />
+            <MousePointer2 className="w-6 h-6 text-text-3 drop-shadow-md" fill="currentColor" />
           </div>
-          
+
           <div className="text-center z-10 px-4">
             <div className="text-text-3 font-mono text-xs mb-2">VIEWPORT: {session.screen_width} × {session.screen_height}</div>
             <div className="text-text-2 text-sm max-w-sm mx-auto">
@@ -39,15 +39,15 @@ export function ReplayPlayer({ session }: ReplayPlayerProps) {
           </div>
 
           {/* Grid pattern background for canvas */}
-          <div 
-            className="absolute inset-0 opacity-[0.06] pointer-events-none" 
-            style={{ backgroundImage: 'linear-gradient(rgb(var(--border)) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--border)) 1px, transparent 1px)', backgroundSize: '20px 20px' }} 
+          <div
+            className="absolute inset-0 opacity-[0.06] pointer-events-none"
+            style={{ backgroundImage: 'linear-gradient(rgb(var(--border)) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--border)) 1px, transparent 1px)', backgroundSize: '20px 20px' }}
           />
         </div>
 
         {/* Controls */}
         <div className="h-16 border-t border-border bg-surface flex items-center px-4 gap-4 shrink-0">
-          <button 
+          <button
             onClick={() => setIsPlaying(!isPlaying)}
             aria-label={isPlaying ? "Pause playback" : "Play playback"}
             aria-pressed={isPlaying}
@@ -56,11 +56,11 @@ export function ReplayPlayer({ session }: ReplayPlayerProps) {
           >
             {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-1" />}
           </button>
-          
+
           <div className="flex-1 flex items-center gap-3">
             <span className="text-xs font-mono text-text-3 w-10 text-right shrink-0">00:00</span>
             <div className="flex-1 h-2 bg-surface-2 border border-border/50 rounded-full overflow-hidden relative cursor-pointer">
-              <div 
+              <div
                 className="absolute top-0 left-0 bottom-0 bg-accent rounded-full transition-all duration-200"
                 style={{ width: `${isPlaying ? 45 : progress}%` }}
               />
@@ -74,6 +74,18 @@ export function ReplayPlayer({ session }: ReplayPlayerProps) {
 
       {/* Right Sidebar - Event Timeline */}
       <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-border bg-surface flex flex-col shrink-0">
+        {/* AI Summary */}
+        {session.ai_session_summary && (
+          <div className="p-4 border-b border-border shrink-0">
+            <h3 className="font-semibold text-text-1 flex items-center gap-1.5">
+              AI Summary
+            </h3>
+            <p className="text-sm text-text-2 mt-2 leading-relaxed">
+              {session.ai_session_summary}
+            </p>
+          </div>
+        )}
+
         <div className="p-4 border-b border-border shrink-0">
           <h3 className="font-semibold text-text-1">Session Timeline</h3>
           <p className="text-xs text-text-3 mt-1">Key events and errors</p>

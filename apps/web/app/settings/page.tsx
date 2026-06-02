@@ -29,9 +29,10 @@ export default function SettingsPage() {
   const [aiComments, setAiComments] = useState(MOCK_PROJECT.github_comment_enabled);
   const [connected, setConnected] = useState(true);
   const [severity, setSeverity] = useState(MOCK_PROJECT.github_auto_raise_severity);
-  const [confidence, setConfidence] = useState(Math.round(MOCK_PROJECT.github_auto_raise_min_confidence * 100));
+  const [confidence, setConfidence] = useState<number | "">(Math.round(MOCK_PROJECT.github_auto_raise_min_confidence * 100));
   const [projectName, setProjectName] = useState(MOCK_PROJECT.name);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const confidenceInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     return () => {
@@ -184,12 +185,56 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <p className="text-xs text-text-3">Minimum Confidence: <span className="font-mono text-text-1">{confidence}%</span></p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-text-3 font-semibold uppercase tracking-wider">
+                            Minimum Confidence <span className="text-[10px] text-text-3 font-normal normal-case">(50% - 100%)</span>
+                          </p>
+                          <div 
+                            onClick={() => confidenceInputRef.current?.focus()}
+                            className="flex items-center gap-1 bg-surface border border-border rounded-md px-2 py-1 text-xs cursor-text"
+                          >
+                            <input
+                              ref={confidenceInputRef}
+                              type="text"
+                              inputMode="numeric"
+                              value={confidence}
+                              onFocus={(e) => e.target.select()}
+                              onDoubleClick={(e) => e.currentTarget.select()}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === "") {
+                                  setConfidence("" as any);
+                                  return;
+                                }
+                                if (/^\d+$/.test(val)) {
+                                  const num = Number(val);
+                                  if (num > 100) {
+                                    setConfidence(100);
+                                  } else if (val.length >= 2 && num < 50) {
+                                    setConfidence(50);
+                                  } else {
+                                    setConfidence(num);
+                                  }
+                                }
+                              }}
+                              onBlur={() => {
+                                const num = Number(confidence);
+                                if (isNaN(num) || num < 50 || confidence === "") {
+                                  setConfidence(50);
+                                } else if (num > 100) {
+                                  setConfidence(100);
+                                }
+                              }}
+                              className="w-8 text-right bg-transparent focus:outline-none font-mono font-semibold text-text-1 selection:bg-accent selection:text-white"
+                            />
+                            <span className="text-text-3 font-mono font-semibold select-none pointer-events-none">%</span>
+                          </div>
+                        </div>
                         <input
                           type="range"
                           min={50}
                           max={100}
-                          value={confidence}
+                          value={confidence === "" ? 50 : confidence}
                           onChange={(e) => setConfidence(Number(e.target.value))}
                           className="w-full accent-accent"
                         />
