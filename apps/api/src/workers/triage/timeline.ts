@@ -84,7 +84,7 @@ function formatEvent(event: DBEvent, baselineMs: number): string {
       return `${timestamp} Console Error: ${truncate(event.error_message || event.target, 200)}`;
     case "network_error": {
       const method = event.network_method || "GET";
-      const status = event.network_status ? ` (Status: ${event.network_status})` : "";
+      const status = event.network_status !== null && event.network_status !== undefined ? ` (Status: ${event.network_status})` : "";
       return `${timestamp} Network Error: ${method} ${truncate(event.network_url, 120)}${status}`;
     }
     case "dead_click":
@@ -226,8 +226,9 @@ export async function buildSessionTimeline(sessionId: string): Promise<SessionTi
     };
   }
 
-  // Extract non-deduplicated list of fingerprints from all filtered events in this session
+  // Extract non-deduplicated list of fingerprints from only error-bearing events in this session
   const rawFingerprints = filteredEvents
+    .filter((e) => e.type === "js_error" || e.type === "network_error" || e.type === "console_error")
     .map((e) => e.fingerprint)
     .filter((fp): fp is string => !!fp);
 

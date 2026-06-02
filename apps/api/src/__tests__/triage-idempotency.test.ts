@@ -208,4 +208,130 @@ describe("AI Triage Idempotency & Lease Guard", () => {
 
     consoleWarnSpy.mockRestore();
   });
+
+  // Test Case 4: Valid duplicate ID match with missing issues array
+  // Verifies that when the model returns a valid duplicate group ID but no issues array,
+  // the triage runner links the session to the group but does NOT write the hallucination warning message.
+  it("should not write warning message in issue_instances for valid duplicate group matches", async () => {
+    // Mock session eligibility check
+    (pool.query as any).mockResolvedValueOnce({
+      rows: [{ id: "sess_valid_dup", url: "http://localhost", duration_ms: 1000, started_at: 100, ended_at: 1100, ai_analyzed_at: null }],
+    });
+    // Mock event timeline fetch (which retrieves event for fingerprint extraction)
+    (pool.query as any).mockResolvedValueOnce({
+      rows: [{ type: "js_error", timestamp_ms: 200, error_message: "Crash", fingerprint: "fp_valid_dup" }],
+    });
+    // Mock candidate groups query (which matches the fingerprint)
+    (pool.query as any).mockResolvedValueOnce({
+      rows: [{ id: "igr_valid_123", title: "Valid Group", fingerprint: "fp_valid_dup", severity: "P1", status: "open", last_seen_at: 1000 }],
+    });
+
+    // Mock LLM result returning a valid duplicate ID but no issues list
+    vi.mocked(invokeModel).mockResolvedValueOnce({
+      data: {
+        session_summary: "Duplicate of valid group",
+        goal_completed: true,
+        friction_score: 20,
+        issue_detected: true,
+        issue_group_action: "duplicate issue group",
+        issue_group_id: "igr_valid_123",
+      },
+    });
+
+    // Mock transaction query implementation
+    mockClient.query.mockImplementation((queryText) => {
+      if (queryText.includes("triage_jobs") && queryText.includes("locked_by = $2")) {
+        return { rows: [{ status: "leased", locked_by: "test-worker" }] };
+      }
+      if (queryText.includes("UPDATE issue_groups")) {
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [] };
+    });
+
+    await processTriageJob("sess_valid_dup", "proj_1", 1, {
+      workerId: "test-worker",
+      model: "claude-3-haiku",
+      maxAttempts: 3,
+      llmTimeoutMs: 1000,
+    });
+
+    // Verify INSERT INTO issue_instances has null root_cause and suggested_fix
+    const insertInstanceCall = mockClient.query.mock.calls.find((call) =>
+      call[0].includes("INSERT INTO issue_instances")
+    );
+    expect(insertInstanceCall).toBeDefined();
+    // Args order: id, issue_group_id, session_id, project_id, title, root_cause, suggested_fix, ...
+    expect(insertInstanceCall![1][5]).toBeNull(); // root_cause should be null
+    expect(insertInstanceCall![1][6]).toBeNull(); // suggested_fix should be null
+  });
+
+  // Test Case 5: Invalid duplicate ID match with missing issues array
+  // Verifies that when the model returns an invalid duplicate group ID and no issues array,
+  // the triage runner falls back to new group creation and writes the warning message.
+  it("should write warning message in issue_instances and issue_groups for invalid duplicate group matches", async () => {
+    // Mock session eligibility check
+    (pool.query as any).mockResolvedValueOnce({
+      rows: [{ id: "sess_invalid_dup", url: "http://localhost", duration_ms: 1000, started_at: 100, ended_at: 1100, ai_analyzed_at: null }],
+    });
+    // Mock event timeline fetch
+    (pool.query as any).mockResolvedValueOnce({
+      rows: [{ type: "js_error", timestamp_ms: 200, error_message: "Crash", fingerprint: "fp_invalid_dup" }],
+    });
+    // Mock candidate groups query (return different candidate group ID, not matching LLM's returned group ID)
+    (pool.query as any).mockResolvedValueOnce({
+      rows: [{ id: "igr_valid_123", title: "Valid Group", fingerprint: "fp_invalid_dup", severity: "P1", status: "open", last_seen_at: 1000 }],
+    });
+
+    // Mock LLM result returning an invalid duplicate ID not matching candidates
+    vi.mocked(invokeModel).mockResolvedValueOnce({
+      data: {
+        session_summary: "Duplicate of invalid group",
+        goal_completed: true,
+        friction_score: 20,
+        issue_detected: true,
+        issue_group_action: "duplicate issue group",
+        issue_group_id: "igr_hallucinated_999",
+      },
+    });
+
+    // Mock transaction queries
+    mockClient.query.mockImplementation((queryText) => {
+      if (queryText.includes("triage_jobs") && queryText.includes("locked_by = $2")) {
+        return { rows: [{ status: "leased", locked_by: "test-worker" }] };
+      }
+      return { rows: [] };
+    });
+
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await processTriageJob("sess_invalid_dup", "proj_1", 1, {
+      workerId: "test-worker",
+      model: "claude-3-haiku",
+      maxAttempts: 3,
+      llmTimeoutMs: 1000,
+    });
+
+    // Verify warnings logged
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("LLM returned issue_group_id igr_hallucinated_999 which is not in candidate groups")
+    );
+
+    // Verify INSERT INTO issue_groups contains the warning
+    const insertGroupCall = mockClient.query.mock.calls.find((call) =>
+      call[0].includes("INSERT INTO issue_groups")
+    );
+    expect(insertGroupCall).toBeDefined();
+    expect(insertGroupCall![1][4]).toContain("Automatically created because LLM returned an invalid/hallucinated duplicate issue group ID");
+
+    // Verify INSERT INTO issue_instances contains the warning
+    const insertInstanceCall = mockClient.query.mock.calls.find((call) =>
+      call[0].includes("INSERT INTO issue_instances")
+    );
+    expect(insertInstanceCall).toBeDefined();
+    expect(insertInstanceCall![1][5]).toContain("Automatically created because LLM returned an invalid/hallucinated duplicate issue group ID");
+
+    consoleWarnSpy.mockRestore();
+  });
 });
+

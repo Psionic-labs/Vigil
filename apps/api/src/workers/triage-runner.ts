@@ -257,12 +257,13 @@ export async function processTriageJob(
 
         // Create issue instance record linked to the target group
         const instanceId = `inst_${crypto.randomUUID().replace(/-/g, "").substring(0, 16)}`;
+        const isInvalidDuplicateFallback = isDuplicateAction && !isCandidateValid;
         const issueDetail = triageData.issues?.[0] || {
           title: triageData.session_summary || "Session Issue Instance",
-          root_cause: isDuplicateAction
+          root_cause: isInvalidDuplicateFallback
             ? "Automatically created because LLM returned an invalid/hallucinated duplicate issue group ID."
             : null,
-          suggested_fix: isDuplicateAction
+          suggested_fix: isInvalidDuplicateFallback
             ? "Review this issue group and associate it with a correct group if needed."
             : null,
           severity: "P2" as const,

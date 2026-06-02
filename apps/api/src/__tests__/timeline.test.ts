@@ -170,4 +170,29 @@ describe("Session Timeline Builder", () => {
       ["sess_det"]
     );
   });
+
+  // Test Case: verify that network error status 0 is correctly kept in output
+  it("should format network error with status 0 correctly in timeline summary", async () => {
+    const mockEvents = [
+      { type: "network_error", timestamp_ms: 1000, network_url: "http://api/data", network_method: "POST", network_status: 0 },
+    ];
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: mockEvents } as any);
+
+    const result = await buildSessionTimeline("sess_net_zero");
+    expect(result.summary).toContain("00:00 Network Error: POST http://api/data (Status: 0)");
+  });
+
+  // Test Case: verify fingerprint collection only from error event types
+  it("should only extract fingerprints from error-bearing events", async () => {
+    const mockEvents = [
+      { type: "js_error", timestamp_ms: 1000, error_message: "E1", fingerprint: "fp_js" },
+      { type: "click", timestamp_ms: 2000, target: "btn1", fingerprint: "fp_click" },
+      { type: "network_error", timestamp_ms: 3000, network_url: "api", fingerprint: "fp_net" },
+    ];
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: mockEvents } as any);
+
+    const result = await buildSessionTimeline("sess_fp_filter");
+    expect(result.fingerprints).toEqual(["fp_js", "fp_net"]);
+    expect(result.rawFingerprints).toEqual(["fp_js", "fp_net"]);
+  });
 });
