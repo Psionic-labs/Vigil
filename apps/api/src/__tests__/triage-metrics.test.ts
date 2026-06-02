@@ -17,15 +17,27 @@ vi.mock("../db", () => ({
 
 describe("AI Triage Queue Metrics Endpoint", () => {
   let originalNodeEnv: string | undefined;
+  let originalEnableInternalMetrics: string | undefined;
 
   // Preserve the original node environment before executing any tests.
   beforeAll(() => {
     originalNodeEnv = process.env.NODE_ENV;
+    originalEnableInternalMetrics = process.env.ENABLE_INTERNAL_METRICS;
   });
 
   // Restore the original node environment after all tests run.
   afterAll(() => {
-    process.env.NODE_ENV = originalNodeEnv;
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+
+    if (originalEnableInternalMetrics === undefined) {
+      delete process.env.ENABLE_INTERNAL_METRICS;
+    } else {
+      process.env.ENABLE_INTERNAL_METRICS = originalEnableInternalMetrics;
+    }
   });
 
   // Reset test configuration before each execution.

@@ -5,12 +5,16 @@
  *      and provider connection failures) ensures that incorrect LLM telemetry is never persisted.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { invokeModel } from "../workers/triage-service";
 
 describe("AI Triage Service API Client & Parser", () => {
   beforeEach(() => {
     vi.stubEnv("ANTHROPIC_API_KEY", "test_key");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   // Test Case 1: JSON Block Extraction
