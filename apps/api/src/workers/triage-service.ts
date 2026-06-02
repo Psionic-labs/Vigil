@@ -1,8 +1,8 @@
 /**
  * @file triage-service.ts
- * @description Provides the Anthropic API client interface and strict Zod validation parsing logic.
- * @why Invoking LLMs is an untrusted operation. Using Zod guarantees type-safety and field value bounds on model outputs
- *      before attempting database writes. Capping network calls with timeouts protects worker event loops.
+ * @description Defines the Zod validation schema and type for AI triage outputs.
+ * @why AI output is highly variable. Using Zod guarantees type-safety and field value bounds on model outputs
+ *      before attempting database writes. The schema is provider-agnostic and shared across all AIProvider implementations.
  */
 
 import { z } from "zod";
@@ -62,108 +62,8 @@ export const AISchema = z.object({
 export type AITriageOutput = z.infer<typeof AISchema>;
 
 /**
- * LLMResult
- * Represents a successfully parsed outcome containing data matching AISchema and model token usage.
+ * LLMResult is now defined in lib/ai/provider.ts as part of the provider-agnostic abstraction.
+ * Re-export here for backward compatibility with any code that imports from this module.
  */
-export interface LLMResult {
-  data: AITriageOutput;
-  input_tokens?: number;
-  output_tokens?: number;
-}
+export type { LLMResult } from "../lib/ai/provider";
 
-/**
- * invokeModel
- * Invokes the Anthropic API via node fetch to request a session triage.
- *
- * @param model Model identifier to target (e.g. 'claude-3-haiku-20240307')
- * @param prompt XML-formatted prompt built by buildTriagePrompt
- * @param options Configurations including ANTHROPIC_API_KEY and request timeout override
- * @returns LLMResult including parsed Zod data structure and usage token counts.
- *
- * How it works:
- * 1. Abort timeout check: wraps request in AbortController with target timeout (default 60s) to avoid connection lockup.
- * 2. API Communication: sends POST to Anthropic messages endpoint.
- * 3. Text Extraction: extracts text block from response content.
- * 4. JSON Sanitization: searches for ```json markdown wrappers or fallback curly braces to isolate the JSON string.
- * 5. Zod Safe Parse: safe parses JSON. If invalid, throws parse/schema errors (triggering backoff retry).
- */
-export async function invokeModel(
-  model: string,
-  prompt: string,
-  options: { apiKey?: string; timeoutMs?: number } = {}
-): Promise<LLMResult> {
-  const apiKey = options.apiKey || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY is not configured in the environment.");
-  }
-
-  const timeoutMs = options.timeoutMs || 60000;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: model,
-        max_tokens: 2000,
-        messages: [{ role: "user", content: prompt }],
-      }),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "unknown");
-      throw new Error(`Anthropic API request failed with status ${response.status}: ${errorText}`);
-    }
-
-    const result = (await response.json()) as any;
-    const textContent = result.content?.[0]?.text;
-
-    if (!textContent) {
-      throw new Error("Received empty response content from Anthropic API.");
-    }
-
-    // Extract JSON block if wrapped in ```json ... ``` code blocks
-    let jsonString = textContent.trim();
-    const jsonBlockMatch = jsonString.match(/```json([\s\S]*?)```/);
-    if (jsonBlockMatch && jsonBlockMatch[1]) {
-      jsonString = jsonBlockMatch[1].trim();
-    } else {
-      // Fallback: search for first '{' and last '}'
-      const firstBrace = jsonString.indexOf("{");
-      const lastBrace = jsonString.lastIndexOf("}");
-      if (firstBrace !== -1 && lastBrace !== -1) {
-        jsonString = jsonString.slice(firstBrace, lastBrace + 1);
-      }
-    }
-
-    let parsedJson: any;
-    try {
-      parsedJson = JSON.parse(jsonString);
-    } catch (parseErr: any) {
-      // Cast constructor to any to preserve compatibility with typescript target ES2020 while keeping cause details.
-      throw new (Error as any)(`Failed to parse LLM response as JSON: ${parseErr.message}. Raw text: ${textContent}`, { cause: parseErr });
-    }
-
-    const zodResult = AISchema.safeParse(parsedJson);
-    if (!zodResult.success) {
-      throw new Error(
-        `LLM JSON output did not conform to the schema: ${zodResult.error.message}. Raw JSON: ${jsonString}`
-      );
-    }
-
-    return {
-      data: zodResult.data,
-      input_tokens: result.usage?.input_tokens,
-      output_tokens: result.usage?.output_tokens,
-    };
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}

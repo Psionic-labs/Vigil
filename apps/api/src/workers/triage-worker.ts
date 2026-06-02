@@ -11,6 +11,7 @@ import crypto from "node:crypto";
 import dotenv from "dotenv";
 import { pool, withTransaction } from "../db";
 import { processTriageJob } from "./triage-runner";
+import { OpenRouterProvider } from "../lib/ai";
 
 // Load local environment variables from .env on startup
 dotenv.config();
@@ -50,7 +51,8 @@ const pollIntervalMs = readPositiveInteger("TRIAGE_POLL_INTERVAL_MS", 10000);
 const leaseTimeoutMs = readPositiveInteger("TRIAGE_LEASE_TIMEOUT_MS", 300000); // 5 minutes
 const llmTimeoutMs = readPositiveInteger("TRIAGE_LLM_TIMEOUT_MS", 60000); // 60 seconds
 const maxAttempts = readPositiveInteger("TRIAGE_MAX_ATTEMPTS", 3);
-const model = process.env.TRIAGE_MODEL || "claude-3-haiku-20240307";
+const maxTokens = readPositiveInteger("TRIAGE_MAX_TOKENS", 2000);
+const model = process.env.TRIAGE_MODEL || "openrouter/owl-alpha";
 
 let running = true;
 let isPolling = false;
@@ -71,11 +73,21 @@ export function validateTimeoutBounds(leaseTimeoutMs: number, llmTimeoutMs: numb
 
 validateTimeoutBounds(leaseTimeoutMs, llmTimeoutMs);
 
-// Fail-fast boot block: ANTHROPIC_API_KEY is required in non-testing environments.
-if (!process.env.ANTHROPIC_API_KEY && process.env.NODE_ENV !== "test") {
-  console.error("❌ ANTHROPIC_API_KEY environment variable is required.");
+// Fail-fast boot block: OPENROUTER_API_KEY is required in non-testing environments.
+if (!process.env.OPENROUTER_API_KEY && process.env.NODE_ENV !== "test") {
+  console.error("❌ OPENROUTER_API_KEY environment variable is required.");
   process.exit(1);
 }
+
+// Construct the provider once at boot. Timeout and model are baked into the instance.
+const provider = process.env.NODE_ENV !== "test"
+  ? new OpenRouterProvider({
+      apiKey: process.env.OPENROUTER_API_KEY!,
+      model,
+      maxTokens,
+      timeoutMs: llmTimeoutMs,
+    })
+  : (null as any); // In test environments, the provider is injected via RunnerOptions
 
 /**
  * pollCycle
@@ -151,9 +163,8 @@ async function pollCycle() {
         claimedJobs.map((job) =>
           processTriageJob(job.session_id, job.project_id, job.attempts, {
             workerId,
-            model,
+            provider,
             maxAttempts,
-            llmTimeoutMs,
           }).catch((err) => {
             console.error(`[Worker] Uncaught exception processing job ${job.session_id}:`, err);
           })
