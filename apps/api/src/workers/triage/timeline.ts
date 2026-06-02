@@ -41,17 +41,6 @@ const PRIORITIZED_TYPES = new Set([
   "console_error"
 ]);
 
-/**
- * truncate
- * Helper to restrict long text details (like error messages or selector targets) to fit size bounds.
- *
- * @param val Raw string to truncate.
- * @param max Maximum length allowed.
- */
-function truncate(val: string | null | undefined, max: number): string {
-  if (!val) return "";
-  return val.length > max ? val.substring(0, max) + "..." : val;
-}
 
 /**
  * formatEvent
@@ -60,32 +49,41 @@ function truncate(val: string | null | undefined, max: number): string {
  * @param event The database event row.
  * @param baselineMs The absolute timestamp of the first event in milliseconds (00:00).
  */
-function formatEvent(event: DBEvent, baselineMs: number): string {
+function formatEvent(event: DBEvent, baselineMs: number, onTruncate?: () => void): string {
+  const truncateLocal = (val: string | null | undefined, max: number): string => {
+    if (!val) return "";
+    if (val.length > max) {
+      onTruncate?.();
+      return val.substring(0, max) + "...";
+    }
+    return val;
+  };
+
   const elapsedMs = Number(event.timestamp_ms) - baselineMs;
   const elapsedSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
   const timestamp = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 
-  const targetStr = event.target ? truncate(String(event.target), 80) : "";
+  const targetStr = event.target ? truncateLocal(String(event.target), 80) : "";
 
   switch (event.type) {
     case "page_view":
-      return `${timestamp} Page View: ${truncate(event.nav_to || "/", 100)}`;
+      return `${timestamp} Page View: ${truncateLocal(event.nav_to || "/", 100)}`;
     case "navigation":
-      return `${timestamp} Navigation: ${truncate(event.nav_to || "/", 100)}`;
+      return `${timestamp} Navigation: ${truncateLocal(event.nav_to || "/", 100)}`;
     case "click":
       return `${timestamp} Click: ${targetStr || "Unknown Element"}`;
     case "input":
       return `${timestamp} Input: ${targetStr || "Unknown Field"}`;
     case "js_error":
-      return `${timestamp} JS Error: ${truncate(event.error_message, 150)}\nStack: ${truncate(event.error_stack, 300)}`;
+      return `${timestamp} JS Error: ${truncateLocal(event.error_message, 150)}\nStack: ${truncateLocal(event.error_stack, 300)}`;
     case "console_error":
-      return `${timestamp} Console Error: ${truncate(event.error_message || event.target, 200)}`;
+      return `${timestamp} Console Error: ${truncateLocal(event.error_message || event.target, 200)}`;
     case "network_error": {
       const method = event.network_method || "GET";
       const status = event.network_status !== null && event.network_status !== undefined ? ` (Status: ${event.network_status})` : "";
-      return `${timestamp} Network Error: ${method} ${truncate(event.network_url, 120)}${status}`;
+      return `${timestamp} Network Error: ${method} ${truncateLocal(event.network_url, 120)}${status}`;
     }
     case "dead_click":
       return `${timestamp} Dead Click: ${targetStr || "Unknown Element"}`;
@@ -226,9 +224,16 @@ export async function buildSessionTimeline(sessionId: string): Promise<SessionTi
     };
   }
 
-  // Extract non-deduplicated list of fingerprints from only error-bearing events in this session
+  // Extract non-deduplicated list of fingerprints from only error/friction-bearing events in this session
   const rawFingerprints = filteredEvents
-    .filter((e) => e.type === "js_error" || e.type === "network_error" || e.type === "console_error")
+    .filter(
+      (e) =>
+        e.type === "js_error" ||
+        e.type === "network_error" ||
+        e.type === "console_error" ||
+        e.type === "rage_click" ||
+        e.type === "dead_click"
+    )
     .map((e) => e.fingerprint)
     .filter((fp): fp is string => !!fp);
 
@@ -258,6 +263,11 @@ export async function buildSessionTimeline(sessionId: string): Promise<SessionTi
   }
 
   // Compression loop: reduces low/medium count limits if total string exceeds 4000 characters
+  let isTruncated = false;
+  const onTruncate = () => {
+    isTruncated = true;
+  };
+
   while (true) {
     selected = selectEvents(filteredEvents, maxLowLimit, maxMediumLimit);
     if (selected.length === 0) {
@@ -265,7 +275,11 @@ export async function buildSessionTimeline(sessionId: string): Promise<SessionTi
       break;
     }
 
-    summary = selected.map((e) => formatEvent(e, baselineMs)).join("\n");
+    if (selected.length < filteredEvents.length) {
+      isTruncated = true;
+    }
+
+    summary = selected.map((e) => formatEvent(e, baselineMs, onTruncate)).join("\n");
 
     if (summary.length <= 4000) {
       break;
@@ -293,7 +307,8 @@ export async function buildSessionTimeline(sessionId: string): Promise<SessionTi
         const item = selectedWithMeta[i];
         if (item && item.priority === 2) {
           selectedWithMeta.splice(i, 1);
-          summary = selectedWithMeta.map(m => formatEvent(m.event, baselineMs)).join("\n") + "\n...";
+          isTruncated = true;
+          summary = selectedWithMeta.map(m => formatEvent(m.event, baselineMs, onTruncate)).join("\n") + "\n...";
           if (summary.length <= 4000) {
             break;
           }
@@ -306,11 +321,12 @@ export async function buildSessionTimeline(sessionId: string): Promise<SessionTi
           const item = selectedWithMeta[i];
           if (item && item.priority === 1) {
             selectedWithMeta.splice(i, 1);
+            isTruncated = true;
             if (selectedWithMeta.length === 0) {
               summary = "No significant user activity recorded.";
               break;
             }
-            summary = selectedWithMeta.map(m => formatEvent(m.event, baselineMs)).join("\n") + "\n...";
+            summary = selectedWithMeta.map(m => formatEvent(m.event, baselineMs, onTruncate)).join("\n") + "\n...";
             if (summary.length <= 4000) {
               break;
             }
@@ -322,8 +338,6 @@ export async function buildSessionTimeline(sessionId: string): Promise<SessionTi
       break;
     }
   }
-
-  const isTruncated = filteredEvents.length > selected.length || summary.endsWith("...");
 
   return {
     summary,

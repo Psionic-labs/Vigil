@@ -182,17 +182,30 @@ describe("Session Timeline Builder", () => {
     expect(result.summary).toContain("00:00 Network Error: POST http://api/data (Status: 0)");
   });
 
-  // Test Case: verify fingerprint collection only from error event types
-  it("should only extract fingerprints from error-bearing events", async () => {
+  // Test Case: verify fingerprint collection only from error/friction event types
+  it("should only extract fingerprints from error/friction-bearing events", async () => {
     const mockEvents = [
       { type: "js_error", timestamp_ms: 1000, error_message: "E1", fingerprint: "fp_js" },
       { type: "click", timestamp_ms: 2000, target: "btn1", fingerprint: "fp_click" },
+      { type: "rage_click", timestamp_ms: 2500, click_count: 5, fingerprint: "fp_rage" },
       { type: "network_error", timestamp_ms: 3000, network_url: "api", fingerprint: "fp_net" },
     ];
     vi.mocked(pool.query).mockResolvedValueOnce({ rows: mockEvents } as any);
 
     const result = await buildSessionTimeline("sess_fp_filter");
-    expect(result.fingerprints).toEqual(["fp_js", "fp_net"]);
-    expect(result.rawFingerprints).toEqual(["fp_js", "fp_net"]);
+    expect(result.fingerprints).toEqual(["fp_js", "fp_rage", "fp_net"]);
+    expect(result.rawFingerprints).toEqual(["fp_js", "fp_rage", "fp_net"]);
+  });
+
+  // Test Case: verify that naturally occurring ellipsis in event fields does not trigger timeline-level truncation
+  it("should not mark timeline as truncated if an event naturally ends with ellipsis without compression or field truncation", async () => {
+    const mockEvents = [
+      { type: "click", timestamp_ms: 1000, target: "Click...", fingerprint: null },
+    ];
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: mockEvents } as any);
+
+    const result = await buildSessionTimeline("sess_natural_ellipsis");
+    expect(result.summary.endsWith("...")).toBe(true);
+    expect(result.truncated).toBe(false); // No event dropped, no field truncated by our code
   });
 });

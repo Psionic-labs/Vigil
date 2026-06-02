@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import app from "../app";
 import { pool } from "../db";
 
@@ -16,36 +16,16 @@ vi.mock("../db", () => ({
 }));
 
 describe("AI Triage Queue Metrics Endpoint", () => {
-  let originalNodeEnv: string | undefined;
-  let originalEnableInternalMetrics: string | undefined;
-
-  // Preserve the original node environment before executing any tests.
-  beforeAll(() => {
-    originalNodeEnv = process.env.NODE_ENV;
-    originalEnableInternalMetrics = process.env.ENABLE_INTERNAL_METRICS;
-  });
-
-  // Restore the original node environment after all tests run.
-  afterAll(() => {
-    if (originalNodeEnv === undefined) {
-      delete process.env.NODE_ENV;
-    } else {
-      process.env.NODE_ENV = originalNodeEnv;
-    }
-
-    if (originalEnableInternalMetrics === undefined) {
-      delete process.env.ENABLE_INTERNAL_METRICS;
-    } else {
-      process.env.ENABLE_INTERNAL_METRICS = originalEnableInternalMetrics;
-    }
-  });
-
   // Reset test configuration before each execution.
   beforeEach(() => {
     vi.clearAllMocks();
     // Configure environment to 'development' and enable metrics to bypass Bearer token authentication gates.
-    process.env.NODE_ENV = "development";
-    process.env.ENABLE_INTERNAL_METRICS = "true";
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("ENABLE_INTERNAL_METRICS", "true");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   // Test Case 1: Empty Queue
@@ -175,7 +155,7 @@ describe("AI Triage Queue Metrics Endpoint", () => {
 
   // Test Case 4: Enforce lease timeout parsing and query parameter delegation
   it("should parse TRIAGE_LEASE_TIMEOUT_MS and pass it to the SQL query parameter array", async () => {
-    process.env.TRIAGE_LEASE_TIMEOUT_MS = "600000"; // 10 minutes
+    vi.stubEnv("TRIAGE_LEASE_TIMEOUT_MS", "600000"); // 10 minutes
 
     vi.mocked(pool.query).mockResolvedValueOnce({
       rows: [
