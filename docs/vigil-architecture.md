@@ -26,7 +26,7 @@
      v
 [Signal Extractor]
      |
-     |-- stores timeline events in events_summary
+     |-- stores summary events in events_summary
      |-- sets session flags and counts
      |-- computes candidate issue fingerprints
      |-- does not replace AI judgment
@@ -159,13 +159,26 @@ Responsibilities:
 - Store structured summary events.
 - Update session flags.
 - Compute deterministic issue fingerprints.
-- On `isFinal: true`, mark the session ended and queue AI triage unless skipped as noise.
+- On `isFinal: true`, mark the session ended and register an AI triage job in `triage_jobs` unless skipped as noise.
 
 The endpoint returns quickly. AI work is asynchronous.
 
+#### Ingestion Scope & Scalability Limits
+The ingest architecture provides high-throughput ingestion foundations, featuring retry-safe persistence, transactional consistency, and bounded replay processing. It is designed to run efficiently on standard single-instance setups, but does not feature distributed replay workers, queue backpressure systems, partitioned ingestion pathways, object storage integration (such as R2/S3 in the core MVP), or horizontally scaled consumers.
+
+#### Session Duration Semantics
+Session duration (`duration_ms`) is computed using server-trusted timestamps (the delta between the server-trusted ingest time of the final flush and the session's database record creation time). This design choice avoids client clock skew issues but reflects session lifecycle ingest timing rather than precise client-side activity duration. More detailed temporal modeling (such as client-derived active time or `first_seen_at / last_seen_at` lifecycle markers) is intentionally deferred.
+
+#### Session Timeout Reconciliation
+To handle abrupt client termination scenarios (e.g., process termination, browser crash, laptop sleep, network loss) that prevent the client SDK from sending final flushes, Vigil implements an in-process session timeout reconciliation loop:
+- **Worker Execution**: A lightweight background scheduler scans active unfinalized sessions using the partial index `idx_sessions_reconciliation`.
+- **Abandonment Semantics**: If a session remains unfinalized (`ended_at IS NULL`) and idle without new ingest activity past a configurable timeout threshold (defaults to 15 minutes, with a minimum bound of 10 seconds), it is transitioned to an abandoned state (`is_abandoned = true`, `abandoned_at = now`). The terminal timestamp is set to its `last_ingest_at`.
+- **Monotonic Duration**: The duration delta is calculated using monotonic non-negative bounds clamped to a 4-byte integer `2147483647`.
+- **Supersede/Late final flushes**: If the client SDK recovers and flushes a late `isFinal: true` payload for an already-reconciled abandoned session, the ingest pipeline un-abandons it (`is_abandoned = false`, `abandoned_at = NULL`) and transitions it to a finalized status. Late non-final retries preserve the abandonment.
+
 ---
 
-### 3. Blob Storage
+### 3. Replay Blob Storage
 
 Raw rrweb event blobs are stored separately from the database.
 
@@ -173,6 +186,12 @@ MVP:
 
 - Local disk.
 - Gzipped JSON.
+
+#### Replay Blob Persistence Semantics
+- **Best-Effort Asynchronous Persistence**: Replay persistence is scheduled (via `setImmediate`) only after a successful database transaction commit and is operationally best-effort. If the transaction rolls back, replay persistence never executes. Replay blob writes are completely decoupled from the database transaction and do not share ACID guarantees, transactional filesystem coupling, or transactional rollback guarantees.
+- **Potential Duplication**: Replay blobs are append-only and potentially duplicated under retries or repeated final flushes because replay persistence currently has no deduplication layer, no replay chunk identity system, and no compaction/indexing.
+- **Timestamp-Based Ordering**: Replay chunk filenames provide collision-safe uniqueness and timestamp-based ordering semantics, but do not provide globally strict ordering guarantees.
+- **Asynchronous Scheduling**: Replay processing is deferred off the critical request path, and heavy serialization/compression work is scheduled asynchronously (using `setImmediate`), though standard event-loop scheduling still applies (and CPU-bound work can overlap with subsequent request processing).
 
 Later:
 
@@ -225,6 +244,11 @@ The signal extractor does not decide whether something is a product bug. It give
 
 Fingerprinting is deterministic and cheap. It helps the AI reason about duplicates.
 
+#### Event ID vs Fingerprint Philosophy
+- **Event IDs**: Used for ingestion idempotency and occurrence identity. They incorporate volatile metadata (e.g. `sessionId`, `timestampMs`, etc.) to guarantee that each physical transmission has a unique identifier.
+- **Fingerprints**: Used for issue clustering and signal grouping. They purposely exclude volatile runtime contexts.
+- **Many-to-One Mapping**: Many individual event instances intentionally map to a single fingerprint. Fingerprints trade exact occurrence identity for stable grouping semantics, ensuring that occurrences of the same failure mode cluster together across sessions, builds, and retries.
+
 Examples:
 
 - JS error fingerprint: route + normalized error message + top application stack frame.
@@ -236,15 +260,25 @@ Fingerprints are candidate evidence, not final truth. The AI can create a new is
 
 ---
 
-### 7. AI Triage Agent
+### 7. Job Queue Semantics
 
-Runs asynchronously for every completed non-noise session.
+Vigil uses a lightweight, Postgres-backed table (`triage_jobs`) to register session triage jobs when a session is finalized.
 
-Noise skip conditions:
+- **Durable Registration Semantics**: The queue currently provides durable job registration semantics, not a fully distributed worker orchestration system. Worker execution is deferred and handles asynchronous execution, but does not currently feature guaranteed worker delivery, distributed queue durability, or advanced retry/backpressure orchestration.
+- **Transactional Enqueueing**: Triage jobs are registered in the same transaction as session finalization (`ON CONFLICT (session_id) DO NOTHING`). If the transaction fails and rolls back, no job is registered.
 
-- Session duration under 5 seconds.
-- Zero summary events.
-- Missing replay blob.
+---
+
+### 8. AI Triage Agent
+
+Runs asynchronously for every completed session that is not skipped as noise.
+
+#### Deterministic Noise Skip Heuristics
+To optimize cost and avoid running expensive AI triage on low-value data, the ingest pipeline applies simple, deterministic, lightweight skip checks on session finalization:
+- **Session duration under 5 seconds** (`duration_under_5s`): Sessions shorter than 5 seconds are skipped.
+- **No friction signals** (`no_friction_signals`): Sessions containing no JS errors, console errors, network errors, rage clicks, or dead clicks are skipped.
+
+*Heuristics Limitations*: These filters are conservative MVP filters rather than intelligent behavioral analysis or anomaly detection. For instance, network errors may include benign browser extension/adblock noise. The AI skip logic is intentionally simple, deterministic, and executes synchronously inside the ingestion transaction.
 
 Input:
 
@@ -448,6 +482,18 @@ The AI never sees raw rrweb blobs or unmasked input values. Only structured summ
 
 Use the minimum viable scopes and clearly state that Vigil creates issues only. It does not read or write source code.
 
-### Cross-origin ingest
+### Cross-origin ingest & CORS Policy
+The ingest API currently prioritizes reliable browser ingestion and short request latency over advanced multi-tenant security policies.
+- **Trust Assumptions**: For the current milestone, CORS reflects the caller's `Origin` header and allows credentialed cross-origin requests (`credentials: true`) to support browser-based SDK installations, localhost development, and cross-origin telemetry ingestion from arbitrary customer domains.
+- **Allowed Headers & Methods**: Browsers may issue `POST` and `OPTIONS` (preflight) requests. Supported request headers include `Content-Type`, `Authorization`, and `X-Request-Id`.
+- **Preflight Handling**: OPTIONS preflight requests are caught by global middleware, logged with origin verification details, and return `204 No Content` with appropriate CORS headers to satisfy browser safety policies.
+- **Intentionally Deferred Hardening**: Dynamic origin allowlists/registries, customer-specific origin blocklists, and tighter credential/token validation are intentionally deferred even though the current policy already reflects request origins for browser compatibility.
 
-CORS must be configured correctly for SDK installs on customer domains.
+### Async Request Lifecycle & Execution Boundaries
+To maintain high responsiveness and avoid blocking browser threads, the ingest route maintains strict execution boundaries:
+1. **Synchronous & Transactionally Guaranteed Path**:
+   - Project validation and payload schema parsing are executed synchronously upon arrival.
+   - Database operations (session upsert, summary event batch inserts, error count adjustments, and triage job registration) run inside a database transaction block. These operations complete and commit *before* the success response is returned to the client. This guarantees transactional consistency and prevents data loss/orphaned records.
+2. **Asynchronous & Best-Effort Path**:
+   - Replay blob processing (JSON serialization, gzip compression, and atomic local disk writes) is heavy CPU/IO bound work and is deferred post-response.
+   - It is scheduled asynchronously using `setImmediate` to run outside the critical request-response path. Because standard single-threaded event-loop scheduling still applies, CPU-heavy JSON serialization and gzip compression tasks still compete for event-loop execution time and may overlap with subsequent request processing.

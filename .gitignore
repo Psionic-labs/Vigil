@@ -40,3 +40,4 @@ pnpm-debug.log*
 
 # stuff
 *.txt
+*blobs

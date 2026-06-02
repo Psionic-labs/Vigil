@@ -10,9 +10,11 @@ export default [
             "**/dist/**",
             "**/build/**",
             "**/.turbo/**",
+            "**/.next/**",
             "**/node_modules/**",
             "**/*.config.ts",
-            "**/*.config.js"
+            "**/*.config.js",
+            "**/next-env.d.ts"
         ],
     },
 

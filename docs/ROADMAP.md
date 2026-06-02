@@ -58,21 +58,21 @@ Ship a working `@vigil/sdk` that captures signals and flushes them to an ingest 
 
 Accept SDK payloads, store them, extract signals, and queue triage.
 
-- [ ] Init Node.js + Hono app
-- [ ] `POST /api/ingest` endpoint
-- [ ] Validate `projectKey` against `projects.public_key`
-- [ ] Enforce max batch size (500 events, 50 summary events, 2MB payload)
-- [ ] Upsert session row in `sessions`
-- [ ] Store raw rrweb events as gzipped blob on local disk (`/blobs/{project_id}/{session_id}/events.json.gz`)
-- [ ] Write summary events to `events_summary`
-- [ ] Set session flags: `has_js_error`, `has_rage_click`, `has_network_err`, `has_dead_click`, `error_count`
-- [ ] Implement deterministic fingerprinting per signal type (see architecture doc)
-- [ ] On `isFinal: true`: mark `sessions.ended_at`, compute `duration_ms`
-- [ ] On `isFinal: true`: evaluate noise skip conditions, set `ai_analysis_skipped` if applicable
-- [ ] On `isFinal: true` + not skipped: enqueue AI triage job
-- [ ] Configure CORS correctly for cross-origin SDK installs
-- [ ] Return `200 { ok: true }` quickly — all heavy work is async
-- [ ] Test end-to-end with the SDK test page from Milestone 1
+- [x] Init Node.js + Hono app
+- [x] `POST /api/ingest` endpoint
+- [x] Validate `projectKey` against `projects.public_key`
+- [x] Enforce max batch size (500 events, 50 summary events, 2MB payload)
+- [x] Upsert session row in `sessions`
+- [x] Store raw rrweb events as gzipped chunk files on local disk under `BLOBS_ROOT/{project_id}/{session_id}/` (for example: `${timestamp}_${randomSuffix}_events.json.gz`)
+- [x] Write summary events to `events_summary`
+- [x] Set session flags: `has_js_error`, `has_rage_click`, `has_network_err`, `has_dead_click`, `error_count`
+- [x] Implement deterministic fingerprinting per signal type (see architecture doc)
+- [x] On `isFinal: true`: mark `sessions.ended_at`, compute `duration_ms`
+- [x] On `isFinal: true`: evaluate noise skip conditions, set `ai_analysis_skipped` if applicable
+- [x] On `isFinal: true` + not skipped: enqueue AI triage job
+- [x] Configure CORS correctly for cross-origin SDK installs
+- [x] Return `200 { ok: true }` quickly — all heavy work is async
+- [x] Test end-to-end with the SDK test page from Milestone 1
 
 ---
 
@@ -80,8 +80,8 @@ Accept SDK payloads, store them, extract signals, and queue triage.
 
 Run the triage loop for every completed non-noise session.
 
-- [ ] Set up job queue (BullMQ + Redis, or a simple Postgres-backed queue for MVP)
-- [ ] Implement triage job worker
+- [x] Set up job queue (BullMQ + Redis, or a simple Postgres-backed queue for MVP)
+- [x] Implement triage job worker
 - [ ] Assemble compact timeline from `events_summary` for a session
 - [ ] Fetch candidate issue groups by fingerprint match
 - [ ] Build Claude API prompt (see architecture doc for input/output schema)

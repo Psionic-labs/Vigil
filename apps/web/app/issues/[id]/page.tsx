@@ -9,10 +9,11 @@ import { GitHubActionPanel } from "@/components/issues/GitHubActionPanel";
 import { TriageActions } from "@/components/issues/TriageActions";
 import { FrictionBar } from "@/components/sessions/FrictionBar";
 import { RelativeTime } from "@/components/shared/RelativeTime";
-import { formatDuration, formatRelativeTime } from "@/lib/utils";
+import { formatDuration } from "@/lib/utils";
 
-export default function IssueDetailPage({ params }: { params: { id: string } }) {
-  const issue = MOCK_ISSUES.find(i => i.id === params.id);
+export default async function IssueDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
+  const issue = MOCK_ISSUES.find(i => i.id === resolvedParams.id);
   if (!issue) notFound();
 
   const steps: string[] = JSON.parse(issue.reproduction_steps_json);

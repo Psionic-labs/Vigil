@@ -4,12 +4,29 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "db:migrate": "tsx scripts/migrate.ts"
+    "db:migrate": "tsx scripts/migrate.ts",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsup src/index.ts --format esm --clean",
+    "start": "node dist/index.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "worker:dev": "tsx watch src/workers/triage-worker.ts",
+    "worker:start": "tsx src/workers/triage-worker.ts"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.1.0"
+    "@hono/node-server": "^2.0.4",
+    "@hono/zod-validator": "^0.8.0",
+    "@neondatabase/serverless": "^1.1.0",
+    "dotenv": "^17.4.2",
+    "hono": "^4.12.23",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "tsx": "^4.22.3"
+    "@types/node": "^25.9.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
   }
 }

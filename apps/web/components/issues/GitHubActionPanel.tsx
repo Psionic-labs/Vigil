@@ -84,11 +84,11 @@ export function GitHubActionPanel({ issue, project }: { issue: IssueGroup; proje
           </div>
           <div>
             <p className="text-text-3">Avg Friction</p>
-            <p className="text-p1 font-mono font-medium">74</p>
+            <p className="text-p1 font-mono font-medium">74 (placeholder)</p>
           </div>
           <div>
             <p className="text-text-3">Goal Completion</p>
-            <p className="text-text-1 font-mono font-medium">12%</p>
+            <p className="text-text-1 font-mono font-medium">12% (placeholder)</p>
           </div>
           <div>
             <p className="text-text-3">Environment</p>

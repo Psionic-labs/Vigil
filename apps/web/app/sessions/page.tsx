@@ -22,7 +22,7 @@ export default function SessionsPage() {
 
   const filteredAndSortedSessions = useMemo(() => {
     // 1. Filter
-    let result = MOCK_SESSIONS.filter((session) => {
+    const result = MOCK_SESSIONS.filter((session) => {
       // Search
       if (searchQuery) {
         const q = searchQuery.toLowerCase();

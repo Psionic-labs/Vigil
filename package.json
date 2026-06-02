@@ -6,14 +6,18 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "eslint . && turbo lint",
-    "type-check": "turbo type-check"
+    "type-check": "turbo type-check",
+    "typecheck": "turbo type-check"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "eslint": "^10.4.0",
-    "turbo": "^2.9.14",
+    "eslint": "^10.4.1",
+    "turbo": "^2.9.16",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.59.4"
+    "typescript-eslint": "^8.60.0"
   },
-  "packageManager": "pnpm@11.2.2+sha512.36e6621fad506178936455e70247b8808ef4ec25797a9f437a93281a020484e2607f6a469a22e982987c3dbb8866e3071514ab10a4a1749e06edcd1ec118436f"
+  "packageManager": "pnpm@11.2.2+sha512.36e6621fad506178936455e70247b8808ef4ec25797a9f437a93281a020484e2607f6a469a22e982987c3dbb8866e3071514ab10a4a1749e06edcd1ec118436f",
+  "engines": {
+    "node": ">=20"
+  }
 }
