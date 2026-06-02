@@ -39,7 +39,7 @@ export const AISchema = z.object({
     // If no issue is detected, action must be skipped/noise and no group ID or issues should be provided.
     if (data.issue_group_action !== "skipped/noise") return false;
     if (data.issue_group_id !== null && data.issue_group_id !== undefined) return false;
-    if (data.issues !== null && data.issues !== undefined) return false;
+    if (data.issues !== null && data.issues !== undefined && data.issues.length > 0) return false;
   } else {
     // If an issue is detected, action cannot be skipped/noise
     if (data.issue_group_action === "skipped/noise") return false;

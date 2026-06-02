@@ -166,15 +166,7 @@ describe("AI Triage Service API Client & Parser", () => {
           }
         ]
       },
-      {
-        session_summary: "No issue detected but empty issues array provided",
-        goal_completed: true,
-        friction_score: 10,
-        issue_detected: false,
-        issue_group_action: "skipped/noise",
-        issue_group_id: null,
-        issues: [] // Invalid: should not be defined at all (not even empty array) when issue_detected is false
-      },
+
       {
         session_summary: "New issue group action with a non-null group ID",
         goal_completed: false,
@@ -229,6 +221,37 @@ describe("AI Triage Service API Client & Parser", () => {
     await expect(invokeModel("claude-3-haiku", "Test Prompt")).rejects.toThrow(
       /Anthropic API request failed with status 500/
     );
+
+    fetchSpy.mockRestore();
+  });
+
+  // Test Case 5: Allow empty issues array when no issue is detected
+  it("should allow empty issues array when issue_detected is false", async () => {
+    const validJsonOutput = {
+      session_summary: "No issue detected",
+      goal_completed: true,
+      friction_score: 10,
+      issue_detected: false,
+      issue_group_action: "skipped/noise",
+      issue_group_id: null,
+      issues: [],
+    };
+
+    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        content: [
+          {
+            text: JSON.stringify(validJsonOutput),
+          },
+        ],
+      }),
+    } as any);
+
+    const result = await invokeModel("claude-3-haiku", "Test Prompt");
+
+    expect(fetchSpy).toHaveBeenCalled();
+    expect(result.data).toEqual(validJsonOutput);
 
     fetchSpy.mockRestore();
   });
