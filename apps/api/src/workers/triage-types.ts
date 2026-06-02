@@ -5,6 +5,8 @@
  * @why Provides compilation and type-safety guarantees across telemetry prompts formulation, LLM calls, and transactional database writes.
  */
 
+import type { SessionTimeline } from "./triage/timeline";
+
 /**
  * TimelineEvent
  * Represents a compressed telemetry log/interaction event captured during the session.
@@ -34,8 +36,7 @@ export interface CandidateIssueGroup {
   title: string;         // Summarized title of the issue group
   fingerprint: string;   // Associated issue hash
   severity: string;      // Issue priority status (e.g. P0, P1, P2, P3)
-  status: string;        // Active state status (e.g. 'open', 'resolved')
-  last_seen_at: number;  // Timestamp when this issue group was last matched to a session
+  lastSeenAt: number;    // Timestamp when this issue group was last matched to a session
 }
 
 /**
@@ -73,6 +74,6 @@ export interface TriageContext {
     commit_sha: string | null;
     environment: string | null;
   };
-  timeline: TimelineEvent[];
+  timeline: SessionTimeline;
   candidate_issue_groups: CandidateIssueGroup[];
 }

@@ -7,9 +7,10 @@
 
 import crypto from "node:crypto";
 import { pool, withTransaction } from "../db";
-import type { TimelineEvent, CandidateIssueGroup } from "./triage-types";
 import { invokeModel } from "./triage-service";
 import { buildTriagePrompt } from "./triage-prompts";
+import { buildSessionTimeline } from "./triage/timeline";
+import { findCandidateIssueGroups } from "./triage/candidate-groups";
 
 /**
  * RunnerOptions
@@ -98,41 +99,11 @@ export async function processTriageJob(
       return;
     }
 
-    // 2. Retrieve Timeline Events (compact summary events, max 100)
-    const timelineRes = await pool.query<TimelineEvent>(
-      `
-      SELECT type, timestamp_ms, target, error_message, error_stack, network_url, network_status, network_method, click_count, nav_to, fingerprint
-      FROM events_summary
-      WHERE session_id = $1
-      ORDER BY timestamp_ms ASC
-      LIMIT 100
-      `,
-      [sessionId]
-    );
-    const timeline = timelineRes.rows;
+    // 2. Build Timeline (and extract fingerprints in a single pass)
+    const timeline = await buildSessionTimeline(sessionId);
 
-    // 3. Retrieve Candidate Issue Groups matching session event fingerprints
-    const fingerprints = timeline
-      .map((e) => e.fingerprint)
-      .filter((fp): fp is string => !!fp);
-
-    let candidates: CandidateIssueGroup[] = [];
-    if (fingerprints.length > 0) {
-      // Query up to 20 candidate groups that are currently open in this project
-      const candidatesRes = await pool.query<CandidateIssueGroup>(
-        `
-        SELECT id, title, fingerprint, severity, status, last_seen_at
-        FROM issue_groups
-        WHERE project_id = $1
-          AND fingerprint = ANY($2::text[])
-          AND status = 'open'
-        ORDER BY last_seen_at DESC
-        LIMIT 20
-        `,
-        [projectId, fingerprints]
-      );
-      candidates = candidatesRes.rows;
-    }
+    // 3. Find Candidate Issue Groups using fingerprints collected during the timeline query
+    const candidates = await findCandidateIssueGroups(projectId, timeline.fingerprints);
 
     // 4. Assemble Prompt
     const context = {
@@ -245,7 +216,7 @@ export async function processTriageJob(
             evidence: [],
           };
 
-          const primaryFp = timeline.find((e) => e.fingerprint)?.fingerprint || crypto.createHash("sha256").update(sessionId).digest("hex");
+          const primaryFp = timeline.fingerprints[0] || crypto.createHash("sha256").update(sessionId).digest("hex");
 
           await client.query(
             `
@@ -301,7 +272,7 @@ export async function processTriageJob(
             issueDetail.root_cause,
             issueDetail.suggested_fix,
             issueDetail.severity,
-            timeline[0]?.timestamp_ms ?? 0,
+            Number(sessionRow.started_at),
             issueDetail.confidence,
             JSON.stringify(issueDetail.evidence),
             JSON.stringify(issueDetail.reproduction_steps),

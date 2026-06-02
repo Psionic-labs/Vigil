@@ -57,40 +57,17 @@ export function buildTriagePrompt(context: TriageContext): string {
 </session>
 `.trim();
 
-  // Format timeline events chronologically into index-keyed event tags.
-  // Truncates long fields like targets, error messages, stack traces, and network URLs to optimize prompt size.
-  const timelineEventsXml = timeline
-    .map((event, idx) => {
-      const parts = [
-        `  <event index="${idx}">`,
-        `    <type>${escapeXml(event.type)}</type>`,
-        `    <timestamp_ms>${event.timestamp_ms}</timestamp_ms>`,
-      ];
+  // Format session-timeline into XML tags, using escapeXml for security.
+  const timelineXml = `
+<session_timeline>
+${escapeXml(timeline.summary)}
+</session_timeline>
+`.trim();
 
-      if (event.target) parts.push(`    <target>${escapeXml(event.target, 200)}</target>`);
-      if (event.error_message) parts.push(`    <error_message>${escapeXml(event.error_message, 500)}</error_message>`);
-      if (event.error_stack) parts.push(`    <error_stack>${escapeXml(event.error_stack, 1000)}</error_stack>`);
-      if (event.network_url) parts.push(`    <network_url>${escapeXml(event.network_url, 500)}</network_url>`);
-      if (event.network_status !== undefined && event.network_status !== null) {
-        parts.push(`    <network_status>${event.network_status}</network_status>`);
-      }
-      if (event.network_method) parts.push(`    <network_method>${escapeXml(event.network_method)}</network_method>`);
-      if (event.click_count !== undefined && event.click_count !== null) {
-        parts.push(`    <click_count>${event.click_count}</click_count>`);
-      }
-      if (event.nav_to) parts.push(`    <nav_to>${escapeXml(event.nav_to, 500)}</nav_to>`);
-      if (event.fingerprint) parts.push(`    <fingerprint>${escapeXml(event.fingerprint)}</fingerprint>`);
-
-      parts.push("  </event>");
-      return parts.join("\n");
-    })
-    .join("\n");
-
-  const timelineXml = `<timeline>\n${timelineEventsXml}\n</timeline>`;
-
-  // Format candidate issue groups to match fingerprints
-  const candidatesXml = candidates.length > 0
-    ? candidates
+  // Format candidate issue groups to match fingerprints, capped to 10 to protect prompt tokens budget.
+  const cappedCandidates = candidates.slice(0, 10);
+  const candidatesXml = cappedCandidates.length > 0
+    ? cappedCandidates
         .map((group) => {
           return `
   <issue_group>
@@ -98,8 +75,7 @@ export function buildTriagePrompt(context: TriageContext): string {
     <title>${escapeXml(group.title, 500)}</title>
     <fingerprint>${escapeXml(group.fingerprint)}</fingerprint>
     <severity>${escapeXml(group.severity)}</severity>
-    <status>${escapeXml(group.status)}</status>
-    <last_seen_at>${group.last_seen_at}</last_seen_at>
+    <last_seen_at>${group.lastSeenAt}</last_seen_at>
   </issue_group>
 `.trim();
         })

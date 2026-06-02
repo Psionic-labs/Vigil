@@ -69,6 +69,11 @@ describe("AI Triage Queue Metrics Endpoint", () => {
     expect(res.status).toBe(200);
     const body = await res.json() as any;
 
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("SUM(GREATEST(attempts - 1, 0))"),
+      expect.any(Array)
+    );
+
     expect(body.ok).toBe(true);
     // Assert flat keys are numeric zeros
     expect(body.metrics.triage_queue_depth).toBe(0);
