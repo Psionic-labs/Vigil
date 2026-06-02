@@ -84,6 +84,7 @@ metricsRouter.get("/", async (c: Context<AppEnv>) => {
 
   try {
     const now = Date.now();
+    const maxAttempts = parseInt(process.env.TRIAGE_MAX_ATTEMPTS || "3", 10);
     // Execute a single aggregated query to calculate all triage queue metrics in PostgreSQL.
     // Using a single query with FILTER clauses prevents multi-query connection overhead,
     // ensuring the metrics endpoint remains extremely lightweight (constant O(1) computation size).
@@ -91,20 +92,20 @@ metricsRouter.get("/", async (c: Context<AppEnv>) => {
       `
       SELECT
         -- queue_depth: pending/failed retryable jobs that are currently due for worker pickup.
-        COUNT(*) FILTER (WHERE status IN ('pending', 'failed') AND next_attempt_at <= $1) AS queue_depth,
+        COUNT(*) FILTER (WHERE status IN ('pending', 'failed') AND attempts < $2 AND next_attempt_at <= $1) AS queue_depth,
         -- oldest_job_age_ms: maximum delay duration since the oldest eligible pending/failed job was created.
-        COALESCE(MAX(CASE WHEN status IN ('pending', 'failed') AND next_attempt_at <= $1 THEN $1 - created_at ELSE 0 END), 0) AS oldest_job_age_ms,
+        COALESCE(MAX(CASE WHEN status IN ('pending', 'failed') AND attempts < $2 AND next_attempt_at <= $1 THEN $1 - created_at ELSE 0 END), 0) AS oldest_job_age_ms,
         -- jobs_leased: active jobs currently leased/locked by active workers.
         COUNT(*) FILTER (WHERE status = 'leased') AS jobs_leased,
         -- jobs_dead_letter: jobs permanently failed or exceeding maximum attempts limits.
         COUNT(*) FILTER (WHERE status = 'dead_letter') AS jobs_dead_letter,
-        -- jobs_retried: cumulative sum ofattempts across all jobs to represent total retry volume.
-        COALESCE(SUM(attempts), 0) AS jobs_retried,
+        -- jobs_retried: cumulative sum of retries across all jobs (first attempt is not a retry).
+        COALESCE(SUM(GREATEST(attempts - 1, 0)), 0) AS jobs_retried,
         -- jobs_completed: total successfully triaged and persisted session jobs.
         COUNT(*) FILTER (WHERE status = 'completed') AS jobs_completed
       FROM triage_jobs
       `,
-      [now]
+      [now, maxAttempts]
     );
 
     const row = dbRes.rows[0];

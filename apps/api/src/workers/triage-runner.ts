@@ -219,16 +219,19 @@ export async function processTriageJob(
           targetGroupId = triageData.issue_group_id;
 
           // Increment affected sessions and update last seen timestamp of existing group
-          await client.query(
+          const updateRes = await client.query(
             `
             UPDATE issue_groups SET
               affected_session_count = affected_session_count + 1,
               last_seen_at = GREATEST(last_seen_at, $1),
               updated_at = $1
-            WHERE id = $2
+            WHERE id = $2 AND project_id = $3
             `,
-            [updateTime, targetGroupId]
+            [updateTime, targetGroupId, projectId]
           );
+          if ((updateRes.rowCount ?? 0) === 0) {
+            throw new Error(`Target issue group ${targetGroupId} not found in project ${projectId}`);
+          }
         } else {
           // Create new issue group
           targetGroupId = `igr_${crypto.randomUUID().replace(/-/g, "").substring(0, 16)}`;
@@ -310,8 +313,8 @@ export async function processTriageJob(
         await client.query(
           `
           UPDATE sessions SET
-            issue_instance_count = issue_instance_count + 1,
-            issue_group_count = issue_group_count + 1,
+            issue_instance_count = (SELECT COUNT(*)::integer FROM issue_instances WHERE session_id = $6),
+            issue_group_count = (SELECT COUNT(DISTINCT issue_group_id)::integer FROM issue_instances WHERE session_id = $6),
             ai_analyzed_at = $1,
             ai_analysis_skipped = false,
             ai_skip_reason = NULL,

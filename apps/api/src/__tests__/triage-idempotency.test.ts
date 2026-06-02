@@ -132,6 +132,9 @@ describe("AI Triage Idempotency & Lease Guard", () => {
       if (queryText.includes("triage_jobs") && queryText.includes("locked_by = $2")) {
         return { rows: [{ status: "leased", locked_by: "test-worker" }] };
       }
+      if (queryText.includes("UPDATE issue_groups")) {
+        return { rows: [], rowCount: 1 };
+      }
       if (queryText.includes("INSERT INTO issue_instances")) {
         const err = new Error("unique constraint violation");
         (err as any).code = "23505";

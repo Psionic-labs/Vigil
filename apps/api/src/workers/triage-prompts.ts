@@ -144,6 +144,6 @@ You must output strictly valid JSON matching the following schema. Do not includ
 \`\`\`
 
 Strict Constraint:
-Output ONLY the raw JSON string inside \`\`\`json and \`\`\` wrappers.
+Output ONLY the raw JSON string (no markdown fences, no extra text).
 `.trim();
 }

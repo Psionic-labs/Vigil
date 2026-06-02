@@ -23,12 +23,33 @@ const uuid = crypto.randomBytes(4).toString("hex");
 const workerId = `${hostname}:${pid}:${uuid}`;
 process.env.WORKER_ID = workerId;
 
+/**
+ * readPositiveInteger
+ * Helper function to safely parse and validate positive configuration integers.
+ * If a value is unconfigured, NaN, or non-positive, it defaults to the fallback and prints a warning.
+ *
+ * @param name The environment variable key string.
+ * @param fallback Default value if validation fails.
+ */
+function readPositiveInteger(name: string, fallback: number): number {
+  const value = process.env[name];
+  if (!value) return fallback;
+
+  const parsed = parseInt(value, 10);
+  if (Number.isInteger(parsed) && parsed > 0) {
+    return parsed;
+  }
+
+  console.warn(`[TriageConfig] Invalid ${name} environment variable "${value}". Falling back to ${fallback}.`);
+  return fallback;
+}
+
 // Parse configuration variables with safe defaults.
-const batchSize = parseInt(process.env.TRIAGE_BATCH_SIZE || "10", 10);
-const pollIntervalMs = parseInt(process.env.TRIAGE_POLL_INTERVAL_MS || "10000", 10);
-const leaseTimeoutMs = parseInt(process.env.TRIAGE_LEASE_TIMEOUT_MS || "300000", 10); // 5 minutes
-const llmTimeoutMs = parseInt(process.env.TRIAGE_LLM_TIMEOUT_MS || "60000", 10); // 60 seconds
-const maxAttempts = parseInt(process.env.TRIAGE_MAX_ATTEMPTS || "3", 10);
+const batchSize = readPositiveInteger("TRIAGE_BATCH_SIZE", 10);
+const pollIntervalMs = readPositiveInteger("TRIAGE_POLL_INTERVAL_MS", 10000);
+const leaseTimeoutMs = readPositiveInteger("TRIAGE_LEASE_TIMEOUT_MS", 300000); // 5 minutes
+const llmTimeoutMs = readPositiveInteger("TRIAGE_LLM_TIMEOUT_MS", 60000); // 60 seconds
+const maxAttempts = readPositiveInteger("TRIAGE_MAX_ATTEMPTS", 3);
 const model = process.env.TRIAGE_MODEL || "claude-3-haiku-20240307";
 
 let running = true;

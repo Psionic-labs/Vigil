@@ -105,8 +105,8 @@ export async function persistReplayBlob(
   const resolvedBlobsRoot = path.resolve(BLOBS_ROOT);
   const dirPath = path.resolve(resolvedBlobsRoot, projectId, sessionId);
 
-  // Path Traversal Security check: verify folder path is nested inside root directory
-  if (!dirPath.startsWith(resolvedBlobsRoot)) {
+  const relativeDir = path.relative(resolvedBlobsRoot, dirPath);
+  if (relativeDir.startsWith("..") || path.isAbsolute(relativeDir)) {
     throw new Error("Path traversal detected.");
   }
 
