@@ -31,7 +31,7 @@ metricsRouter.get("/", async (c: Context<AppEnv>) => {
     );
   }
 
-  // Authentication check for non-development (staging/production) environments.
+  // Authentication check: enforced in non-development environments or whenever INTERNAL_METRICS_TOKEN is configured.
   const expectedToken = process.env.INTERNAL_METRICS_TOKEN;
   const isDevelopment = process.env.NODE_ENV === "development";
 
@@ -84,10 +84,13 @@ metricsRouter.get("/", async (c: Context<AppEnv>) => {
 
   try {
     const now = Date.now();
-    const maxAttempts = parseInt(process.env.TRIAGE_MAX_ATTEMPTS || "3", 10);
+    let maxAttempts = parseInt(process.env.TRIAGE_MAX_ATTEMPTS || "3", 10);
+    if (!Number.isInteger(maxAttempts) || maxAttempts <= 0) {
+      maxAttempts = 3;
+    }
     // Execute a single aggregated query to calculate all triage queue metrics in PostgreSQL.
     // Using a single query with FILTER clauses prevents multi-query connection overhead,
-    // ensuring the metrics endpoint remains extremely lightweight (constant O(1) computation size).
+    // ensuring the metrics endpoint remains extremely lightweight (efficient single-scan execution).
     const dbRes = await pool.query(
       `
       SELECT

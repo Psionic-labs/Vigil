@@ -66,7 +66,7 @@ export async function processTriageJob(
   options: RunnerOptions
 ): Promise<void> {
   const { workerId, model, maxAttempts, llmTimeoutMs } = options;
-  const now = Date.now();
+  const startMonotonic = performance.now();
 
   try {
     // 1. Session Eligibility Guard
@@ -82,19 +82,19 @@ export async function processTriageJob(
     const sessionRow = sessionRes.rows[0];
     if (!sessionRow) {
       // Session row does not exist -> terminal dead_letter
-      await handleJobFailure(sessionId, projectId, attempts, new Error("Session row not found"), maxAttempts, "missing_session");
+      await handleJobFailure(sessionId, projectId, attempts, new Error("Session row not found"), maxAttempts, workerId, "missing_session");
       return;
     }
 
     if (sessionRow.ended_at === null || sessionRow.ended_at === undefined) {
       // Session is not yet finalized -> terminal dead_letter (or wait for finalization)
-      await handleJobFailure(sessionId, projectId, attempts, new Error("Session is not finalized"), maxAttempts, "session_not_eligible");
+      await handleJobFailure(sessionId, projectId, attempts, new Error("Session is not finalized"), maxAttempts, workerId, "session_not_eligible");
       return;
     }
 
     if (sessionRow.ai_analyzed_at !== null && sessionRow.ai_analyzed_at !== undefined) {
       // Session already analyzed in a previous execution -> terminal dead_letter
-      await handleJobFailure(sessionId, projectId, attempts, new Error("Session already analyzed"), maxAttempts, "session_not_eligible");
+      await handleJobFailure(sessionId, projectId, attempts, new Error("Session already analyzed"), maxAttempts, workerId, "session_not_eligible");
       return;
     }
 
@@ -384,7 +384,7 @@ export async function processTriageJob(
         projectId,
         attempt: attempts,
         action: "db_persisted",
-        durationMs: Math.round(performance.now() - now),
+        durationMs: Math.round(performance.now() - startMonotonic),
         tokens: {
           input: llmResult.input_tokens ?? 0,
           output: llmResult.output_tokens ?? 0,
@@ -396,7 +396,7 @@ export async function processTriageJob(
       return; // Already handled/logged
     }
     // Handle processing/network failures and coordinate retries
-    await handleJobFailure(sessionId, projectId, attempts, err, maxAttempts);
+    await handleJobFailure(sessionId, projectId, attempts, err, maxAttempts, workerId);
   }
 }
 
@@ -424,6 +424,7 @@ async function handleJobFailure(
   attempts: number,
   error: Error,
   maxAttempts: number,
+  workerId: string,
   overrideReason?: string
 ): Promise<void> {
   const now = Date.now();
@@ -432,35 +433,48 @@ async function handleJobFailure(
 
   try {
     await withTransaction(async (client) => {
+      let leaseValid = true;
+
       if (isDeadLetter) {
         // Move status to dead_letter
-        await client.query(
+        const res = await client.query(
           `
           UPDATE triage_jobs SET
             status = 'dead_letter',
             failed_at = $1,
             last_error = $2,
             updated_at = $1
-          WHERE session_id = $3
+          WHERE session_id = $3 AND status = 'leased' AND locked_by = $4
           `,
-          [now, error.message, sessionId]
+          [now, error.message, sessionId, workerId]
         );
+        if (res && (res.rowCount ?? 0) === 0) {
+          leaseValid = false;
+        }
       } else {
         // Increment attempts, set status to failed, and schedule backoff delay
         const backoffMs = getBackoffMs(attempts);
         const nextAttemptAt = now + backoffMs;
 
-        await client.query(
+        const res = await client.query(
           `
           UPDATE triage_jobs SET
             status = 'failed',
             next_attempt_at = $1,
             last_error = $2,
             updated_at = $3
-          WHERE session_id = $4
+          WHERE session_id = $4 AND status = 'leased' AND locked_by = $5
           `,
-          [nextAttemptAt, error.message, now, sessionId]
+          [nextAttemptAt, error.message, now, sessionId, workerId]
         );
+        if (res && (res.rowCount ?? 0) === 0) {
+          leaseValid = false;
+        }
+      }
+
+      if (!leaseValid) {
+        console.warn(`[TriageRunner] Failed to transition job ${sessionId} to failed/dead_letter because lease was lost.`);
+        return;
       }
 
       // Record failed run inside ai_triage_runs (upsert)

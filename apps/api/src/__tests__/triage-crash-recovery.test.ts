@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { withTransaction } from "../db";
-import { pollCycle } from "../workers/triage-worker";
+import { pollCycle, maxAttempts, leaseTimeoutMs } from "../workers/triage-worker";
 import { processTriageJob } from "../workers/triage-runner";
 
 // Mock the database client to intercept the query values and states.
@@ -62,10 +62,10 @@ describe("AI Triage Worker Crash Recovery & Lease Expiry", () => {
     const currentTime = claimArgs?.[1];
     const staleThreshold = claimArgs?.[2];
 
-    expect(attemptsLimit).toBe(3); // TRIAGE_MAX_ATTEMPTS default
+    expect(attemptsLimit).toBe(maxAttempts); // TRIAGE_MAX_ATTEMPTS relative check
     expect(currentTime).toBeGreaterThan(0);
-    // Lease timeout is default 300,000ms (5 minutes)
-    expect(staleThreshold).toBe(currentTime - 300000);
+    // Lease timeout relative check
+    expect(staleThreshold).toBe(currentTime - leaseTimeoutMs);
 
     // Verify that the stale job was passed to processTriageJob for processing
     expect(processTriageJob).toHaveBeenCalledTimes(1);

@@ -34,17 +34,28 @@ export const AISchema = z.object({
     })
   ).max(5).optional().nullable(),
 }).strict().refine((data) => {
-  // Refinement Check: enforces dependency constraint rules.
-  // If an issue is detected:
-  //  - Duplicate action requires a non-null target issue_group_id.
-  //  - New group action requires at least one item inside the issues detail array.
-  if (data.issue_detected) {
-    if (data.issue_group_action === "duplicate issue group" && !data.issue_group_id) return false;
-    if (data.issue_group_action === "new issue group" && (!data.issues || data.issues.length === 0)) return false;
+  // Refinement Check: enforces logical consistency.
+  if (!data.issue_detected) {
+    // If no issue is detected, action must be skipped/noise and no group ID or issues should be provided.
+    if (data.issue_group_action !== "skipped/noise") return false;
+    if (data.issue_group_id) return false;
+    if (data.issues && data.issues.length > 0) return false;
+  } else {
+    // If an issue is detected, action cannot be skipped/noise
+    if (data.issue_group_action === "skipped/noise") return false;
+
+    if (data.issue_group_action === "duplicate issue group") {
+      // Must have a target issue_group_id
+      if (!data.issue_group_id) return false;
+    } else if (data.issue_group_action === "new issue group") {
+      // Cannot have issue_group_id, and must have at least one issue detail
+      if (data.issue_group_id) return false;
+      if (!data.issues || data.issues.length === 0) return false;
+    }
   }
   return true;
 }, {
-  message: "issue_group_id is required for duplicate issue group, and issues are required for new issue group",
+  message: "Inconsistent combination of issue_detected, issue_group_action, issue_group_id, and issues",
   path: ["issue_group_action"]
 });
 

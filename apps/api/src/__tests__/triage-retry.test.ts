@@ -56,7 +56,9 @@ describe("AI Triage Retry & DLQ Mechanics", () => {
       return cb(mockClient as any);
     });
 
-    const now = Date.now();
+    const mockNow = 1700000000000;
+    const dateSpy = vi.spyOn(Date, "now").mockReturnValue(mockNow);
+
     await processTriageJob("sess_1", "proj_1", 1, {
       workerId: "test-worker",
       model: "claude-3-haiku",
@@ -68,10 +70,11 @@ describe("AI Triage Retry & DLQ Mechanics", () => {
     expect(mockClient.query).toHaveBeenCalledWith(
       expect.stringContaining("UPDATE triage_jobs SET"),
       [
-        expect.any(Number), // nextAttemptAt
+        1700000060000, // nextAttemptAt (1 min backoff)
         "API Timeout",
-        expect.any(Number), // now
+        1700000000000, // now
         "sess_1",
+        "test-worker",
       ]
     );
 
@@ -79,8 +82,9 @@ describe("AI Triage Retry & DLQ Mechanics", () => {
     const updateArgs = mockClient.query.mock.calls.find(c => c[0].includes("UPDATE triage_jobs SET"))?.[1];
     expect(updateArgs).toBeDefined();
     const nextAttemptAt = updateArgs?.[0];
-    expect(nextAttemptAt).toBeGreaterThanOrEqual(now + 60000 - 1000);
-    expect(nextAttemptAt).toBeLessThanOrEqual(now + 60000 + 1000);
+    expect(nextAttemptAt).toBe(1700000060000);
+
+    dateSpy.mockRestore();
   });
 
   // Test Case: verify job moves to 'dead_letter' when attempts threshold is hit.
@@ -100,6 +104,9 @@ describe("AI Triage Retry & DLQ Mechanics", () => {
       return cb(mockClient as any);
     });
 
+    const mockNow = 1700000000000;
+    const dateSpy = vi.spyOn(Date, "now").mockReturnValue(mockNow);
+
     await processTriageJob("sess_1", "proj_1", 3, {
       workerId: "test-worker",
       model: "claude-3-haiku",
@@ -111,14 +118,17 @@ describe("AI Triage Retry & DLQ Mechanics", () => {
     expect(mockClient.query).toHaveBeenCalledWith(
       expect.stringContaining("UPDATE triage_jobs SET"),
       [
-        expect.any(Number), // failed_at
+        1700000000000, // failed_at
         "Persistent Schema Error",
         "sess_1",
+        "test-worker",
       ]
     );
 
     // Confirm query string sets status to dead_letter
     const deadLetterCall = mockClient.query.mock.calls.find(c => c[0].includes("status = 'dead_letter'"));
     expect(deadLetterCall).toBeDefined();
+
+    dateSpy.mockRestore();
   });
 });

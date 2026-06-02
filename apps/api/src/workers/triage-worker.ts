@@ -55,13 +55,21 @@ const model = process.env.TRIAGE_MODEL || "claude-3-haiku-20240307";
 let running = true;
 let isPolling = false;
 
-// Config validation:
-// The lease timeout must exceed the LLM request timeout.
-// Otherwise, a slow Claude request could exceed the lease duration, allowing other workers
-// to reclaim and run duplicate requests before the first one completes.
-if (leaseTimeoutMs <= llmTimeoutMs) {
-  throw new Error("TRIAGE_LEASE_TIMEOUT_MS must be greater than TRIAGE_LLM_TIMEOUT_MS");
+/**
+ * validateTimeoutBounds
+ * Ensures the worker configuration lease timeout is strictly greater than the LLM request timeout.
+ * Prevents multiple workers from claiming the same job due to slow LLM response latencies.
+ *
+ * @param leaseTimeoutMs Configured lease duration in milliseconds.
+ * @param llmTimeoutMs Configured maximum LLM timeout limit in milliseconds.
+ */
+export function validateTimeoutBounds(leaseTimeoutMs: number, llmTimeoutMs: number) {
+  if (leaseTimeoutMs <= llmTimeoutMs) {
+    throw new Error("TRIAGE_LEASE_TIMEOUT_MS must be greater than TRIAGE_LLM_TIMEOUT_MS");
+  }
 }
+
+validateTimeoutBounds(leaseTimeoutMs, llmTimeoutMs);
 
 // Fail-fast boot block: ANTHROPIC_API_KEY is required in non-testing environments.
 if (!process.env.ANTHROPIC_API_KEY && process.env.NODE_ENV !== "test") {
@@ -228,4 +236,4 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   });
 }
 
-export { startWorker, pollCycle, workerId };
+export { startWorker, pollCycle, workerId, maxAttempts, leaseTimeoutMs };

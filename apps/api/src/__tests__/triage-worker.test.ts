@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { withTransaction } from "../db";
-import { pollCycle } from "../workers/triage-worker";
+import { pollCycle, validateTimeoutBounds } from "../workers/triage-worker";
 
 // Mock the database transaction interface
 vi.mock("../db", () => ({
@@ -37,24 +37,13 @@ describe("AI Triage Worker Loop & Configuration", () => {
   // Verifies that process boot fails-fast if TRIAGE_LEASE_TIMEOUT_MS is configured
   // to be less than or equal to TRIAGE_LLM_TIMEOUT_MS, protecting against early lease expiration.
   it("should enforce lease timeout validation on startup", () => {
-    const originalLease = process.env.TRIAGE_LEASE_TIMEOUT_MS;
-    const originalLlm = process.env.TRIAGE_LLM_TIMEOUT_MS;
-
-    process.env.TRIAGE_LEASE_TIMEOUT_MS = "1000";
-    process.env.TRIAGE_LLM_TIMEOUT_MS = "2000";
-
     expect(() => {
-      // Re-trigger timeout validation assertion logic
-      const lease = parseInt(process.env.TRIAGE_LEASE_TIMEOUT_MS || "0", 10);
-      const llm = parseInt(process.env.TRIAGE_LLM_TIMEOUT_MS || "0", 10);
-      if (lease <= llm) {
-        throw new Error("TRIAGE_LEASE_TIMEOUT_MS must be greater than TRIAGE_LLM_TIMEOUT_MS");
-      }
+      validateTimeoutBounds(1000, 2000);
     }).toThrow("TRIAGE_LEASE_TIMEOUT_MS must be greater than TRIAGE_LLM_TIMEOUT_MS");
 
-    // Restore original env config
-    process.env.TRIAGE_LEASE_TIMEOUT_MS = originalLease;
-    process.env.TRIAGE_LLM_TIMEOUT_MS = originalLlm;
+    expect(() => {
+      validateTimeoutBounds(2000, 1000);
+    }).not.toThrow();
   });
 
   // Test Case 2: Claiming and Delegation

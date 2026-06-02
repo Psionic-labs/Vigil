@@ -1,11 +1,30 @@
-/**
- * @file triage-prompts.ts
- * @description Compiles session telemetry records, events timelines, and existing issue candidates into a structured prompt.
- * @why Formatting telemetry inside XML container tags enables LLMs (like Claude 3) to accurately parse structured data,
- *      improving reasoning performance for duplicate identification and triage categorization.
- */
-
 import type { TriageContext } from "./triage-types";
+
+/**
+ * escapeXml
+
+ * Escapes characters that are special in XML/HTML to prevent structure breakages and prompt injections.
+ * Also supports optional truncation to keep the total prompt size within Anthropic message limits.
+ *
+ * @param unsafe The raw value to be escaped (string, number, or other).
+ * @param maxLen Optional maximum character length boundary to truncate at.
+ * @returns The escaped and potentially truncated safe string.
+ */
+function escapeXml(unsafe: any, maxLen?: number): string {
+  if (unsafe === null || unsafe === undefined) {
+    return "";
+  }
+  let str = String(unsafe);
+  if (maxLen && str.length > maxLen) {
+    str = str.substring(0, maxLen) + "... [truncated]";
+  }
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
 
 /**
  * buildTriagePrompt
@@ -25,41 +44,42 @@ import type { TriageContext } from "./triage-types";
 export function buildTriagePrompt(context: TriageContext): string {
   const { session, timeline, candidate_issue_groups: candidates } = context;
 
-  // Format session metadata into XML tags
+  // Format session metadata into XML tags, using escapeXml for safe interpolation.
   const sessionXml = `
 <session>
-  <id>${session.id}</id>
-  <url>${session.url}</url>
-  <duration_ms>${session.duration_ms ?? "unknown"}</duration_ms>
+  <id>${escapeXml(session.id)}</id>
+  <url>${escapeXml(session.url)}</url>
+  <duration_ms>${session.duration_ms !== null && session.duration_ms !== undefined ? session.duration_ms : "unknown"}</duration_ms>
   <started_at>${session.started_at}</started_at>
-  <release>${session.release ?? "unknown"}</release>
-  <commit_sha>${session.commit_sha ?? "unknown"}</commit_sha>
-  <environment>${session.environment ?? "unknown"}</environment>
+  <release>${escapeXml(session.release ?? "unknown")}</release>
+  <commit_sha>${escapeXml(session.commit_sha ?? "unknown")}</commit_sha>
+  <environment>${escapeXml(session.environment ?? "unknown")}</environment>
 </session>
 `.trim();
 
-  // Format timeline events chronologically into index-keyed event tags
+  // Format timeline events chronologically into index-keyed event tags.
+  // Truncates long fields like targets, error messages, stack traces, and network URLs to optimize prompt size.
   const timelineEventsXml = timeline
     .map((event, idx) => {
       const parts = [
         `  <event index="${idx}">`,
-        `    <type>${event.type}</type>`,
+        `    <type>${escapeXml(event.type)}</type>`,
         `    <timestamp_ms>${event.timestamp_ms}</timestamp_ms>`,
       ];
 
-      if (event.target) parts.push(`    <target>${String(event.target)}</target>`);
-      if (event.error_message) parts.push(`    <error_message>${event.error_message}</error_message>`);
-      if (event.error_stack) parts.push(`    <error_stack>${event.error_stack}</error_stack>`);
-      if (event.network_url) parts.push(`    <network_url>${event.network_url}</network_url>`);
+      if (event.target) parts.push(`    <target>${escapeXml(event.target, 200)}</target>`);
+      if (event.error_message) parts.push(`    <error_message>${escapeXml(event.error_message, 500)}</error_message>`);
+      if (event.error_stack) parts.push(`    <error_stack>${escapeXml(event.error_stack, 1000)}</error_stack>`);
+      if (event.network_url) parts.push(`    <network_url>${escapeXml(event.network_url, 500)}</network_url>`);
       if (event.network_status !== undefined && event.network_status !== null) {
         parts.push(`    <network_status>${event.network_status}</network_status>`);
       }
-      if (event.network_method) parts.push(`    <network_method>${event.network_method}</network_method>`);
+      if (event.network_method) parts.push(`    <network_method>${escapeXml(event.network_method)}</network_method>`);
       if (event.click_count !== undefined && event.click_count !== null) {
         parts.push(`    <click_count>${event.click_count}</click_count>`);
       }
-      if (event.nav_to) parts.push(`    <nav_to>${event.nav_to}</nav_to>`);
-      if (event.fingerprint) parts.push(`    <fingerprint>${event.fingerprint}</fingerprint>`);
+      if (event.nav_to) parts.push(`    <nav_to>${escapeXml(event.nav_to, 500)}</nav_to>`);
+      if (event.fingerprint) parts.push(`    <fingerprint>${escapeXml(event.fingerprint)}</fingerprint>`);
 
       parts.push("  </event>");
       return parts.join("\n");
@@ -74,11 +94,11 @@ export function buildTriagePrompt(context: TriageContext): string {
         .map((group) => {
           return `
   <issue_group>
-    <id>${group.id}</id>
-    <title>${group.title}</title>
-    <fingerprint>${group.fingerprint}</fingerprint>
-    <severity>${group.severity}</severity>
-    <status>${group.status}</status>
+    <id>${escapeXml(group.id)}</id>
+    <title>${escapeXml(group.title, 500)}</title>
+    <fingerprint>${escapeXml(group.fingerprint)}</fingerprint>
+    <severity>${escapeXml(group.severity)}</severity>
+    <status>${escapeXml(group.status)}</status>
     <last_seen_at>${group.last_seen_at}</last_seen_at>
   </issue_group>
 `.trim();

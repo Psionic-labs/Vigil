@@ -97,6 +97,74 @@ describe("AI Triage Service API Client & Parser", () => {
     fetchSpy.mockRestore();
   });
 
+  // Test Case 3: Zod Schema Inconsistent State Combinations
+  // Verifies that inconsistent combinations of flags are rejected.
+  it("should fail validation for inconsistent schema states", async () => {
+    const testCases = [
+      {
+        session_summary: "No issue",
+        goal_completed: true,
+        friction_score: 10,
+        issue_detected: false,
+        issue_group_action: "new issue group", // Invalid: action must be skipped/noise if no issue
+        issue_group_id: null,
+      },
+      {
+        session_summary: "No issue",
+        goal_completed: true,
+        friction_score: 10,
+        issue_detected: false,
+        issue_group_action: "skipped/noise",
+        issue_group_id: "igr_123", // Invalid: group ID must not be present if no issue
+      },
+      {
+        session_summary: "Issue detected",
+        goal_completed: false,
+        friction_score: 80,
+        issue_detected: true,
+        issue_group_action: "skipped/noise", // Invalid: action cannot be skipped/noise if issue_detected is true
+      },
+      {
+        session_summary: "Issue detected",
+        goal_completed: false,
+        friction_score: 80,
+        issue_detected: true,
+        issue_group_action: "new issue group",
+        issue_group_id: "igr_123", // Invalid: new group action should not have group ID
+        issues: [
+          {
+            title: "Error 500",
+            root_cause: "Crash",
+            suggested_fix: "Fix it",
+            severity: "P1",
+            confidence: 0.9,
+            reproduction_steps: [],
+            evidence: [],
+          }
+        ]
+      }
+    ];
+
+    for (const testCase of testCases) {
+      const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          content: [
+            {
+              text: JSON.stringify(testCase),
+            },
+          ],
+        }),
+      } as any);
+
+      await expect(invokeModel("claude-3-haiku", "Test Prompt")).rejects.toThrow(
+        /LLM JSON output did not conform to the schema/
+      );
+
+      fetchSpy.mockRestore();
+    }
+  });
+
   // Test Case 3: HTTP Network Failures
   // Verifies that API connection timeouts or server outages (e.g. HTTP 500)
   // throw exceptions, triggering subsequent worker queue retries.
