@@ -162,4 +162,50 @@ describe("AI Triage Idempotency & Lease Guard", () => {
       expect.any(Array)
     );
   });
+
+  // Test Case 3: Lease Loss in Failure Handler
+  // Mocks a scenario where a worker's Claude call fails, but in the meantime,
+  // another worker has already reclaimed the lease.
+  // Verifies that the failure handler does not overwrite the job status or attempts count.
+  it("should not update database state in handleJobFailure if the worker lease was lost", async () => {
+    // Mock session eligibility check to succeed
+    (pool.query as any).mockResolvedValueOnce({
+      rows: [{ id: "sess_1", url: "http://localhost", duration_ms: 1000, started_at: 100, ended_at: 1100, ai_analyzed_at: null }],
+    });
+    // Mock event timeline fetch
+    (pool.query as any).mockResolvedValueOnce({ rows: [] });
+
+    // Mock invokeModel to throw a transient error
+    vi.mocked(invokeModel).mockRejectedValueOnce(new Error("Transient call failure"));
+
+    // Mock the update query in handleJobFailure to return rowCount = 0 (meaning lease lost)
+    mockClient.query.mockImplementation((queryText) => {
+      if (queryText.includes("UPDATE triage_jobs SET")) {
+        return { rows: [], rowCount: 0 }; // Lease was taken by another worker
+      }
+      return { rows: [] };
+    });
+
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await processTriageJob("sess_1", "proj_1", 1, {
+      workerId: "test-worker",
+      model: "claude-3-haiku",
+      maxAttempts: 3,
+      llmTimeoutMs: 1000,
+    });
+
+    // Verify it attempted to update the failed status check with locked_by constraint
+    expect(mockClient.query).toHaveBeenCalledWith(
+      expect.stringContaining("status = 'leased' AND locked_by ="),
+      expect.any(Array)
+    );
+
+    // Verify the warning log was printed indicating the lease was lost
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to transition job sess_1 to failed/dead_letter because lease was lost.")
+    );
+
+    consoleWarnSpy.mockRestore();
+  });
 });
