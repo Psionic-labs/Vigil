@@ -32,28 +32,47 @@ export async function findCandidateIssueGroups(
       SELECT fp, COUNT(*) AS freq
       FROM unnest($2::text[]) AS fp
       GROUP BY fp
+    ),
+    ranked_groups AS (
+      SELECT
+        ig.id,
+        ig.title,
+        ig.fingerprint,
+        ig.severity,
+        ig.status,
+        ig.last_seen_at,
+        sf.freq,
+        ROW_NUMBER() OVER (
+          PARTITION BY ig.fingerprint 
+          ORDER BY 
+            CASE ig.severity
+              WHEN 'P0' THEN 1
+              WHEN 'P1' THEN 2
+              WHEN 'P2' THEN 3
+              WHEN 'P3' THEN 4
+              ELSE 5
+            END ASC,
+            ig.last_seen_at DESC,
+            ig.id ASC
+        ) as rn
+      FROM issue_groups ig
+      JOIN session_fps sf ON ig.fingerprint = sf.fp
+      WHERE ig.project_id = $1
+      AND ig.status = 'open'
     )
-    SELECT
-      ig.id,
-      ig.title,
-      ig.fingerprint,
-      ig.severity,
-      ig.status,
-      ig.last_seen_at
-    FROM issue_groups ig
-    JOIN session_fps sf ON ig.fingerprint = sf.fp
-    WHERE ig.project_id = $1
-    AND ig.status = 'open'
+    SELECT id, title, fingerprint, severity, status, last_seen_at
+    FROM ranked_groups
+    WHERE rn = 1
     ORDER BY
-      sf.freq DESC,
-      CASE ig.severity
+      freq DESC,
+      CASE severity
         WHEN 'P0' THEN 1
         WHEN 'P1' THEN 2
         WHEN 'P2' THEN 3
         WHEN 'P3' THEN 4
         ELSE 5
       END ASC,
-      ig.last_seen_at DESC
+      last_seen_at DESC
     LIMIT 20;
     `,
     [projectId, validFingerprints]

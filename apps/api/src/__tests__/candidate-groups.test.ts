@@ -61,4 +61,15 @@ describe("Candidate Issue Group Retrieval", () => {
     const result = await findCandidateIssueGroups("proj_1", ["fp1"]);
     expect(result).toEqual([]);
   });
+
+  // Test fingerprint deduplication partitioning
+  it("should enforce deduplication by partitioning results per fingerprint", async () => {
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] } as any);
+
+    await findCandidateIssueGroups("proj_1", ["fp1", "fp2"]);
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("PARTITION BY ig.fingerprint"),
+      ["proj_1", ["fp1", "fp2"]]
+    );
+  });
 });

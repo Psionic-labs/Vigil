@@ -96,6 +96,12 @@ function formatEvent(event: DBEvent, baselineMs: number, onTruncate?: () => void
   }
 }
 
+interface SelectedEventWithMeta {
+  event: DBEvent;
+  priority: number;
+  originalIndex: number;
+}
+
 /**
  * selectEvents
  * Applies priority-based compression to filter down raw events.
@@ -110,7 +116,11 @@ function formatEvent(event: DBEvent, baselineMs: number, onTruncate?: () => void
  * @param maxLowLimit Current allowed count of low priority events.
  * @param maxMediumLimit Current allowed count of medium priority events.
  */
-function selectEvents(filteredEvents: DBEvent[], maxLowLimit: number, maxMediumLimit: number): DBEvent[] {
+function selectEvents(
+  filteredEvents: DBEvent[],
+  maxLowLimit: number,
+  maxMediumLimit: number
+): SelectedEventWithMeta[] {
   const total = filteredEvents.length;
 
   // Find indices of first and last JS/network errors
@@ -189,7 +199,7 @@ function selectEvents(filteredEvents: DBEvent[], maxLowLimit: number, maxMediumL
   // Sort chronologically by originalIndex to ensure deterministic ordering of retained events
   kept.sort((a, b) => a.originalIndex - b.originalIndex);
 
-  return kept.map(item => item.event);
+  return kept;
 }
 
 /**
@@ -243,7 +253,7 @@ export async function buildSessionTimeline(sessionId: string): Promise<SessionTi
   let maxLowLimit = 50;
   let maxMediumLimit = 10;
   let summary: string;
-  let selected: DBEvent[];
+  let selected: SelectedEventWithMeta[];
   const baselineMs = Number(filteredEvents[0]!.timestamp_ms);
 
   // Find indices of first and last JS/network errors for fallback dropping
@@ -279,7 +289,7 @@ export async function buildSessionTimeline(sessionId: string): Promise<SessionTi
       isTruncated = true;
     }
 
-    summary = selected.map((e) => formatEvent(e, baselineMs, onTruncate)).join("\n");
+    summary = selected.map((item) => formatEvent(item.event, baselineMs, onTruncate)).join("\n");
 
     if (summary.length <= 4000) {
       break;
@@ -291,15 +301,14 @@ export async function buildSessionTimeline(sessionId: string): Promise<SessionTi
       maxMediumLimit = Math.max(0, maxMediumLimit - 1);
     } else {
       // Hard fallback: discard whole events by priority (Priority 2 first, then Priority 1) from the end
-      const selectedWithMeta = selected.map((event) => {
-        const indexInFiltered = filteredEvents.indexOf(event);
+      const selectedWithMeta = selected.map((item) => {
         const isP1 =
-          indexInFiltered === firstErrIndex ||
-          indexInFiltered === lastErrIndex ||
-          event.type === "rage_click" ||
-          event.type === "dead_click";
+          item.originalIndex === firstErrIndex ||
+          item.originalIndex === lastErrIndex ||
+          item.event.type === "rage_click" ||
+          item.event.type === "dead_click";
         const priority = isP1 ? 1 : 2;
-        return { event, priority };
+        return { event: item.event, priority, originalIndex: item.originalIndex };
       });
 
       // Drop priority 2 events first (from the end of the timeline)
@@ -334,7 +343,7 @@ export async function buildSessionTimeline(sessionId: string): Promise<SessionTi
         }
       }
 
-      selected = selectedWithMeta.map(m => m.event);
+      selected = selectedWithMeta;
       break;
     }
   }
