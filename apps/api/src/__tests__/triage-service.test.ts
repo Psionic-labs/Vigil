@@ -13,6 +13,8 @@ const validSkippedOutput = {
   session_summary: "User browsed the homepage with no issues.",
   goal_completed: true,
   friction_score: 5,
+  confidence: 0.95,
+  reasoning: "No friction/errors detected in the telemetry.",
   issue_detected: false,
   issue_group_action: "skipped/noise",
   issue_group_id: null,
@@ -22,6 +24,8 @@ const validNewIssueOutput = {
   session_summary: "User encountered checkout error.",
   goal_completed: false,
   friction_score: 95,
+  confidence: 0.9,
+  reasoning: "Multiple checkout crash errors identified.",
   issue_detected: true,
   issue_group_action: "new issue group",
   issue_group_id: null,
@@ -48,6 +52,8 @@ const validDuplicateOutput = {
   session_summary: "User hit known login bug.",
   goal_completed: false,
   friction_score: 80,
+  confidence: 0.85,
+  reasoning: "Error fingerprint matches known duplicate issue group.",
   issue_detected: true,
   issue_group_action: "duplicate issue group",
   issue_group_id: "igr_abc123",
@@ -71,12 +77,12 @@ describe("AISchema Zod Validation", () => {
     expect(result.success).toBe(true);
   });
 
-  it("should accept skipped/noise with empty issues array", () => {
+  it("should reject skipped/noise with empty issues array", () => {
     const result = AISchema.safeParse({
       ...validSkippedOutput,
       issues: [],
     });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
   });
 
   // --- Constraint Violations ---

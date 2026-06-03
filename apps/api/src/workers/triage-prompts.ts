@@ -98,12 +98,15 @@ ${candidatesContainerXml}
 
 Task Instructions:
 1. Analyze the timeline for user friction (JS errors, network request failures, rage clicks, dead clicks).
-2. If there are no actual bugs or issues in this session (e.g. only normal navigation, or expected/benign network requests, or no errors at all), set "issue_detected" to false, "issue_group_action" to "skipped/noise", set "issue_group_id" to null, and set "issues" to an empty array.
+2. If there are no actual bugs or issues in this session (e.g. only normal navigation, or expected/benign network requests, or no errors at all), set "issue_detected" to false, "issue_group_action" to "skipped/noise", set "issue_group_id" to null, and set "issues" to null.
 3. If you detect an actual issue, try to see if it matches any of the candidate issue groups provided above based on matching fingerprint and symptoms:
    - If it matches a candidate issue group, set "issue_detected" to true, "issue_group_action" to "duplicate issue group", and set "issue_group_id" to the matching candidate's id.
    - If it does NOT match any existing candidate issue groups, set "issue_detected" to true, "issue_group_action" to "new issue group", leave "issue_group_id" null, and fill in the "issues" array with a detailed description of the new issue to create.
 4. Populate "session_summary", "goal_completed" (whether the user successfully completed their path without being blocked), and "friction_score" (0 to 100).
-5. For any issue you report or attach to, determine:
+5. For the session overall triage assessment, you must determine:
+   - "confidence": confidence level of this overall triage assessment between 0.0 and 1.0.
+   - "reasoning": explanation and justification of the triage outcome, detailing why the issue was categorized or skipped.
+6. For any issue you report or attach to in the "issues" array, determine:
    - "severity": P0 (blocker/outage), P1 (major feature broken), P2 (minor issue/workaround), P3 (aesthetic/console notice).
    - "confidence": confidence level between 0.0 and 1.0.
    - "reproduction_steps": step-by-step reproduction instructions derived from the timeline.
@@ -116,6 +119,8 @@ JSON Schema structure:
   "session_summary": "string describing the user session",
   "goal_completed": true | false,
   "friction_score": number (0 to 100),
+  "confidence": number (0.0 to 1.0),
+  "reasoning": "explanation of triage decision",
   "issue_detected": true | false,
   "issue_group_action": "skipped/noise" | "duplicate issue group" | "new issue group",
   "issue_group_id": "string if duplicate issue group, or null",
@@ -135,7 +140,7 @@ JSON Schema structure:
         }
       ]
     }
-  ]
+  ] | null
 }
 
 Strict Constraint:

@@ -14,9 +14,10 @@ import type { SessionTimeline } from "../workers/triage/timeline";
 function makeTimeline(overrides: Partial<SessionTimeline> = {}): SessionTimeline {
   return {
     summary: "[0] page_view: /home",
+    eventCount: 1,
+    truncated: false,
     fingerprints: [],
     rawFingerprints: [],
-    isTruncated: false,
     ...overrides,
   };
 }

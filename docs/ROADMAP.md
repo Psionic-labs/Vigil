@@ -86,9 +86,9 @@ Run the triage loop for every completed non-noise session.
 - [x] Fetch candidate issue groups by fingerprint match
 - [x] Build Claude API prompt (see architecture doc for input/output schema)
 - [x] Call Claude API, cap response tokens
-- [ ] Validate AI JSON output before writing to DB
-- [ ] On parse failure: store error in `ai_triage_runs`, retry once with a repair prompt
-- [ ] Write AI fields back to `sessions` (summary, goal_completed, friction_score, etc.)
+- [x] Validate AI JSON output before writing to DB
+- [x] On parse failure: store error in `ai_triage_runs`, retry once with a repair prompt
+- [x] Write AI fields back to `sessions` (summary, goal_completed, friction_score, etc.)
 - [ ] On `issue_group_action: create`: insert new row into `issue_groups`
 - [ ] On `issue_group_action: attach`: increment `affected_session_count`, update `last_seen_at`
 - [ ] On `issue_group_action: ignore`: mark session as analyzed, no issue written
