@@ -84,8 +84,8 @@ Run the triage loop for every completed non-noise session.
 - [x] Implement triage job worker
 - [x] Assemble compact timeline from `events_summary` for a session
 - [x] Fetch candidate issue groups by fingerprint match
-- [ ] Build Claude API prompt (see architecture doc for input/output schema)
-- [ ] Call Claude API, cap response tokens
+- [x] Build Claude API prompt (see architecture doc for input/output schema)
+- [x] Call Claude API, cap response tokens
 - [ ] Validate AI JSON output before writing to DB
 - [ ] On parse failure: store error in `ai_triage_runs`, retry once with a repair prompt
 - [ ] Write AI fields back to `sessions` (summary, goal_completed, friction_score, etc.)

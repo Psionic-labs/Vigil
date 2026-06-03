@@ -203,7 +203,7 @@ export default function SettingsPage() {
                               onChange={(e) => {
                                 const val = e.target.value;
                                 if (val === "") {
-                                  setConfidence("" as any);
+                                  setConfidence("");
                                   return;
                                 }
                                 if (/^\d+$/.test(val)) {

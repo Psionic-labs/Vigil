@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { pool, withTransaction } from "../db";
 import { processTriageJob, getBackoffMs } from "../workers/triage-runner";
-import { invokeModel } from "../workers/triage-service";
+import type { AIProvider } from "../lib/ai";
 
 // Mock the database pool and transactions interface.
 vi.mock("../db", () => ({
@@ -23,9 +23,9 @@ vi.mock("../db", () => ({
 }));
 
 // Mock the LLM provider invocation client.
-vi.mock("../workers/triage-service", () => ({
-  invokeModel: vi.fn(),
-}));
+const mockProvider: AIProvider = {
+  invoke: vi.fn(),
+};
 
 describe("AI Triage Retry & DLQ Mechanics", () => {
   beforeEach(() => {
@@ -48,8 +48,8 @@ describe("AI Triage Retry & DLQ Mechanics", () => {
     // Mock timeline events fetch
     (pool.query as any).mockResolvedValueOnce({ rows: [] });
 
-    // Mock invokeModel to reject with a transient API timeout error
-    vi.mocked(invokeModel).mockRejectedValueOnce(new Error("API Timeout"));
+    // Mock provider.invoke to reject with a transient API timeout error
+    vi.mocked(mockProvider.invoke).mockRejectedValueOnce(new Error("API Timeout"));
 
     const mockClient = { query: vi.fn() };
     vi.mocked(withTransaction).mockImplementationOnce(async (cb) => {
@@ -61,9 +61,8 @@ describe("AI Triage Retry & DLQ Mechanics", () => {
 
     await processTriageJob("sess_1", "proj_1", 1, {
       workerId: "test-worker",
-      model: "claude-3-haiku",
+      provider: mockProvider,
       maxAttempts: 3,
-      llmTimeoutMs: 1000,
     });
 
     // Check that update query was called to schedule retry
@@ -96,8 +95,8 @@ describe("AI Triage Retry & DLQ Mechanics", () => {
     // Mock timeline events fetch
     (pool.query as any).mockResolvedValueOnce({ rows: [] });
 
-    // Mock invokeModel to throw error
-    vi.mocked(invokeModel).mockRejectedValueOnce(new Error("Persistent Schema Error"));
+    // Mock provider.invoke to throw error
+    vi.mocked(mockProvider.invoke).mockRejectedValueOnce(new Error("Persistent Schema Error"));
 
     const mockClient = { query: vi.fn() };
     vi.mocked(withTransaction).mockImplementationOnce(async (cb) => {
@@ -109,9 +108,8 @@ describe("AI Triage Retry & DLQ Mechanics", () => {
 
     await processTriageJob("sess_1", "proj_1", 3, {
       workerId: "test-worker",
-      model: "claude-3-haiku",
+      provider: mockProvider,
       maxAttempts: 3,
-      llmTimeoutMs: 1000,
     });
 
     // Check dead_letter database state transition query args

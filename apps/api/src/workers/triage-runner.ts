@@ -7,7 +7,7 @@
 
 import crypto from "node:crypto";
 import { pool, withTransaction } from "../db";
-import { invokeModel } from "./triage-service";
+import type { AIProvider } from "../lib/ai";
 import { buildTriagePrompt } from "./triage-prompts";
 import { buildSessionTimeline } from "./triage/timeline";
 import { findCandidateIssueGroups } from "./triage/candidate-groups";
@@ -18,9 +18,8 @@ import { findCandidateIssueGroups } from "./triage/candidate-groups";
  */
 export interface RunnerOptions {
   workerId: string;    // Identity of the worker executing the job
-  model: string;       // Model code to use
+  provider: AIProvider; // Provider-agnostic LLM client (configured with model, timeout, etc.)
   maxAttempts: number; // Maximum attempts threshold before dead-lettering
-  llmTimeoutMs: number; // Network timeout limit for the Anthropic call
 }
 
 /**
@@ -51,7 +50,7 @@ export function getBackoffMs(attempts: number): number {
  * 2. Retrieve Timeline Events: fetches up to 100 summary events (errors, clicks, navs) chronologically.
  * 3. Retrieve Candidate Issue Groups: finds up to 20 open candidate groups in the project matching the event fingerprints.
  * 4. Assemble Prompt: calls buildTriagePrompt to generate formatted XML prompts.
- * 5. Call LLM Service: invokes invokeModel OUTSIDE any DB transaction to prevent connection locks if Anthropic is slow.
+ * 5. Call LLM Service: invokes provider.invoke() OUTSIDE any DB transaction to prevent connection locks if the LLM is slow.
  * 6. Transactional Persistence: enters a single DB transaction to commit outcomes:
  *     - Verifies lease ownership (status = 'leased' AND locked_by = workerId). If lost, aborts transaction.
  *     - If skipped/noise: updates session analyze flags.
@@ -66,7 +65,7 @@ export async function processTriageJob(
   attempts: number,
   options: RunnerOptions
 ): Promise<void> {
-  const { workerId, model, maxAttempts, llmTimeoutMs } = options;
+  const { workerId, provider, maxAttempts } = options;
   const startMonotonic = performance.now();
 
   try {
@@ -124,7 +123,7 @@ export async function processTriageJob(
     const prompt = buildTriagePrompt(context);
 
     // 5. Call LLM Service (Outside of DB Transaction to prevent connection pool block)
-    const llmResult = await invokeModel(model, prompt, { timeoutMs: llmTimeoutMs });
+    const llmResult = await provider.invoke(prompt);
     const triageData = llmResult.data;
 
     // 6. Transactional Persistence & Lease Verification
@@ -343,7 +342,7 @@ export async function processTriageJob(
           triageRunId,
           sessionId,
           projectId,
-          model,
+          llmResult.model,
           llmResult.input_tokens ?? null,
           llmResult.output_tokens ?? null,
           updateTime,

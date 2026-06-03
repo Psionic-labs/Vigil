@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { pool } from "../db";
 import { processTriageJob } from "../workers/triage-runner";
-import { invokeModel } from "../workers/triage-service";
+import type { AIProvider } from "../lib/ai";
 
 const mockClient = {
   query: vi.fn(),
@@ -25,10 +25,10 @@ vi.mock("../db", () => ({
   }),
 }));
 
-// Mock the Claude model invocation service
-vi.mock("../workers/triage-service", () => ({
-  invokeModel: vi.fn(),
-}));
+// Mock the LLM provider
+const mockProvider: AIProvider = {
+  invoke: vi.fn(),
+};
 
 describe("AI Triage Idempotency & Lease Guard", () => {
   beforeEach(() => {
@@ -47,8 +47,8 @@ describe("AI Triage Idempotency & Lease Guard", () => {
     // Mock event timeline fetch
     (pool.query as any).mockResolvedValueOnce({ rows: [] });
 
-    // Mock successful Claude API result
-    vi.mocked(invokeModel).mockResolvedValueOnce({
+    // Mock successful LLM result
+    vi.mocked(mockProvider.invoke).mockResolvedValueOnce({
       data: {
         session_summary: "Test",
         goal_completed: true,
@@ -58,6 +58,7 @@ describe("AI Triage Idempotency & Lease Guard", () => {
         issue_group_id: null,
         issues: [],
       },
+      model: "openrouter/owl-alpha",
     });
 
     // Mock lease validation query to return empty rows (worker lost ownership)
@@ -72,9 +73,8 @@ describe("AI Triage Idempotency & Lease Guard", () => {
 
     await processTriageJob("sess_1", "proj_1", 1, {
       workerId: "test-worker",
-      model: "claude-3-haiku",
+      provider: mockProvider,
       maxAttempts: 3,
-      llmTimeoutMs: 1000,
     });
 
     // Verify the lease ownership query ran
@@ -104,8 +104,8 @@ describe("AI Triage Idempotency & Lease Guard", () => {
     // Mock event timeline fetch
     (pool.query as any).mockResolvedValueOnce({ rows: [] });
 
-    // Mock successful Claude API result
-    vi.mocked(invokeModel).mockResolvedValueOnce({
+    // Mock successful LLM result
+    vi.mocked(mockProvider.invoke).mockResolvedValueOnce({
       data: {
         session_summary: "Duplicate test",
         goal_completed: false,
@@ -125,6 +125,7 @@ describe("AI Triage Idempotency & Lease Guard", () => {
           },
         ],
       },
+      model: "openrouter/owl-alpha",
     });
 
     // Mock lease validation to pass, but throw 23505 on issue instance insert
@@ -145,9 +146,8 @@ describe("AI Triage Idempotency & Lease Guard", () => {
 
     await processTriageJob("sess_1", "proj_1", 1, {
       workerId: "test-worker",
-      model: "claude-3-haiku",
+      provider: mockProvider,
       maxAttempts: 3,
-      llmTimeoutMs: 1000,
     });
 
     // Verify it attempted to insert the instance
@@ -175,8 +175,8 @@ describe("AI Triage Idempotency & Lease Guard", () => {
     // Mock event timeline fetch
     (pool.query as any).mockResolvedValueOnce({ rows: [] });
 
-    // Mock invokeModel to throw a transient error
-    vi.mocked(invokeModel).mockRejectedValueOnce(new Error("Transient call failure"));
+    // Mock provider.invoke to throw a transient error
+    vi.mocked(mockProvider.invoke).mockRejectedValueOnce(new Error("Transient call failure"));
 
     // Mock the update query in handleJobFailure to return rowCount = 0 (meaning lease lost)
     mockClient.query.mockImplementation((queryText) => {
@@ -190,9 +190,8 @@ describe("AI Triage Idempotency & Lease Guard", () => {
 
     await processTriageJob("sess_1", "proj_1", 1, {
       workerId: "test-worker",
-      model: "claude-3-haiku",
+      provider: mockProvider,
       maxAttempts: 3,
-      llmTimeoutMs: 1000,
     });
 
     // Verify it attempted to update the failed status check with locked_by constraint
@@ -227,7 +226,7 @@ describe("AI Triage Idempotency & Lease Guard", () => {
     });
 
     // Mock LLM result returning a valid duplicate ID but no issues list
-    vi.mocked(invokeModel).mockResolvedValueOnce({
+    vi.mocked(mockProvider.invoke).mockResolvedValueOnce({
       data: {
         session_summary: "Duplicate of valid group",
         goal_completed: true,
@@ -236,6 +235,7 @@ describe("AI Triage Idempotency & Lease Guard", () => {
         issue_group_action: "duplicate issue group",
         issue_group_id: "igr_valid_123",
       },
+      model: "openrouter/owl-alpha",
     });
 
     // Mock transaction query implementation
@@ -251,9 +251,8 @@ describe("AI Triage Idempotency & Lease Guard", () => {
 
     await processTriageJob("sess_valid_dup", "proj_1", 1, {
       workerId: "test-worker",
-      model: "claude-3-haiku",
+      provider: mockProvider,
       maxAttempts: 3,
-      llmTimeoutMs: 1000,
     });
 
     // Verify INSERT INTO issue_instances has null root_cause and suggested_fix
@@ -284,7 +283,7 @@ describe("AI Triage Idempotency & Lease Guard", () => {
     });
 
     // Mock LLM result returning an invalid duplicate ID not matching candidates
-    vi.mocked(invokeModel).mockResolvedValueOnce({
+    vi.mocked(mockProvider.invoke).mockResolvedValueOnce({
       data: {
         session_summary: "Duplicate of invalid group",
         goal_completed: true,
@@ -293,6 +292,7 @@ describe("AI Triage Idempotency & Lease Guard", () => {
         issue_group_action: "duplicate issue group",
         issue_group_id: "igr_hallucinated_999",
       },
+      model: "openrouter/owl-alpha",
     });
 
     // Mock transaction queries
@@ -307,9 +307,8 @@ describe("AI Triage Idempotency & Lease Guard", () => {
 
     await processTriageJob("sess_invalid_dup", "proj_1", 1, {
       workerId: "test-worker",
-      model: "claude-3-haiku",
+      provider: mockProvider,
       maxAttempts: 3,
-      llmTimeoutMs: 1000,
     });
 
     // Verify warnings logged
