@@ -42,6 +42,6 @@ describe("buildRepairPrompt", () => {
     const prompt = buildRepairPrompt("{}", "Validation failure");
 
     expect(prompt).toContain('"confidence": number (0.0 to 1.0)');
-    expect(prompt).toContain('"reasoning": "string explanation of the triage outcome');
+    expect(prompt).toContain('"reasoning": "string explanation of the triage outcome (max 2000 characters)",');
   });
 });

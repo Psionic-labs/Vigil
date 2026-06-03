@@ -56,7 +56,7 @@ Target JSON Schema Description:
         }
       ]
     }
-  ]
+  ] | null
 }
 
 Constraints & Rules:

@@ -647,6 +647,7 @@ async function handleJobFailure(
           error_type = EXCLUDED.error_type,
           attempt_number = COALESCE(ai_triage_runs.attempt_number, EXCLUDED.attempt_number),
           failure_stage = COALESCE(ai_triage_runs.failure_stage, EXCLUDED.failure_stage),
+          job_id = COALESCE(ai_triage_runs.job_id, EXCLUDED.job_id),
           repair_count = COALESCE(ai_triage_runs.repair_count, EXCLUDED.repair_count),
           completed_at = EXCLUDED.completed_at
         `,
