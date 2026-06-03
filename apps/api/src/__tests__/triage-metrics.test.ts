@@ -182,11 +182,12 @@ describe("AI Triage Queue Metrics Endpoint", () => {
     expect(lastCall).toBeDefined();
     const queryParams = (lastCall?.[1] ?? []) as any[];
     expect(queryParams).toBeDefined();
-    expect(queryParams.length).toBe(3);
+    expect(queryParams.length).toBe(4);
 
     const passedNow = queryParams[0];
     const passedMaxAttempts = queryParams[1];
     const passedStaleThreshold = queryParams[2];
+    const passedOneDayAgo = queryParams[3];
 
     expect(passedNow).toBeGreaterThanOrEqual(nowBefore);
     expect(passedNow).toBeLessThanOrEqual(nowAfter);
@@ -194,5 +195,6 @@ describe("AI Triage Queue Metrics Endpoint", () => {
 
     // Stale threshold should be: now - 600000 (10 minutes)
     expect(passedStaleThreshold).toBe(passedNow - 600000);
+    expect(passedOneDayAgo).toBe(passedNow - 24 * 60 * 60 * 1000);
   });
 });

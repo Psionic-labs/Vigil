@@ -92,9 +92,10 @@ metricsRouter.get("/", async (c: Context<AppEnv>) => {
     if (!Number.isInteger(leaseTimeoutMs) || leaseTimeoutMs <= 0) {
       leaseTimeoutMs = 300000;
     }
+    const oneDayAgo = now - 24 * 60 * 60 * 1000;
     // Execute a single aggregated query to calculate all triage queue metrics in PostgreSQL.
     // Using a single query with FILTER clauses prevents multi-query connection overhead,
-    // ensuring the metrics endpoint remains extremely lightweight (efficient single-scan execution).
+    // and constraining to non-completed or recent completed jobs avoids scanning full table history.
     const dbRes = await pool.query(
       `
       SELECT
@@ -111,8 +112,9 @@ metricsRouter.get("/", async (c: Context<AppEnv>) => {
         -- jobs_completed: total successfully triaged and persisted session jobs.
         COUNT(*) FILTER (WHERE status = 'completed') AS jobs_completed
       FROM triage_jobs
+      WHERE status != 'completed' OR created_at >= $4
       `,
-      [now, maxAttempts, now - leaseTimeoutMs]
+      [now, maxAttempts, now - leaseTimeoutMs, oneDayAgo]
     );
 
     const row = dbRes.rows[0];
