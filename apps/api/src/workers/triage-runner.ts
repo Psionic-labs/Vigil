@@ -12,6 +12,7 @@ import { buildTriagePrompt } from "./triage-prompts";
 import { buildSessionTimeline } from "./triage/timeline";
 import { findCandidateIssueGroups } from "./triage/candidate-groups";
 import { buildRepairPrompt } from "./triage/repair-prompt";
+import { createIssueGroup, attachIssueGroup } from "./triage/issue-group-actions";
 
 /**
  * RunnerOptions
@@ -60,6 +61,66 @@ export function getBackoffMs(attempts: number): number {
  *     - Upserts ai_triage_runs log entry.
  *     - Updates triage_jobs status to 'completed'.
  */
+/**
+ * handleJobSkip
+ * Records a skipped run in ai_triage_runs and completes the queue job inside a transaction.
+ */
+async function handleJobSkip(
+  sessionId: string,
+  projectId: string,
+  reason: string,
+  workerId: string,
+  startMonotonic: number
+): Promise<void> {
+  const now = Date.now();
+  const durationMs = Math.round(performance.now() - startMonotonic);
+  try {
+    await withTransaction(async (client) => {
+      // 1. Complete queue job
+      await client.query(
+        `
+        UPDATE triage_jobs SET
+          status = 'completed',
+          completed_at = $1,
+          updated_at = $1
+        WHERE session_id = $2
+        `,
+        [now, sessionId]
+      );
+
+      // 2. Record skipped run inside ai_triage_runs
+      const runId = crypto.randomUUID();
+      await client.query(
+        `
+        INSERT INTO ai_triage_runs (
+          id, session_id, project_id, model, prompt_version, status,
+          input_tokens, output_tokens, error_message, error_type,
+          attempt_number, failure_stage, job_id, repair_count, created_at, completed_at, duration_ms, updated_at
+        ) VALUES ($1, $2, $3, 'none', 'v1', 'skipped', 0, 0, $4, NULL, 0, NULL, $2, 0, $5, $5, $6, $5)
+        ON CONFLICT (session_id) DO UPDATE SET
+          status = EXCLUDED.status,
+          error_message = EXCLUDED.error_message,
+          completed_at = EXCLUDED.completed_at,
+          duration_ms = EXCLUDED.duration_ms,
+          updated_at = EXCLUDED.updated_at
+        `,
+        [runId, sessionId, projectId, reason, now, durationMs]
+      );
+    });
+
+    console.info(
+      JSON.stringify({
+        level: "info",
+        action: "triage_completed",
+        sessionId,
+        status: "skipped",
+      })
+    );
+  } catch (err) {
+    console.error("Critical failure updating triage_jobs skip state in database", err);
+  }
+}
+
 export async function processTriageJob(
   sessionId: string,
   projectId: string,
@@ -84,19 +145,19 @@ export async function processTriageJob(
     const sessionRow = sessionRes.rows[0];
     if (!sessionRow) {
       // Session row does not exist -> terminal dead_letter
-      await handleJobFailure(sessionId, projectId, attempts, new Error("Session row not found"), maxAttempts, workerId, "missing_session");
+      await handleJobFailure(sessionId, projectId, attempts, new Error("Session row not found"), maxAttempts, workerId, "missing_session", startMonotonic);
       return;
     }
 
     if (sessionRow.ended_at === null || sessionRow.ended_at === undefined) {
-      // Session is not yet finalized -> terminal dead_letter (or wait for finalization)
-      await handleJobFailure(sessionId, projectId, attempts, new Error("Session is not finalized"), maxAttempts, workerId, "session_not_eligible");
+      // Session is not yet finalized -> record skipped run
+      await handleJobSkip(sessionId, projectId, "session_not_finalized", workerId, startMonotonic);
       return;
     }
 
     if (sessionRow.ai_analyzed_at !== null && sessionRow.ai_analyzed_at !== undefined) {
-      // Session already analyzed in a previous execution -> terminal dead_letter
-      await handleJobFailure(sessionId, projectId, attempts, new Error("Session already analyzed"), maxAttempts, workerId, "session_not_eligible");
+      // Session already analyzed in a previous execution -> record skipped run
+      await handleJobSkip(sessionId, projectId, "session_already_analyzed", workerId, startMonotonic);
       return;
     }
 
@@ -153,8 +214,8 @@ export async function processTriageJob(
           INSERT INTO ai_triage_runs (
             id, session_id, project_id, model, prompt_version, status,
             input_tokens, output_tokens, error_message, error_type,
-            attempt_number, failure_stage, job_id, repair_count, created_at
-          ) VALUES ($1, $2, $3, $4, 'v1', 'repairing', $5, $6, $7, $8, 1, 'validation', $10, 0, $9)
+            attempt_number, failure_stage, job_id, repair_count, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, 'v1', 'repairing', $5, $6, $7, $8, 1, 'validation', $10, 0, $9, $9)
           ON CONFLICT (session_id) DO UPDATE SET
             status = EXCLUDED.status,
             input_tokens = EXCLUDED.input_tokens,
@@ -164,7 +225,8 @@ export async function processTriageJob(
             attempt_number = EXCLUDED.attempt_number,
             failure_stage = EXCLUDED.failure_stage,
             job_id = EXCLUDED.job_id,
-            repair_count = EXCLUDED.repair_count
+            repair_count = EXCLUDED.repair_count,
+            updated_at = EXCLUDED.updated_at
           `,
           [
             repairRunId,
@@ -231,8 +293,8 @@ export async function processTriageJob(
             INSERT INTO ai_triage_runs (
               id, session_id, project_id, model, prompt_version, status,
               input_tokens, output_tokens, error_message, error_type,
-              attempt_number, failure_stage, job_id, repair_count, created_at, completed_at
-            ) VALUES ($1, $2, $3, $4, 'v1', 'failed', $5, $6, $7, $8, 2, 'repair', $10, 1, $9, $9)
+              attempt_number, failure_stage, job_id, repair_count, created_at, completed_at, duration_ms, updated_at
+            ) VALUES ($1, $2, $3, $4, 'v1', 'failed', $5, $6, $7, $8, 2, 'repair', $10, 1, $9, $9, $11, $9)
             ON CONFLICT (session_id) DO UPDATE SET
               status = EXCLUDED.status,
               input_tokens = EXCLUDED.input_tokens,
@@ -243,7 +305,9 @@ export async function processTriageJob(
               failure_stage = EXCLUDED.failure_stage,
               job_id = EXCLUDED.job_id,
               repair_count = EXCLUDED.repair_count,
-              completed_at = EXCLUDED.completed_at
+              completed_at = EXCLUDED.completed_at,
+              duration_ms = EXCLUDED.duration_ms,
+              updated_at = EXCLUDED.updated_at
             `,
             [
               repairRunId,
@@ -256,6 +320,7 @@ export async function processTriageJob(
               actualRepairErr.code,
               Date.now(),
               jobId,
+              Math.round(performance.now() - startMonotonic),
             ]
           );
 
@@ -299,12 +364,12 @@ export async function processTriageJob(
       const triageRunId = crypto.randomUUID();
 
       // Step A: Update Session metadata based on categorization choice
-      if (!triageData.issue_detected || triageData.issue_group_action === "skipped/noise") {
+      if (triageData.issue_group_action === "ignore") {
         await client.query(
           `
           UPDATE sessions SET
             ai_analysis_skipped = true,
-            ai_skip_reason = 'skipped/noise',
+            ai_skip_reason = 'ignore',
             ai_analyzed_at = $1,
             ai_session_summary = $2,
             ai_goal_completed = $3,
@@ -329,102 +394,67 @@ export async function processTriageJob(
             sessionId,
           ]
         );
+        console.info(
+          JSON.stringify({
+            level: "info",
+            action: "issue_group_ignored",
+            sessionId,
+          })
+        );
       } else {
         // Step B: Issue detected. Determine action: Attach or Create
-        const candidateIds = new Set(candidates.map((c) => c.id));
-        const isDuplicateAction = triageData.issue_group_action === "duplicate issue group" && triageData.issue_group_id;
-        const isCandidateValid = isDuplicateAction && triageData.issue_group_id && candidateIds.has(triageData.issue_group_id);
-
         let targetGroupId: string;
 
-        if (isDuplicateAction && isCandidateValid) {
+        if (triageData.issue_group_action === "create") {
+          const primaryFp = timeline.fingerprints[0] || null;
+          targetGroupId = await createIssueGroup(client, projectId, primaryFp, triageData, updateTime, sessionId);
+          console.info(
+            JSON.stringify({
+              level: "info",
+              action: "issue_group_created",
+              sessionId,
+              issueGroupId: targetGroupId,
+              fingerprint: primaryFp,
+            })
+          );
+        } else if (triageData.issue_group_action === "attach") {
           targetGroupId = triageData.issue_group_id!;
-
-          // Increment affected sessions and update last seen timestamp of existing group
-          const updateRes = await client.query(
-            `
-            UPDATE issue_groups SET
-              affected_session_count = affected_session_count + 1,
-              last_seen_at = GREATEST(last_seen_at, $1),
-              updated_at = $1
-            WHERE id = $2 AND project_id = $3
-            `,
-            [updateTime, targetGroupId, projectId]
+          await attachIssueGroup(client, projectId, targetGroupId, updateTime, sessionId);
+          console.info(
+            JSON.stringify({
+              level: "info",
+              action: "issue_group_attached",
+              sessionId,
+              issueGroupId: targetGroupId,
+            })
           );
-          if ((updateRes.rowCount ?? 0) === 0) {
-            throw new Error(`Target issue group ${targetGroupId} not found in project ${projectId}`);
-          }
         } else {
-          if (isDuplicateAction && !isCandidateValid) {
-            console.warn(`[TriageRunner] LLM returned issue_group_id ${triageData.issue_group_id} which is not in candidate groups. Falling back to creating a new issue group.`);
-          }
-          // Create new issue group
-          targetGroupId = `igr_${crypto.randomUUID().replace(/-/g, "").substring(0, 16)}`;
-          const firstIssue = triageData.issues?.[0] || {
-            title: triageData.session_summary || "Unknown Issue",
-            root_cause: isDuplicateAction
-              ? "Automatically created because LLM returned an invalid/hallucinated duplicate issue group ID."
-              : "No detail provided",
-            suggested_fix: isDuplicateAction
-              ? "Review this issue group and associate it with a correct group if needed."
-              : "No fix provided",
-            severity: "P2" as const,
-            confidence: 0.5,
-            reproduction_steps: [],
-            evidence: [],
-          };
-
-          const primaryFp = timeline.fingerprints[0] || crypto.createHash("sha256").update(sessionId).digest("hex");
-
-          await client.query(
-            `
-            INSERT INTO issue_groups (
-              id, project_id, fingerprint, title, root_cause, suggested_fix,
-              severity, status, confidence, reproduction_steps_json, evidence_summary,
-              affected_session_count, first_seen_at, last_seen_at, created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', $8, $9, $10, 1, $11, $11, $11, $11)
-            `,
-            [
-              targetGroupId,
-              projectId,
-              primaryFp,
-              firstIssue.title,
-              firstIssue.root_cause,
-              firstIssue.suggested_fix,
-              firstIssue.severity,
-              firstIssue.confidence,
-              JSON.stringify(firstIssue.reproduction_steps),
-              JSON.stringify(firstIssue.evidence),
-              updateTime,
-            ]
-          );
+          throw new Error(`Unsupported issue group action: ${triageData.issue_group_action}`);
         }
 
         // Create issue instance record linked to the target group
         const instanceId = `inst_${crypto.randomUUID().replace(/-/g, "").substring(0, 16)}`;
-        const isInvalidDuplicateFallback = isDuplicateAction && !isCandidateValid;
         const issueDetail = triageData.issues?.[0] || {
           title: triageData.session_summary || "Session Issue Instance",
-          root_cause: isInvalidDuplicateFallback
-            ? "Automatically created because LLM returned an invalid/hallucinated duplicate issue group ID."
-            : null,
-          suggested_fix: isInvalidDuplicateFallback
-            ? "Review this issue group and associate it with a correct group if needed."
-            : null,
+          root_cause: null,
+          suggested_fix: null,
           severity: "P2" as const,
           confidence: 0.5,
           evidence: [],
           reproduction_steps: [],
         };
 
-        await client.query(
+        const primaryFp = timeline.fingerprints[0] || null;
+
+        const insertRes = await client.query(
           `
           INSERT INTO issue_instances (
             id, issue_group_id, session_id, project_id, title, root_cause,
             suggested_fix, severity, timestamp_ms, confidence, evidence_json,
-            reproduction_json, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-          ON CONFLICT (session_id, issue_group_id) DO NOTHING
+            reproduction_json, created_at, fingerprint, ai_confidence, detected_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          ON CONFLICT (issue_group_id, session_id) DO NOTHING
+          RETURNING 1
           `,
           [
             instanceId,
@@ -440,8 +470,35 @@ export async function processTriageJob(
             JSON.stringify(issueDetail.evidence),
             JSON.stringify(issueDetail.reproduction_steps),
             updateTime,
+            primaryFp,
+            issueDetail.confidence,
+            Number(sessionRow.started_at),
+            updateTime
           ]
         );
+
+        if (insertRes.rowCount && insertRes.rowCount > 0) {
+          // Increment count and update timestamp
+          await client.query(
+            `
+            UPDATE issue_groups SET
+              affected_session_count = affected_session_count + 1,
+              last_seen_at = GREATEST(last_seen_at, $1),
+              updated_at = $1
+            WHERE id = $2
+            `,
+            [updateTime, targetGroupId]
+          );
+
+          console.info(
+            JSON.stringify({
+              level: "info",
+              action: "issue_instance_created",
+              sessionId,
+              issueGroupId: targetGroupId,
+            })
+          );
+        }
 
         // Update session's issue counts
         await client.query(
@@ -478,13 +535,16 @@ export async function processTriageJob(
       }
 
       // Step C: Log successful AI triage run
+      const runStatus = triageData.issue_group_action === "ignore" ? "ignored" : "completed";
+      const triageDurationMs = Math.round(performance.now() - startMonotonic);
+
       await client.query(
         `
         INSERT INTO ai_triage_runs (
           id, session_id, project_id, model, prompt_version, status,
           input_tokens, output_tokens, error_message, error_type,
-          attempt_number, failure_stage, job_id, repair_count, created_at, completed_at
-        ) VALUES ($1, $2, $3, $4, 'v1', 'completed', $5, $6, NULL, NULL, $9, NULL, $11, $10, $7, $8)
+          attempt_number, failure_stage, job_id, repair_count, created_at, completed_at, duration_ms, updated_at
+        ) VALUES ($1, $2, $3, $4, 'v1', $12, $5, $6, NULL, NULL, $9, NULL, $11, $10, $7, $8, $13, $8)
         ON CONFLICT (session_id) DO UPDATE SET
           status = EXCLUDED.status,
           input_tokens = EXCLUDED.input_tokens,
@@ -495,7 +555,9 @@ export async function processTriageJob(
           failure_stage = EXCLUDED.failure_stage,
           job_id = EXCLUDED.job_id,
           repair_count = EXCLUDED.repair_count,
-          completed_at = EXCLUDED.completed_at
+          completed_at = EXCLUDED.completed_at,
+          duration_ms = EXCLUDED.duration_ms,
+          updated_at = EXCLUDED.updated_at
         `,
         [
           triageRunId,
@@ -509,7 +571,18 @@ export async function processTriageJob(
           attemptNumber,
           repairCount,
           jobId,
+          runStatus,
+          triageDurationMs,
         ]
+      );
+
+      console.info(
+        JSON.stringify({
+          level: "info",
+          action: "triage_completed",
+          sessionId,
+          status: runStatus,
+        })
       );
 
       // Step D: Update queue job row status to completed
@@ -546,7 +619,7 @@ export async function processTriageJob(
       return; // Already handled/logged
     }
     // Handle processing/network failures and coordinate retries
-    await handleJobFailure(sessionId, projectId, attempts, err, maxAttempts, workerId);
+    await handleJobFailure(sessionId, projectId, attempts, err, maxAttempts, workerId, undefined, startMonotonic);
   }
 }
 
@@ -575,12 +648,14 @@ async function handleJobFailure(
   error: Error,
   maxAttempts: number,
   workerId: string,
-  overrideReason?: string
+  overrideReason?: string,
+  startMonotonic?: number
 ): Promise<void> {
   const now = Date.now();
   const isDeadLetter = overrideReason !== undefined || attempts >= maxAttempts;
   const reason = overrideReason || (attempts >= maxAttempts ? "max_attempts_reached" : "triage_failed");
   const jobId = sessionId;
+  const durationMs = startMonotonic ? Math.round(performance.now() - startMonotonic) : 0;
 
   try {
     await withTransaction(async (client) => {
@@ -639,8 +714,8 @@ async function handleJobFailure(
         INSERT INTO ai_triage_runs (
           id, session_id, project_id, model, prompt_version, status,
           input_tokens, output_tokens, error_message, error_type,
-          attempt_number, failure_stage, job_id, repair_count, created_at, completed_at
-        ) VALUES ($1, $2, $3, 'unknown', 'v1', 'failed', NULL, NULL, $4, $5, $6, $7, $9, 0, $8, $8)
+          attempt_number, failure_stage, job_id, repair_count, created_at, completed_at, duration_ms, updated_at
+        ) VALUES ($1, $2, $3, 'unknown', 'v1', 'failed', NULL, NULL, $4, $5, $6, $7, $9, 0, $8, $8, $10, $8)
         ON CONFLICT (session_id) DO UPDATE SET
           status = EXCLUDED.status,
           error_message = EXCLUDED.error_message,
@@ -649,9 +724,11 @@ async function handleJobFailure(
           failure_stage = COALESCE(ai_triage_runs.failure_stage, EXCLUDED.failure_stage),
           job_id = COALESCE(ai_triage_runs.job_id, EXCLUDED.job_id),
           repair_count = COALESCE(ai_triage_runs.repair_count, EXCLUDED.repair_count),
-          completed_at = EXCLUDED.completed_at
+          completed_at = EXCLUDED.completed_at,
+          duration_ms = EXCLUDED.duration_ms,
+          updated_at = EXCLUDED.updated_at
         `,
-        [runId, sessionId, projectId, error.message, errType, attemptNum, failureStage, now, jobId]
+        [runId, sessionId, projectId, error.message, errType, attemptNum, failureStage, now, jobId, durationMs]
       );
     });
 

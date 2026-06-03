@@ -16,7 +16,7 @@ const validSkippedOutput = {
   confidence: 0.95,
   reasoning: "No friction/errors detected in the telemetry.",
   issue_detected: false,
-  issue_group_action: "skipped/noise",
+  issue_group_action: "ignore",
   issue_group_id: null,
 };
 
@@ -27,7 +27,7 @@ const validNewIssueOutput = {
   confidence: 0.9,
   reasoning: "Multiple checkout crash errors identified.",
   issue_detected: true,
-  issue_group_action: "new issue group",
+  issue_group_action: "create",
   issue_group_id: null,
   issues: [
     {
@@ -55,29 +55,29 @@ const validDuplicateOutput = {
   confidence: 0.85,
   reasoning: "Error fingerprint matches known duplicate issue group.",
   issue_detected: true,
-  issue_group_action: "duplicate issue group",
+  issue_group_action: "attach",
   issue_group_id: "igr_abc123",
 };
 
 describe("AISchema Zod Validation", () => {
   // --- Valid Structures ---
 
-  it("should accept valid skipped/noise output", () => {
+  it("should accept valid ignore output", () => {
     const result = AISchema.safeParse(validSkippedOutput);
     expect(result.success).toBe(true);
   });
 
-  it("should accept valid new issue group output", () => {
+  it("should accept valid create output", () => {
     const result = AISchema.safeParse(validNewIssueOutput);
     expect(result.success).toBe(true);
   });
 
-  it("should accept valid duplicate issue group output", () => {
+  it("should accept valid attach output", () => {
     const result = AISchema.safeParse(validDuplicateOutput);
     expect(result.success).toBe(true);
   });
 
-  it("should reject skipped/noise with empty issues array", () => {
+  it("should reject ignore with empty issues array", () => {
     const result = AISchema.safeParse({
       ...validSkippedOutput,
       issues: [],
@@ -122,10 +122,10 @@ describe("AISchema Zod Validation", () => {
 
   // --- Inconsistent State Combinations ---
 
-  it("should reject issue_detected=false with non-skipped action", () => {
+  it("should reject issue_detected=false with non-ignored action", () => {
     const result = AISchema.safeParse({
       ...validSkippedOutput,
-      issue_group_action: "new issue group",
+      issue_group_action: "create",
     });
     expect(result.success).toBe(false);
   });
@@ -146,18 +146,18 @@ describe("AISchema Zod Validation", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject issue_detected=true with skipped/noise action", () => {
+  it("should reject issue_detected=true with ignore action", () => {
     const result = AISchema.safeParse({
       session_summary: "Issue detected",
       goal_completed: false,
       friction_score: 80,
       issue_detected: true,
-      issue_group_action: "skipped/noise",
+      issue_group_action: "ignore",
     });
     expect(result.success).toBe(false);
   });
 
-  it("should reject new issue group with non-null issue_group_id", () => {
+  it("should reject create action with non-null issue_group_id", () => {
     const result = AISchema.safeParse({
       ...validNewIssueOutput,
       issue_group_id: "igr_abc123",
@@ -165,7 +165,7 @@ describe("AISchema Zod Validation", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject new issue group with empty issues array", () => {
+  it("should reject create action with empty issues array", () => {
     const result = AISchema.safeParse({
       ...validNewIssueOutput,
       issues: [],
@@ -173,7 +173,7 @@ describe("AISchema Zod Validation", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject duplicate issue group with null issue_group_id", () => {
+  it("should reject attach action with null issue_group_id", () => {
     const result = AISchema.safeParse({
       ...validDuplicateOutput,
       issue_group_id: null,
@@ -181,7 +181,7 @@ describe("AISchema Zod Validation", () => {
     expect(result.success).toBe(false);
   });
 
-  it("should reject duplicate issue group with undefined issue_group_id", () => {
+  it("should reject attach action with undefined issue_group_id", () => {
     const result = AISchema.safeParse({
       ...validDuplicateOutput,
       issue_group_id: undefined,

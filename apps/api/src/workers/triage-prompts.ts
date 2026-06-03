@@ -98,10 +98,10 @@ ${candidatesContainerXml}
 
 Task Instructions:
 1. Analyze the timeline for user friction (JS errors, network request failures, rage clicks, dead clicks).
-2. If there are no actual bugs or issues in this session (e.g. only normal navigation, or expected/benign network requests, or no errors at all), set "issue_detected" to false, "issue_group_action" to "skipped/noise", set "issue_group_id" to null, and set "issues" to null.
+2. If there are no actual bugs or issues in this session (e.g. only normal navigation, or expected/benign network requests, or no errors at all), set "issue_detected" to false, "issue_group_action" to "ignore", set "issue_group_id" to null, and set "issues" to null.
 3. If you detect an actual issue, try to see if it matches any of the candidate issue groups provided above based on matching fingerprint and symptoms:
-   - If it matches a candidate issue group, set "issue_detected" to true, "issue_group_action" to "duplicate issue group", and set "issue_group_id" to the matching candidate's id.
-   - If it does NOT match any existing candidate issue groups, set "issue_detected" to true, "issue_group_action" to "new issue group", leave "issue_group_id" null, and fill in the "issues" array with a detailed description of the new issue to create.
+   - If it matches a candidate issue group, set "issue_detected" to true, "issue_group_action" to "attach", and set "issue_group_id" to the matching candidate's id.
+   - If it does NOT match any existing candidate issue groups, set "issue_detected" to true, "issue_group_action" to "create", leave "issue_group_id" null, and fill in the "issues" array with a detailed description of the new issue to create.
 4. Populate "session_summary", "goal_completed" (whether the user successfully completed their path without being blocked), and "friction_score" (0 to 100).
 5. For the session overall triage assessment, you must determine:
    - "confidence": confidence level of this overall triage assessment between 0.0 and 1.0.
@@ -122,7 +122,7 @@ JSON Schema structure:
   "confidence": number (0.0 to 1.0),
   "reasoning": "explanation of triage decision",
   "issue_detected": true | false,
-  "issue_group_action": "skipped/noise" | "duplicate issue group" | "new issue group",
+  "issue_group_action": "create" | "attach" | "ignore",
   "issue_group_id": "string if duplicate issue group, or null",
   "issues": [
     {

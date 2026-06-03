@@ -17,7 +17,7 @@ const validTriageOutput = {
   confidence: 0.9,
   reasoning: "Multiple checkout crash errors identified.",
   issue_detected: true,
-  issue_group_action: "new issue group",
+  issue_group_action: "create",
   issue_group_id: null,
   issues: [
     {

@@ -173,9 +173,9 @@ describe("buildTriagePrompt", () => {
   it("should include all expected issue_group_action values in the schema", () => {
     const prompt = buildTriagePrompt(makeContext());
 
-    expect(prompt).toContain("skipped/noise");
-    expect(prompt).toContain("duplicate issue group");
-    expect(prompt).toContain("new issue group");
+    expect(prompt).toContain("create");
+    expect(prompt).toContain("attach");
+    expect(prompt).toContain("ignore");
   });
 
   it("should include task instructions for the model", () => {

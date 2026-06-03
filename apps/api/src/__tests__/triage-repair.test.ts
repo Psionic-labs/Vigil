@@ -33,7 +33,7 @@ const validTriageResponse = {
   confidence: 0.95,
   reasoning: "Telemetry logs indicate checkout flow succeeded with zero errors.",
   issue_detected: false,
-  issue_group_action: "skipped/noise",
+  issue_group_action: "ignore",
   issue_group_id: null,
 };
 
@@ -113,7 +113,7 @@ describe("AI Triage Output Validation and Repair Loop", () => {
       ])
     );
 
-    // Verify successful repair writes final run as 'completed'
+    // Verify successful repair writes final run as 'ignored'
     expect(mockClient.query).toHaveBeenCalledWith(
       expect.stringContaining("INSERT INTO ai_triage_runs"),
       expect.arrayContaining([
@@ -121,7 +121,7 @@ describe("AI Triage Output Validation and Repair Loop", () => {
         1, // repair_count
       ])
     );
-    const completedRunCall = mockClient.query.mock.calls.find(c => c[0].includes("INSERT INTO ai_triage_runs") && c[0].includes("'completed'"));
+    const completedRunCall = mockClient.query.mock.calls.find(c => c[0].includes("INSERT INTO ai_triage_runs") && c[1] && c[1].includes("ignored"));
     expect(completedRunCall).toBeDefined();
   });
 
@@ -150,7 +150,7 @@ describe("AI Triage Output Validation and Repair Loop", () => {
       friction_score: 5,
       reasoning: "Missed confidence",
       issue_detected: false,
-      issue_group_action: "skipped/noise",
+      issue_group_action: "ignore",
       issue_group_id: null,
     };
     vi.mocked(mockProvider.invoke).mockResolvedValueOnce({
