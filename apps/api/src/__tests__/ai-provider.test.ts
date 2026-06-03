@@ -14,6 +14,8 @@ const validTriageOutput = {
   session_summary: "User encountered checkout error.",
   goal_completed: false,
   friction_score: 95,
+  confidence: 0.9,
+  reasoning: "Multiple checkout crash errors identified.",
   issue_detected: true,
   issue_group_action: "new issue group",
   issue_group_id: null,
@@ -123,13 +125,13 @@ describe("OpenRouterProvider", () => {
     const result = await provider.invoke("Test prompt");
 
     expect(fetchSpy).toHaveBeenCalledOnce();
-    expect(result.data).toEqual(validTriageOutput);
+    expect(result.rawContent).toBe(JSON.stringify(validTriageOutput));
     expect(result.model).toBe("openrouter/owl-alpha");
     expect(result.input_tokens).toBe(150);
     expect(result.output_tokens).toBe(75);
 
     // Verify request structure
-    const callArgs = fetchSpy.mock.calls[0];
+    const callArgs = fetchSpy.mock.calls[0]!;
     const body = JSON.parse(callArgs[1]!.body as string);
     expect(body.model).toBe("openrouter/owl-alpha");
     expect(body.temperature).toBe(0);

@@ -11,14 +11,47 @@ import { AISchema, type AITriageOutput } from "../../workers/triage-service";
 
 /**
  * LLMResult
- * Represents a successfully parsed and validated LLM response.
- * Includes the Zod-validated data, token usage metrics, and the model identifier.
+ * Represents a successfully resolved LLM response.
+ * Includes the raw string response, token usage metrics, and the model identifier.
  */
 export interface LLMResult {
-  data: AITriageOutput;
+  rawContent: string;
   model: string;
   input_tokens?: number;
   output_tokens?: number;
+}
+
+/**
+ * AIValidationError
+ * Custom error class thrown when LLM output extraction, parsing, or schema validation fails.
+ */
+export class AIValidationError extends Error {
+  code: "json_parse_failed" | "schema_validation_failed";
+
+  constructor(
+    message: string,
+    code: "json_parse_failed" | "schema_validation_failed",
+    options?: { cause?: unknown }
+  ) {
+    super(message);
+    this.code = code;
+    this.name = "AIValidationError";
+    if (options && "cause" in options) {
+      (this as any).cause = options.cause;
+    }
+  }
+}
+
+// Module-private WeakMap to hold raw LLM content associated with validation errors.
+// This prevents logging/persisting raw output containing PII details while allowing the repair loop to inspect it.
+const rawOutputs = new WeakMap<Error, string>();
+
+export function setRawOutput(error: Error, raw: string): void {
+  rawOutputs.set(error, raw);
+}
+
+export function getRawOutput(error: Error): string | undefined {
+  return rawOutputs.get(error);
 }
 
 /**
@@ -27,8 +60,8 @@ export interface LLMResult {
  *
  * Contracts:
  * - Providers MUST NOT implement retry logic. Retries are managed externally by the triage runner.
- * - Providers MUST validate the raw LLM response structure before attempting JSON extraction.
- * - Providers MUST return a fully Zod-validated LLMResult or throw a descriptive error.
+ * - Providers MUST validate the raw LLM response structure before returning.
+ * - Providers MUST return a LLMResult with raw content and model info.
  * - Providers MUST NOT log prompt text, API keys, or user PII.
  */
 export interface AIProvider {
@@ -48,7 +81,7 @@ export interface AIProvider {
  *
  * @param raw The raw text content from the LLM response.
  * @returns The Zod-validated AITriageOutput object.
- * @throws Error if JSON extraction, parsing, or schema validation fails.
+ * @throws AIValidationError if JSON extraction, parsing, or schema validation fails.
  */
 export function extractAndValidateJSON(raw: string): AITriageOutput {
   let jsonString = raw.trim();
@@ -70,17 +103,23 @@ export function extractAndValidateJSON(raw: string): AITriageOutput {
   try {
     parsedJson = JSON.parse(jsonString);
   } catch (parseErr: any) {
-    throw new (Error as any)(
+    const error = new AIValidationError(
       `Failed to parse LLM response as JSON: ${parseErr.message}. Raw text length: ${raw.length}`,
+      "json_parse_failed",
       { cause: parseErr }
     );
+    setRawOutput(error, raw);
+    throw error;
   }
 
   const zodResult = AISchema.safeParse(parsedJson);
   if (!zodResult.success) {
-    throw new Error(
-      `LLM JSON output did not conform to the schema: ${zodResult.error.message}`
+    const error = new AIValidationError(
+      `LLM JSON output did not conform to the schema: ${zodResult.error.message}`,
+      "schema_validation_failed"
     );
+    setRawOutput(error, raw);
+    throw error;
   }
 
   return zodResult.data;

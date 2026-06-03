@@ -12,7 +12,7 @@
  * - Never logs prompt text, API keys, or user PII.
  */
 
-import { extractAndValidateJSON, type AIProvider, type LLMResult } from "./provider";
+import { type AIProvider, type LLMResult } from "./provider";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -117,14 +117,12 @@ export class OpenRouterProvider implements AIProvider {
       }
       const rawContent = firstChoice.message.content;
 
-      const data = extractAndValidateJSON(rawContent);
-
       const usage = result.usage as
         | { prompt_tokens?: number; completion_tokens?: number }
         | undefined;
 
       return {
-        data,
+        rawContent,
         model: (result.model as string) ?? this.model,
         input_tokens: usage?.prompt_tokens,
         output_tokens: usage?.completion_tokens,

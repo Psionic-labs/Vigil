@@ -4,6 +4,6 @@
  */
 
 export type { AIProvider, LLMResult } from "./provider";
-export { extractAndValidateJSON } from "./provider";
+export { extractAndValidateJSON, AIValidationError, getRawOutput } from "./provider";
 export { OpenRouterProvider } from "./openrouter-provider";
 export type { OpenRouterConfig } from "./openrouter-provider";

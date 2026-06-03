@@ -7,10 +7,11 @@
 
 import crypto from "node:crypto";
 import { pool, withTransaction } from "../db";
-import type { AIProvider } from "../lib/ai";
+import { type AIProvider, AIValidationError, getRawOutput, extractAndValidateJSON } from "../lib/ai";
 import { buildTriagePrompt } from "./triage-prompts";
 import { buildSessionTimeline } from "./triage/timeline";
 import { findCandidateIssueGroups } from "./triage/candidate-groups";
+import { buildRepairPrompt } from "./triage/repair-prompt";
 
 /**
  * RunnerOptions
@@ -67,6 +68,7 @@ export async function processTriageJob(
 ): Promise<void> {
   const { workerId, provider, maxAttempts } = options;
   const startMonotonic = performance.now();
+  const jobId = sessionId;
 
   try {
     // 1. Session Eligibility Guard
@@ -123,8 +125,146 @@ export async function processTriageJob(
     const prompt = buildTriagePrompt(context);
 
     // 5. Call LLM Service (Outside of DB Transaction to prevent connection pool block)
-    const llmResult = await provider.invoke(prompt);
-    const triageData = llmResult.data;
+    let llmResult = await provider.invoke(prompt);
+    let triageData: any;
+    let repairCount = 0;
+    let attemptNumber = 1;
+
+    try {
+      triageData = extractAndValidateJSON(llmResult.rawContent);
+    } catch (err: any) {
+      if (err instanceof AIValidationError) {
+        console.warn(
+          JSON.stringify({
+            level: "warn",
+            workerId,
+            sessionId,
+            projectId,
+            action: "triage_repair_attempt",
+            message: `Initial LLM response failed validation (${err.code}). Attempting repair.`,
+            error: err.message,
+          })
+        );
+
+        // Record initial failure run status as 'repairing' inside database
+        const repairRunId = crypto.randomUUID();
+        await pool.query(
+          `
+          INSERT INTO ai_triage_runs (
+            id, session_id, project_id, model, prompt_version, status,
+            input_tokens, output_tokens, error_message, error_type,
+            attempt_number, failure_stage, job_id, repair_count, created_at
+          ) VALUES ($1, $2, $3, $4, 'v1', 'repairing', $5, $6, $7, $8, 1, 'validation', $10, 0, $9)
+          ON CONFLICT (session_id) DO UPDATE SET
+            status = EXCLUDED.status,
+            input_tokens = EXCLUDED.input_tokens,
+            output_tokens = EXCLUDED.output_tokens,
+            error_message = EXCLUDED.error_message,
+            error_type = EXCLUDED.error_type,
+            attempt_number = EXCLUDED.attempt_number,
+            failure_stage = EXCLUDED.failure_stage,
+            job_id = EXCLUDED.job_id,
+            repair_count = EXCLUDED.repair_count
+          `,
+          [
+            repairRunId,
+            sessionId,
+            projectId,
+            llmResult.model,
+            llmResult.input_tokens ?? null,
+            llmResult.output_tokens ?? null,
+            err.message,
+            err.code,
+            Date.now(),
+            jobId,
+          ]
+        );
+
+        // Get raw output from WeakMap
+        const rawOutput = getRawOutput(err) || llmResult.rawContent;
+
+        // Build repair prompt
+        const repairPrompt = buildRepairPrompt(rawOutput, err.message);
+
+        // Call LLM Service for repair attempt
+        const repairLlmResult = await provider.invoke(repairPrompt);
+        repairCount = 1;
+        attemptNumber = 2;
+
+        try {
+          triageData = extractAndValidateJSON(repairLlmResult.rawContent);
+          // Accumulate tokens
+          llmResult = {
+            ...repairLlmResult,
+            input_tokens: (llmResult.input_tokens ?? 0) + (repairLlmResult.input_tokens ?? 0),
+            output_tokens: (llmResult.output_tokens ?? 0) + (repairLlmResult.output_tokens ?? 0),
+          };
+
+          console.info(
+            JSON.stringify({
+              level: "info",
+              workerId,
+              sessionId,
+              projectId,
+              action: "triage_validation_success",
+              message: "LLM output repaired successfully.",
+            })
+          );
+        } catch (repairErr: any) {
+          const actualRepairErr = repairErr instanceof AIValidationError ? repairErr : new AIValidationError(repairErr.message, "json_parse_failed", { cause: repairErr });
+          
+          console.error(
+            JSON.stringify({
+              level: "error",
+              workerId,
+              sessionId,
+              projectId,
+              action: "triage_repair_failed",
+              message: `LLM repair attempt failed validation (${actualRepairErr.code}).`,
+              error: actualRepairErr.message,
+            })
+          );
+
+          // Update run record in DB to status = 'failed'
+          await pool.query(
+            `
+            INSERT INTO ai_triage_runs (
+              id, session_id, project_id, model, prompt_version, status,
+              input_tokens, output_tokens, error_message, error_type,
+              attempt_number, failure_stage, job_id, repair_count, created_at, completed_at
+            ) VALUES ($1, $2, $3, $4, 'v1', 'failed', $5, $6, $7, $8, 2, 'repair', $10, 1, $9, $9)
+            ON CONFLICT (session_id) DO UPDATE SET
+              status = EXCLUDED.status,
+              input_tokens = EXCLUDED.input_tokens,
+              output_tokens = EXCLUDED.output_tokens,
+              error_message = EXCLUDED.error_message,
+              error_type = EXCLUDED.error_type,
+              attempt_number = EXCLUDED.attempt_number,
+              failure_stage = EXCLUDED.failure_stage,
+              job_id = EXCLUDED.job_id,
+              repair_count = EXCLUDED.repair_count,
+              completed_at = EXCLUDED.completed_at
+            `,
+            [
+              repairRunId,
+              sessionId,
+              projectId,
+              repairLlmResult.model,
+              (llmResult.input_tokens ?? 0) + (repairLlmResult.input_tokens ?? 0),
+              (llmResult.output_tokens ?? 0) + (repairLlmResult.output_tokens ?? 0),
+              actualRepairErr.message,
+              actualRepairErr.code,
+              Date.now(),
+              jobId,
+            ]
+          );
+
+          throw actualRepairErr;
+        }
+      } else {
+        throw err;
+      }
+    }
 
     // 6. Transactional Persistence & Lease Verification
     await withTransaction(async (client) => {
@@ -159,7 +299,6 @@ export async function processTriageJob(
       const triageRunId = crypto.randomUUID();
 
       // Step A: Update Session metadata based on categorization choice
-      const confidence = triageData.issues?.[0]?.confidence ?? triageData.friction_score / 100;
       if (!triageData.issue_detected || triageData.issue_group_action === "skipped/noise") {
         await client.query(
           `
@@ -171,15 +310,22 @@ export async function processTriageJob(
             ai_goal_completed = $3,
             ai_friction_score = $4,
             ai_triage_confidence = $5,
+            ai_summary = $2,
+            goal_completed = $3,
+            friction_score = $4,
+            ai_confidence = $5,
+            ai_reasoning = $6,
+            ai_triaged_at = $1,
             updated_at = $1
-          WHERE id = $6
+          WHERE id = $7
           `,
           [
             updateTime,
             triageData.session_summary,
             triageData.goal_completed,
             triageData.friction_score,
-            confidence,
+            triageData.confidence,
+            triageData.reasoning,
             sessionId,
           ]
         );
@@ -301,8 +447,8 @@ export async function processTriageJob(
         await client.query(
           `
           UPDATE sessions SET
-            issue_instance_count = (SELECT COUNT(*)::integer FROM issue_instances WHERE session_id = $6),
-            issue_group_count = (SELECT COUNT(DISTINCT issue_group_id)::integer FROM issue_instances WHERE session_id = $6),
+            issue_instance_count = (SELECT COUNT(*)::integer FROM issue_instances WHERE session_id = $7),
+            issue_group_count = (SELECT COUNT(DISTINCT issue_group_id)::integer FROM issue_instances WHERE session_id = $7),
             ai_analyzed_at = $1,
             ai_analysis_skipped = false,
             ai_skip_reason = NULL,
@@ -310,15 +456,22 @@ export async function processTriageJob(
             ai_goal_completed = $3,
             ai_friction_score = $4,
             ai_triage_confidence = $5,
+            ai_summary = $2,
+            goal_completed = $3,
+            friction_score = $4,
+            ai_confidence = $5,
+            ai_reasoning = $6,
+            ai_triaged_at = $1,
             updated_at = $1
-          WHERE id = $6
+          WHERE id = $7
           `,
           [
             updateTime,
             triageData.session_summary,
             triageData.goal_completed,
             triageData.friction_score,
-            confidence,
+            triageData.confidence,
+            triageData.reasoning,
             sessionId,
           ]
         );
@@ -329,13 +482,19 @@ export async function processTriageJob(
         `
         INSERT INTO ai_triage_runs (
           id, session_id, project_id, model, prompt_version, status,
-          input_tokens, output_tokens, error_message, created_at, completed_at
-        ) VALUES ($1, $2, $3, $4, 'v1', 'completed', $5, $6, NULL, $7, $8)
+          input_tokens, output_tokens, error_message, error_type,
+          attempt_number, failure_stage, job_id, repair_count, created_at, completed_at
+        ) VALUES ($1, $2, $3, $4, 'v1', 'completed', $5, $6, NULL, NULL, $9, NULL, $11, $10, $7, $8)
         ON CONFLICT (session_id) DO UPDATE SET
           status = EXCLUDED.status,
           input_tokens = EXCLUDED.input_tokens,
           output_tokens = EXCLUDED.output_tokens,
           error_message = EXCLUDED.error_message,
+          error_type = EXCLUDED.error_type,
+          attempt_number = EXCLUDED.attempt_number,
+          failure_stage = EXCLUDED.failure_stage,
+          job_id = EXCLUDED.job_id,
+          repair_count = EXCLUDED.repair_count,
           completed_at = EXCLUDED.completed_at
         `,
         [
@@ -347,6 +506,9 @@ export async function processTriageJob(
           llmResult.output_tokens ?? null,
           updateTime,
           updateTime,
+          attemptNumber,
+          repairCount,
+          jobId,
         ]
       );
 
@@ -418,6 +580,7 @@ async function handleJobFailure(
   const now = Date.now();
   const isDeadLetter = overrideReason !== undefined || attempts >= maxAttempts;
   const reason = overrideReason || (attempts >= maxAttempts ? "max_attempts_reached" : "triage_failed");
+  const jobId = sessionId;
 
   try {
     await withTransaction(async (client) => {
@@ -467,18 +630,27 @@ async function handleJobFailure(
 
       // Record failed run inside ai_triage_runs (upsert)
       const runId = crypto.randomUUID();
+      const errType = error instanceof AIValidationError ? error.code : "job_failure";
+      const failureStage = error instanceof AIValidationError ? "validation" : "execution";
+      const attemptNum = error instanceof AIValidationError ? (attempts === 1 ? 1 : 2) : 1;
+
       await client.query(
         `
         INSERT INTO ai_triage_runs (
           id, session_id, project_id, model, prompt_version, status,
-          input_tokens, output_tokens, error_message, created_at, completed_at
-        ) VALUES ($1, $2, $3, 'unknown', 'v1', 'failed', NULL, NULL, $4, $5, $5)
+          input_tokens, output_tokens, error_message, error_type,
+          attempt_number, failure_stage, job_id, repair_count, created_at, completed_at
+        ) VALUES ($1, $2, $3, 'unknown', 'v1', 'failed', NULL, NULL, $4, $5, $6, $7, $9, 0, $8, $8)
         ON CONFLICT (session_id) DO UPDATE SET
           status = EXCLUDED.status,
           error_message = EXCLUDED.error_message,
+          error_type = EXCLUDED.error_type,
+          attempt_number = COALESCE(ai_triage_runs.attempt_number, EXCLUDED.attempt_number),
+          failure_stage = COALESCE(ai_triage_runs.failure_stage, EXCLUDED.failure_stage),
+          repair_count = COALESCE(ai_triage_runs.repair_count, EXCLUDED.repair_count),
           completed_at = EXCLUDED.completed_at
         `,
-        [runId, sessionId, projectId, error.message, now]
+        [runId, sessionId, projectId, error.message, errType, attemptNum, failureStage, now, jobId]
       );
     });
 

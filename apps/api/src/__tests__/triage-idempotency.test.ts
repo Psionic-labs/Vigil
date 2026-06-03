@@ -49,15 +49,16 @@ describe("AI Triage Idempotency & Lease Guard", () => {
 
     // Mock successful LLM result
     vi.mocked(mockProvider.invoke).mockResolvedValueOnce({
-      data: {
+      rawContent: JSON.stringify({
         session_summary: "Test",
         goal_completed: true,
         friction_score: 10,
+        confidence: 0.9,
+        reasoning: "Normal navigation without issues.",
         issue_detected: false,
         issue_group_action: "skipped/noise",
         issue_group_id: null,
-        issues: [],
-      },
+      }),
       model: "openrouter/owl-alpha",
     });
 
@@ -106,10 +107,12 @@ describe("AI Triage Idempotency & Lease Guard", () => {
 
     // Mock successful LLM result
     vi.mocked(mockProvider.invoke).mockResolvedValueOnce({
-      data: {
+      rawContent: JSON.stringify({
         session_summary: "Duplicate test",
         goal_completed: false,
         friction_score: 50,
+        confidence: 0.8,
+        reasoning: "Known payment error matching duplicate group.",
         issue_detected: true,
         issue_group_action: "duplicate issue group",
         issue_group_id: "igr_payment_500",
@@ -124,7 +127,7 @@ describe("AI Triage Idempotency & Lease Guard", () => {
             evidence: [],
           },
         ],
-      },
+      }),
       model: "openrouter/owl-alpha",
     });
 
@@ -227,14 +230,16 @@ describe("AI Triage Idempotency & Lease Guard", () => {
 
     // Mock LLM result returning a valid duplicate ID but no issues list
     vi.mocked(mockProvider.invoke).mockResolvedValueOnce({
-      data: {
+      rawContent: JSON.stringify({
         session_summary: "Duplicate of valid group",
         goal_completed: true,
         friction_score: 20,
+        confidence: 0.9,
+        reasoning: "Errors align with valid duplicate group.",
         issue_detected: true,
         issue_group_action: "duplicate issue group",
         issue_group_id: "igr_valid_123",
-      },
+      }),
       model: "openrouter/owl-alpha",
     });
 
@@ -284,14 +289,16 @@ describe("AI Triage Idempotency & Lease Guard", () => {
 
     // Mock LLM result returning an invalid duplicate ID not matching candidates
     vi.mocked(mockProvider.invoke).mockResolvedValueOnce({
-      data: {
+      rawContent: JSON.stringify({
         session_summary: "Duplicate of invalid group",
         goal_completed: true,
         friction_score: 20,
+        confidence: 0.85,
+        reasoning: "Returned duplicate group ID which isn't in candidates.",
         issue_detected: true,
         issue_group_action: "duplicate issue group",
         issue_group_id: "igr_hallucinated_999",
-      },
+      }),
       model: "openrouter/owl-alpha",
     });
 
