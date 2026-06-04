@@ -22,7 +22,7 @@ const mockProvider: AIProvider = {
 
 describe("Issue Instance Persistence & Counter Correctness", () => {
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks();
     mockClient.query = vi.fn();
   });
 

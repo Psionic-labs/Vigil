@@ -77,16 +77,20 @@ async function handleJobSkip(
   try {
     await withTransaction(async (client) => {
       // 1. Complete queue job
-      await client.query(
+      const res = await client.query(
         `
         UPDATE triage_jobs SET
           status = 'completed',
           completed_at = $1,
           updated_at = $1
-        WHERE session_id = $2
+        WHERE session_id = $2 AND status = 'leased' AND locked_by = $3
         `,
-        [now, sessionId]
+        [now, sessionId, workerId]
       );
+
+      if (res && (res.rowCount ?? 0) === 0) {
+        throw new Error("triage_lease_lost");
+      }
 
       // 2. Record skipped run inside ai_triage_runs
       const runId = crypto.randomUUID();
@@ -116,8 +120,13 @@ async function handleJobSkip(
         status: "skipped",
       })
     );
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message === "triage_lease_lost") {
+      console.warn(`[TriageRunner] Failed to transition job ${sessionId} to completed (skip) because lease was lost.`);
+      return;
+    }
     console.error("Critical failure updating triage_jobs skip state in database", err);
+    throw err;
   }
 }
 

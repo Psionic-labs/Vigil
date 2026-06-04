@@ -116,9 +116,13 @@ export async function attachIssueGroup(
   client: PoolClient,
   projectId: string,
   issueGroupId: string,
-  _updateTime: number,
-  _sessionId: string
+  updateTime: number,
+  sessionId: string
 ): Promise<string> {
+  // Silence unused parameters warning
+  void updateTime;
+  void sessionId;
+
   // 1. Validation check (blocks cross-project or hallucinated IDs)
   const groupRes = await client.query(
     `SELECT id FROM issue_groups WHERE id = $1 AND project_id = $2`,

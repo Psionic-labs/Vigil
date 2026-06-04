@@ -22,7 +22,7 @@ const mockProvider: AIProvider = {
 
 describe("AI Triage Runs Lifecycle Logging", () => {
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks();
     mockClient.query = vi.fn();
   });
 
@@ -237,6 +237,29 @@ describe("AI Triage Runs Lifecycle Logging", () => {
         "sess_1", // jobId / session_id
         expect.any(Number), // durationMs
       ]
+    );
+  });
+
+  it("should not persist skipped run inside ai_triage_runs if the job lease is lost during skip-path update", async () => {
+    const unfinalizedSession = {
+      ...baseSessionRow,
+      ended_at: null,
+    };
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [unfinalizedSession] } as any);
+
+    // Mock rowCount: 0 representing lease lost
+    mockClient.query.mockResolvedValue({ rows: [], rowCount: 0 });
+
+    await processTriageJob("sess_1", "proj_1", 1, {
+      workerId: "test-worker",
+      provider: mockProvider,
+      maxAttempts: 3,
+    });
+
+    // Verify it did NOT attempt to insert into ai_triage_runs
+    expect(mockClient.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("INSERT INTO ai_triage_runs"),
+      expect.any(Array)
     );
   });
 });
