@@ -53,10 +53,11 @@ describe("issue-group-actions", () => {
       // 2. Mock group insert query to resolve
       mockClient.query.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-      const groupId = await createIssueGroup(mockClient as any, "proj_1", "fp_123", triageData, 1000, "sess_1");
+      const createResult = await createIssueGroup(mockClient as any, "proj_1", "fp_123", triageData, 1000, "sess_1");
 
-      expect(groupId).toBeDefined();
-      expect(groupId).toMatch(/^igr_[a-f0-9]{16}$/);
+      expect(createResult.id).toBeDefined();
+      expect(createResult.id).toMatch(/^igr_[a-f0-9]{16}$/);
+      expect(createResult.action).toBe("create");
 
       // Verify the duplicate protection check ran
       expect(mockClient.query).toHaveBeenNthCalledWith(
@@ -70,7 +71,7 @@ describe("issue-group-actions", () => {
         2,
         expect.stringContaining("INSERT INTO issue_groups"),
         [
-          groupId,
+          createResult.id,
           "proj_1",
           "fp_123",
           triageData.issues![0]!.title,
@@ -91,9 +92,10 @@ describe("issue-group-actions", () => {
       // 2. Mock attach validation check to find the group
       mockClient.query.mockResolvedValueOnce({ rows: [{ id: "igr_existing_123" }] });
 
-      const groupId = await createIssueGroup(mockClient as any, "proj_1", "fp_123", triageData, 1000, "sess_1");
+      const createResult = await createIssueGroup(mockClient as any, "proj_1", "fp_123", triageData, 1000, "sess_1");
 
-      expect(groupId).toBe("igr_existing_123");
+      expect(createResult.id).toBe("igr_existing_123");
+      expect(createResult.action).toBe("attach");
 
       // Verify attach flow queries were run
       expect(mockClient.query).toHaveBeenCalledWith(
@@ -117,9 +119,10 @@ describe("issue-group-actions", () => {
       // 4. Mock attach validation check to find the group
       mockClient.query.mockResolvedValueOnce({ rows: [{ id: "igr_concurrent_456" }] });
 
-      const groupId = await createIssueGroup(mockClient as any, "proj_1", "fp_123", triageData, 1000, "sess_1");
+      const createResult = await createIssueGroup(mockClient as any, "proj_1", "fp_123", triageData, 1000, "sess_1");
 
-      expect(groupId).toBe("igr_concurrent_456");
+      expect(createResult.id).toBe("igr_concurrent_456");
+      expect(createResult.action).toBe("attach");
 
       // Verify it ran duplicate check, insert, retry duplicate check, attach validation.
       expect(mockClient.query).toHaveBeenCalledWith(

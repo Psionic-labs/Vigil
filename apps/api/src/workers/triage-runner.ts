@@ -416,11 +416,12 @@ export async function processTriageJob(
 
         if (triageData.issue_group_action === "create") {
           const primaryFp = timeline.fingerprints[0] || null;
-          targetGroupId = await createIssueGroup(client, projectId, primaryFp, triageData, updateTime, sessionId);
+          const createResult = await createIssueGroup(client, projectId, primaryFp, triageData, updateTime, sessionId);
+          targetGroupId = createResult.id;
           console.info(
             JSON.stringify({
               level: "info",
-              action: "issue_group_created",
+              action: createResult.action === "create" ? "issue_group_created" : "issue_group_attached",
               sessionId,
               issueGroupId: targetGroupId,
               fingerprint: primaryFp,

@@ -3,27 +3,39 @@
 
 -- Deduplicate issue_groups before adding unique index
 -- 1. Point issue_instances referencing duplicate groups to the primary (oldest) group
-WITH duplicate_groups AS (
-  SELECT id,
-         MIN(id) OVER (PARTITION BY project_id, fingerprint ORDER BY created_at ASC, id ASC) as primary_id
+WITH ranked_groups AS (
+  SELECT id, project_id, fingerprint,
+         ROW_NUMBER() OVER (PARTITION BY project_id, fingerprint ORDER BY created_at ASC, id ASC) as rn
   FROM issue_groups
+),
+primary_groups AS (
+  SELECT id as primary_id, project_id, fingerprint
+  FROM ranked_groups
+  WHERE rn = 1
+),
+duplicate_groups AS (
+  SELECT rg.id, pg.primary_id
+  FROM ranked_groups rg
+  JOIN primary_groups pg ON rg.project_id = pg.project_id AND rg.fingerprint = pg.fingerprint
+  WHERE rg.rn > 1
 )
 UPDATE issue_instances
 SET issue_group_id = dg.primary_id
 FROM duplicate_groups dg
-WHERE issue_instances.issue_group_id = dg.id AND dg.id != dg.primary_id;
+WHERE issue_instances.issue_group_id = dg.id;
 
 -- 2. Delete duplicate groups
-WITH duplicate_groups AS (
+WITH ranked_groups AS (
   SELECT id,
-         MIN(id) OVER (PARTITION BY project_id, fingerprint ORDER BY created_at ASC, id ASC) as primary_id
+         ROW_NUMBER() OVER (PARTITION BY project_id, fingerprint ORDER BY created_at ASC, id ASC) as rn
   FROM issue_groups
 )
 DELETE FROM issue_groups
 WHERE id IN (
-  SELECT id FROM duplicate_groups WHERE id != primary_id
+  SELECT id FROM ranked_groups WHERE rn > 1
 );
 
 -- 3. Create unique index
 CREATE UNIQUE INDEX IF NOT EXISTS idx_issue_groups_project_fingerprint_uniq
   ON issue_groups (project_id, fingerprint);
+

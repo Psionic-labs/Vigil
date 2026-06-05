@@ -29,7 +29,7 @@ export async function createIssueGroup(
   triageData: AITriageOutput,
   updateTime: number,
   sessionId: string
-): Promise<string> {
+): Promise<{ id: string; action: "create" | "attach" }> {
   if (!fingerprint) {
     throw new AIValidationError(
       `Fingerprint is missing or invalid for session ${sessionId} to create a new issue group.`,
@@ -47,7 +47,7 @@ export async function createIssueGroup(
     const existingGroupId = dupRes.rows[0].id;
     // Convert internally to attach and delegate to attachIssueGroup
     await attachIssueGroup(client, projectId, existingGroupId, updateTime, sessionId);
-    return existingGroupId;
+    return { id: existingGroupId, action: "attach" };
   }
 
   // 2. Insert new issue group
@@ -92,13 +92,13 @@ export async function createIssueGroup(
       if (retryDupRes.rows.length > 0) {
         const existingGroupId = retryDupRes.rows[0].id;
         await attachIssueGroup(client, projectId, existingGroupId, updateTime, sessionId);
-        return existingGroupId;
+        return { id: existingGroupId, action: "attach" };
       }
     }
     throw error;
   }
 
-  return targetGroupId;
+  return { id: targetGroupId, action: "create" };
 }
 
 /**
