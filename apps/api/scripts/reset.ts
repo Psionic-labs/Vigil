@@ -37,13 +37,19 @@ const pool = new Pool({ connectionString: databaseUrl });
 async function resetDatabase() {
   console.log("⏳ Dropping and recreating public schema...");
   try {
-    await pool.query("DROP SCHEMA public CASCADE");
-    await pool.query("CREATE SCHEMA public");
+    await pool.query(`
+      BEGIN;
+      DROP SCHEMA public CASCADE;
+      CREATE SCHEMA public;
+      COMMIT;
+    `);
     console.log("✅ Database schema reset successfully.");
+    await pool.end();
+    process.exit(0);
   } catch (err) {
     console.error("❌ Reset failed:", err);
-  } finally {
     await pool.end();
+    process.exit(1);
   }
 }
 
