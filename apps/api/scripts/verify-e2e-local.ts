@@ -71,7 +71,7 @@ async function main() {
   let ready = false;
   for (let i = 0; i < 30; i++) {
     try {
-      const res = await fetch("http://localhost:3001/health", {
+      const res = await fetch("http://localhost:3001/health/ready", {
         signal: AbortSignal.timeout(500),
       });
       if (res.ok) {

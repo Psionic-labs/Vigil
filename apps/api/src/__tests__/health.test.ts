@@ -11,10 +11,12 @@ import { checkDatabaseConnection } from "../db";
 // Mock the database client to verify behavior without making real database connections
 vi.mock("../db", () => ({
   checkDatabaseConnection: vi.fn(),
+  withTransaction: vi.fn(),
   pool: {
     totalCount: 5,
     idleCount: 3,
     waitingCount: 1,
+    query: vi.fn(),
   },
 }));
 
