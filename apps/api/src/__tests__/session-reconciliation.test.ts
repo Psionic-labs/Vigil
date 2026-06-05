@@ -1,3 +1,9 @@
+/**
+ * @file session-reconciliation.test.ts
+ * @description Tests the background reconciliation of out-of-order session updates.
+ * @why Guarantees eventual consistency for sessions that receive lagging event payloads.
+ */
+
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import app from "../app";
 import { pool, withTransaction } from "../db";

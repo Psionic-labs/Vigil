@@ -1,3 +1,9 @@
+/**
+ * @file issue-instance-persistence.test.ts
+ * @description Tests persistence of triaged issue instances and timeline correlations.
+ * @why Confirms that the worker saves issue details, occurrences, and linking parameters to DB tables properly.
+ */
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { pool } from "../db";
 import { processTriageJob } from "../workers/triage-runner";
@@ -133,7 +139,10 @@ describe("Issue Instance Persistence & Counter Correctness", () => {
 
   it("should insert issue_instance and increment count for an attach action", async () => {
     vi.mocked(pool.query).mockResolvedValueOnce({ rows: [baseSessionRow] } as any);
-    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] } as any);
+    // Timeline events with fingerprint so candidates can be matched
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ type: "js_error", timestamp_ms: 200, error_message: "Crash", fingerprint: "fp_payment" }] } as any);
+    // Candidate groups containing the target attach group
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ id: "igr_payment_500", title: "Payment Error", fingerprint: "fp_payment", severity: "P1", status: "open", last_seen_at: 1000 }] } as any);
 
     vi.mocked(mockProvider.invoke).mockResolvedValueOnce({
       rawContent: JSON.stringify({
@@ -169,9 +178,9 @@ describe("Issue Instance Persistence & Counter Correctness", () => {
       maxAttempts: 3,
     });
 
-    // Verify attach actions validated the group ID
+    // Verify attach validated the group via attachIssueGroup
     expect(mockClient.query).toHaveBeenCalledWith(
-      `SELECT id FROM issue_groups WHERE id = $1 AND project_id = $2`,
+      expect.stringContaining("SELECT id FROM issue_groups WHERE id = $1 AND project_id = $2"),
       ["igr_payment_500", "proj_1"]
     );
 
@@ -231,7 +240,10 @@ describe("Issue Instance Persistence & Counter Correctness", () => {
 
   it("should skip counter increment if issue_instances insert returns rowCount = 0 (conflict replay/retry)", async () => {
     vi.mocked(pool.query).mockResolvedValueOnce({ rows: [baseSessionRow] } as any);
-    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] } as any);
+    // Timeline events with fingerprint so candidates can be matched
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ type: "js_error", timestamp_ms: 200, error_message: "Crash", fingerprint: "fp_payment" }] } as any);
+    // Candidate groups containing the target attach group
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ id: "igr_payment_500", title: "Payment Error", fingerprint: "fp_payment", severity: "P1", status: "open", last_seen_at: 1000 }] } as any);
 
     vi.mocked(mockProvider.invoke).mockResolvedValueOnce({
       rawContent: JSON.stringify({

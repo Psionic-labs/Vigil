@@ -102,8 +102,14 @@ describe("AI Triage Idempotency & Lease Guard", () => {
     (pool.query as any).mockResolvedValueOnce({
       rows: [{ id: "sess_1", url: "http://localhost", duration_ms: 1000, started_at: 100, ended_at: 1100, ai_analyzed_at: null }],
     });
-    // Mock event timeline fetch
-    (pool.query as any).mockResolvedValueOnce({ rows: [] });
+    // Timeline events with fingerprint for candidate matching
+    (pool.query as any).mockResolvedValueOnce({
+      rows: [{ type: "js_error", timestamp_ms: 200, error_message: "Crash", fingerprint: "fp_payment" }],
+    });
+    // Candidate groups containing the target attach group
+    (pool.query as any).mockResolvedValueOnce({
+      rows: [{ id: "igr_payment_500", title: "Payment Error", fingerprint: "fp_payment", severity: "P1", status: "open", last_seen_at: 1000 }],
+    });
 
     // Mock successful LLM result
     vi.mocked(mockProvider.invoke).mockResolvedValueOnce({
@@ -340,7 +346,7 @@ describe("AI Triage Idempotency & Lease Guard", () => {
       call[0].includes("UPDATE triage_jobs SET") && call[0].includes("status = 'failed'")
     );
     expect(updateJobCall).toBeDefined();
-    expect(updateJobCall![1][1]).toContain("Issue group igr_hallucinated_999 not found in project proj_1");
+    expect(updateJobCall![1][1]).toContain("Attached issue group igr_hallucinated_999 is not a valid candidate");
   });
 });
 

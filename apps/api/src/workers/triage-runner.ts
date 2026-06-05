@@ -429,6 +429,13 @@ export async function processTriageJob(
           );
         } else if (triageData.issue_group_action === "attach") {
           targetGroupId = triageData.issue_group_id!;
+          const isCandidate = candidates.some((c) => c.id === targetGroupId);
+          if (!isCandidate) {
+            throw new AIValidationError(
+              `Attached issue group ${targetGroupId} is not a valid candidate for this session.`,
+              "schema_validation_failed"
+            );
+          }
           await attachIssueGroup(client, projectId, targetGroupId, updateTime, sessionId);
           console.info(
             JSON.stringify({
@@ -489,16 +496,22 @@ export async function processTriageJob(
 
         if (insertRes.rowCount && insertRes.rowCount > 0) {
           // Increment count and update timestamp
-          await client.query(
+          const updateRes = await client.query(
             `
             UPDATE issue_groups SET
               affected_session_count = affected_session_count + 1,
               last_seen_at = GREATEST(last_seen_at, $1),
               updated_at = $1
-            WHERE id = $2
+            WHERE id = $2 AND project_id = $3
             `,
-            [updateTime, targetGroupId]
+            [updateTime, targetGroupId, projectId]
           );
+          if (updateRes.rowCount === 0) {
+            throw new AIValidationError(
+              `Issue group ${targetGroupId} not found in project ${projectId}.`,
+              "schema_validation_failed"
+            );
+          }
 
           console.info(
             JSON.stringify({
@@ -596,16 +609,19 @@ export async function processTriageJob(
       );
 
       // Step D: Update queue job row status to completed
-      await client.query(
+      const compRes = await client.query(
         `
         UPDATE triage_jobs SET
           status = 'completed',
           completed_at = $1,
           updated_at = $1
-        WHERE session_id = $2
+        WHERE session_id = $2 AND status = 'leased' AND locked_by = $3
         `,
-        [updateTime, sessionId]
+        [updateTime, sessionId, workerId]
       );
+      if (compRes.rowCount === 0) {
+        throw new Error("triage_lease_lost");
+      }
     });
 
     // Output success logs including model tokens telemetry

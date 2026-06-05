@@ -1,3 +1,9 @@
+/**
+ * @file reset.ts
+ * @description Truncates or drops database tables to perform a clean state reset.
+ * @why Provides a fast way to wipe stale or corrupt local data and restart migration/seeding routines during development and testing.
+ */
+
 import { Pool } from "@neondatabase/serverless";
 import { readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";

@@ -1,3 +1,9 @@
+/**
+ * @file ai-triage-runs.test.ts
+ * @description Integration tests validating the triage runner delegation to the AIProvider and handling successful/failed runs.
+ * @why Verifies that job processing correctly invokes AI evaluation and records runs.
+ */
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { pool } from "../db";
 import { processTriageJob } from "../workers/triage-runner";
@@ -37,7 +43,10 @@ describe("AI Triage Runs Lifecycle Logging", () => {
 
   it("should record completed status for successful create/attach runs", async () => {
     vi.mocked(pool.query).mockResolvedValueOnce({ rows: [baseSessionRow] } as any);
-    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] } as any);
+    // Timeline events with fingerprint so candidates can be matched
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ type: "js_error", timestamp_ms: 200, error_message: "Crash", fingerprint: "fp_payment" }] } as any);
+    // Candidate groups containing the target attach group
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ id: "igr_payment_500", title: "Payment Error", fingerprint: "fp_payment", severity: "P1", status: "open", last_seen_at: 1000 }] } as any);
 
     vi.mocked(mockProvider.invoke).mockResolvedValueOnce({
       rawContent: JSON.stringify({

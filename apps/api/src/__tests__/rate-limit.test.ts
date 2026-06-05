@@ -1,3 +1,9 @@
+/**
+ * @file rate-limit.test.ts
+ * @description Tests rate-limiting middleware, IP tracking, and store eviction.
+ * @why Protects ingestion and querying endpoints from DDoS and excessive API consumption.
+ */
+
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from "vitest";
 import app from "../app";
 import { pool } from "../db";

@@ -6,15 +6,12 @@
  *      achieving horizontal scalability without double-processing jobs or causing row-lock blocks.
  */
 
+import "dotenv/config";
 import os from "node:os";
 import crypto from "node:crypto";
-import dotenv from "dotenv";
 import { pool, withTransaction } from "../db";
 import { processTriageJob } from "./triage-runner";
 import { OpenRouterProvider } from "../lib/ai";
-
-// Load local environment variables from .env on startup
-dotenv.config();
 
 // Standardize worker identity format: hostname:pid:uuid.
 // Saved to triage_jobs.locked_by to enable tracing and ownership checks.
@@ -73,14 +70,63 @@ export function validateTimeoutBounds(leaseTimeoutMs: number, llmTimeoutMs: numb
 
 validateTimeoutBounds(leaseTimeoutMs, llmTimeoutMs);
 
-// Fail-fast boot block: OPENROUTER_API_KEY is required in non-testing environments.
-if (!process.env.OPENROUTER_API_KEY && process.env.NODE_ENV !== "test") {
+// Fail-fast boot block: OPENROUTER_API_KEY is required in non-testing environments unless MOCK_AI is enabled.
+const useMockAi =
+  process.env.MOCK_AI === "true" &&
+  process.env.NODE_ENV !== "production";
+
+if (process.env.MOCK_AI === "true" && process.env.NODE_ENV === "production") {
+  console.warn("[TriageConfig] MOCK_AI=true is ignored in production. Unset it or use a real provider.");
+}
+
+if (!useMockAi && !process.env.OPENROUTER_API_KEY && process.env.NODE_ENV !== "test") {
   console.error("❌ OPENROUTER_API_KEY environment variable is required.");
   process.exit(1);
 }
 
 // Construct the provider once at boot. Timeout and model are baked into the instance.
-const provider = process.env.NODE_ENV !== "test"
+const provider = useMockAi
+  ? {
+      invoke: async () => {
+        console.info("[MockAI] Intercepted prompt call, simulating LLM response.");
+        const mockData = {
+          session_summary: "Mock AI Triage: User session simulated from playground, containing simulated JS errors and user clicks.",
+          goal_completed: false,
+          friction_score: 75,
+          confidence: 0.9,
+          reasoning: "Telemetry logs show 1 unhandled JS error and 4 rage clicks. The user did not reach a success/confirmation state.",
+          issue_detected: true,
+          issue_group_action: "create",
+          issues: [
+            {
+              title: "Test JS Error from Playground",
+              root_cause: "Client-side scripting exception thrown when clicking the JS Error trigger button.",
+              suggested_fix: "Validate playground button trigger behavior and check error boundary configurations.",
+              severity: "P1",
+              confidence: 0.95,
+              reproduction_steps: [
+                "Open Vigil SDK playground UI",
+                "Click on 'Throw JS Error' trigger button"
+              ],
+              evidence: [
+                {
+                  type: "js_error",
+                  timestamp_ms: Date.now(),
+                  detail: "Error: Test JS Error from Playground"
+                }
+              ]
+            }
+          ]
+        };
+        return {
+          rawContent: `\`\`\`json\n${JSON.stringify(mockData, null, 2)}\n\`\`\``,
+          model: "mock-model",
+          input_tokens: 150,
+          output_tokens: 280,
+        };
+      }
+    }
+  : process.env.NODE_ENV !== "test"
   ? new OpenRouterProvider({
       apiKey: process.env.OPENROUTER_API_KEY!,
       model,

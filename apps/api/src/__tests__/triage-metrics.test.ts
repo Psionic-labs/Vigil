@@ -1,3 +1,9 @@
+/**
+ * @file triage-metrics.test.ts
+ * @description Integration tests validating metrics serialization and database-backed dashboards.
+ * @why Guarantees correct visual mapping, filters, and aggregations for ingest stats.
+ */
+
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import app from "../app";
 import { pool } from "../db";

@@ -1,3 +1,9 @@
+/**
+ * @file transaction-rollback.test.ts
+ * @description Tests transaction isolation and rollback correctness on database query failures.
+ * @why Ensures partial failures do not leave the database in an inconsistent state.
+ */
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { pool } from "../db";
 import { processTriageJob } from "../workers/triage-runner";

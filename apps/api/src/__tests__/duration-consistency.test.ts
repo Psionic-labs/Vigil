@@ -1,3 +1,9 @@
+/**
+ * @file duration-consistency.test.ts
+ * @description Tests session duration tracking consistency during updates and end-of-session finalizations.
+ * @why Prevents duration bugs (e.g. negative or missing milliseconds) across all ingestion types and update paths.
+ */
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import app from "../app";
 import { pool, withTransaction } from "../db";
