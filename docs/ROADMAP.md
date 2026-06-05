@@ -89,11 +89,11 @@ Run the triage loop for every completed non-noise session.
 - [x] Validate AI JSON output before writing to DB
 - [x] On parse failure: store error in `ai_triage_runs`, retry once with a repair prompt
 - [x] Write AI fields back to `sessions` (summary, goal_completed, friction_score, etc.)
-- [ ] On `issue_group_action: create`: insert new row into `issue_groups`
-- [ ] On `issue_group_action: attach`: increment `affected_session_count`, update `last_seen_at`
-- [ ] On `issue_group_action: ignore`: mark session as analyzed, no issue written
-- [ ] Insert row into `issue_instances` for create and attach actions
-- [ ] Insert row into `ai_triage_runs` for every run (success, skip, or failure)
+- [x] On `issue_group_action: create`: insert new row into `issue_groups`
+- [x] On `issue_group_action: attach`: increment `affected_session_count`, update `last_seen_at`
+- [x] On `issue_group_action: ignore`: mark session as analyzed, no issue written
+- [x] Insert row into `issue_instances` for create and attach actions
+- [x] Insert row into `ai_triage_runs` for every run (success, skip, or failure)
 - [ ] Test with real sessions from the SDK test page
 
 ---

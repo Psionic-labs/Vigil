@@ -38,7 +38,7 @@ Target JSON Schema Description:
   "confidence": number (0.0 to 1.0),
   "reasoning": "string explanation of the triage outcome (max 2000 characters)",
   "issue_detected": true | false,
-  "issue_group_action": "skipped/noise" | "duplicate issue group" | "new issue group",
+  "issue_group_action": "create" | "attach" | "ignore",
   "issue_group_id": "string if duplicate issue group, or null",
   "issues": [
     {
@@ -60,10 +60,10 @@ Target JSON Schema Description:
 }
 
 Constraints & Rules:
-1. If "issue_detected" is false, "issue_group_action" MUST be "skipped/noise", "issue_group_id" MUST be null, and "issues" MUST be null or omitted.
+1. If "issue_detected" is false, "issue_group_action" MUST be "ignore", "issue_group_id" MUST be null, and "issues" MUST be null or omitted.
 2. If "issue_detected" is true:
-   - If "issue_group_action" is "duplicate issue group", "issue_group_id" must be a non-empty string.
-   - If "issue_group_action" is "new issue group", "issue_group_id" must be null, and "issues" must be a non-empty array with at least one issue.
+   - If "issue_group_action" is "attach", "issue_group_id" must be a non-empty string.
+   - If "issue_group_action" is "create", "issue_group_id" must be null, and "issues" must be a non-empty array with at least one issue.
 3. The root-level "confidence" and "reasoning" are REQUIRED fields.
 4. Output ONLY the raw corrected JSON string (no markdown fences, no extra text). Do not write any conversational preamble or postscript.
 `.trim();

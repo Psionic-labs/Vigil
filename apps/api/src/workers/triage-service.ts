@@ -16,7 +16,7 @@ export const AISchema = z.object({
   confidence: z.number().min(0).max(1),        // Level of certainty of the classification (0-1)
   reasoning: z.string().max(2000),             // Explanation/reasoning of the triage outcome
   issue_detected: z.boolean(),                 // Flag stating if a real bug/issue is identified
-  issue_group_action: z.enum(["skipped/noise", "duplicate issue group", "new issue group"]), // Categorization decision
+  issue_group_action: z.enum(["create", "attach", "ignore"]), // Categorization decision
   issue_group_id: z.string().min(1).max(255).optional().nullable(), // Target issue group to attach if duplicate
   issues: z.array(
     z.object({
@@ -38,18 +38,18 @@ export const AISchema = z.object({
 }).strict().refine((data) => {
   // Refinement Check: enforces logical consistency.
   if (!data.issue_detected) {
-    // If no issue is detected, action must be skipped/noise and no group ID or issues should be provided.
-    if (data.issue_group_action !== "skipped/noise") return false;
+    // If no issue is detected, action must be ignore and no group ID or issues should be provided.
+    if (data.issue_group_action !== "ignore") return false;
     if (data.issue_group_id !== null && data.issue_group_id !== undefined) return false;
     if (data.issues !== null && data.issues !== undefined) return false;
   } else {
-    // If an issue is detected, action cannot be skipped/noise
-    if (data.issue_group_action === "skipped/noise") return false;
+    // If an issue is detected, action cannot be ignore
+    if (data.issue_group_action === "ignore") return false;
 
-    if (data.issue_group_action === "duplicate issue group") {
+    if (data.issue_group_action === "attach") {
       // Must have a target issue_group_id
       if (data.issue_group_id === null || data.issue_group_id === undefined) return false;
-    } else if (data.issue_group_action === "new issue group") {
+    } else if (data.issue_group_action === "create") {
       // Cannot have issue_group_id, and must have at least one issue detail
       if (data.issue_group_id !== null && data.issue_group_id !== undefined) return false;
       if (!data.issues || data.issues.length === 0) return false;

@@ -56,7 +56,7 @@ describe("AI Triage Idempotency & Lease Guard", () => {
         confidence: 0.9,
         reasoning: "Normal navigation without issues.",
         issue_detected: false,
-        issue_group_action: "skipped/noise",
+        issue_group_action: "ignore",
         issue_group_id: null,
       }),
       model: "openrouter/owl-alpha",
@@ -114,7 +114,7 @@ describe("AI Triage Idempotency & Lease Guard", () => {
         confidence: 0.8,
         reasoning: "Known payment error matching duplicate group.",
         issue_detected: true,
-        issue_group_action: "duplicate issue group",
+        issue_group_action: "attach",
         issue_group_id: "igr_payment_500",
         issues: [
           {
@@ -135,6 +135,12 @@ describe("AI Triage Idempotency & Lease Guard", () => {
     mockClient.query.mockImplementation((queryText) => {
       if (queryText.includes("triage_jobs") && queryText.includes("locked_by = $2")) {
         return { rows: [{ status: "leased", locked_by: "test-worker" }] };
+      }
+      if (queryText.includes("issue_groups") && queryText.includes("id = $1 AND project_id = $2")) {
+        return { rows: [{ id: "igr_payment_500" }] };
+      }
+      if (queryText.includes("issue_instances") && queryText.includes("issue_group_id = $1 AND session_id = $2")) {
+        return { rows: [] };
       }
       if (queryText.includes("UPDATE issue_groups")) {
         return { rows: [], rowCount: 1 };
@@ -237,7 +243,7 @@ describe("AI Triage Idempotency & Lease Guard", () => {
         confidence: 0.9,
         reasoning: "Errors align with valid duplicate group.",
         issue_detected: true,
-        issue_group_action: "duplicate issue group",
+        issue_group_action: "attach",
         issue_group_id: "igr_valid_123",
       }),
       model: "openrouter/owl-alpha",
@@ -247,6 +253,12 @@ describe("AI Triage Idempotency & Lease Guard", () => {
     mockClient.query.mockImplementation((queryText) => {
       if (queryText.includes("triage_jobs") && queryText.includes("locked_by = $2")) {
         return { rows: [{ status: "leased", locked_by: "test-worker" }] };
+      }
+      if (queryText.includes("issue_groups") && queryText.includes("id = $1 AND project_id = $2")) {
+        return { rows: [{ id: "igr_valid_123" }] };
+      }
+      if (queryText.includes("issue_instances") && queryText.includes("issue_group_id = $1 AND session_id = $2")) {
+        return { rows: [] };
       }
       if (queryText.includes("UPDATE issue_groups")) {
         return { rows: [], rowCount: 1 };
@@ -271,9 +283,9 @@ describe("AI Triage Idempotency & Lease Guard", () => {
   });
 
   // Test Case 5: Invalid duplicate ID match with missing issues array
-  // Verifies that when the model returns an invalid duplicate group ID and no issues array,
-  // the triage runner falls back to new group creation and writes the warning message.
-  it("should write warning message in issue_instances and issue_groups for invalid duplicate group matches", async () => {
+  // Verifies that when the model returns an invalid duplicate group ID,
+  // the triage runner aborts, rolls back the transaction, and transitions the job to failed status.
+  it("should fail and rollback if attach specifies an invalid/hallucinated group ID", async () => {
     // Mock session eligibility check
     (pool.query as any).mockResolvedValueOnce({
       rows: [{ id: "sess_invalid_dup", url: "http://localhost", duration_ms: 1000, started_at: 100, ended_at: 1100, ai_analyzed_at: null }],
@@ -282,7 +294,7 @@ describe("AI Triage Idempotency & Lease Guard", () => {
     (pool.query as any).mockResolvedValueOnce({
       rows: [{ type: "js_error", timestamp_ms: 200, error_message: "Crash", fingerprint: "fp_invalid_dup" }],
     });
-    // Mock candidate groups query (return different candidate group ID, not matching LLM's returned group ID)
+    // Mock candidate groups query
     (pool.query as any).mockResolvedValueOnce({
       rows: [{ id: "igr_valid_123", title: "Valid Group", fingerprint: "fp_invalid_dup", severity: "P1", status: "open", last_seen_at: 1000 }],
     });
@@ -296,7 +308,7 @@ describe("AI Triage Idempotency & Lease Guard", () => {
         confidence: 0.85,
         reasoning: "Returned duplicate group ID which isn't in candidates.",
         issue_detected: true,
-        issue_group_action: "duplicate issue group",
+        issue_group_action: "attach",
         issue_group_id: "igr_hallucinated_999",
       }),
       model: "openrouter/owl-alpha",
@@ -307,10 +319,11 @@ describe("AI Triage Idempotency & Lease Guard", () => {
       if (queryText.includes("triage_jobs") && queryText.includes("locked_by = $2")) {
         return { rows: [{ status: "leased", locked_by: "test-worker" }] };
       }
+      if (queryText.includes("issue_groups") && queryText.includes("id = $1 AND project_id = $2")) {
+        return { rows: [] }; // Hallucinated ID not found
+      }
       return { rows: [] };
     });
-
-    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await processTriageJob("sess_invalid_dup", "proj_1", 1, {
       workerId: "test-worker",
@@ -318,26 +331,16 @@ describe("AI Triage Idempotency & Lease Guard", () => {
       maxAttempts: 3,
     });
 
-    // Verify warnings logged
-    expect(consoleWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("LLM returned issue_group_id igr_hallucinated_999 which is not in candidate groups")
-    );
+    // Verify transaction rolled back (or at least we didn't update session status to analyzed)
+    const updateSessionCall = mockClient.query.mock.calls.find(c => c[0].includes("UPDATE sessions SET"));
+    expect(updateSessionCall).toBeUndefined();
 
-    // Verify INSERT INTO issue_groups contains the warning
-    const insertGroupCall = mockClient.query.mock.calls.find((call) =>
-      call[0].includes("INSERT INTO issue_groups")
+    // Verify job transitioned to failed status
+    const updateJobCall = mockClient.query.mock.calls.find((call) =>
+      call[0].includes("UPDATE triage_jobs SET") && call[0].includes("status = 'failed'")
     );
-    expect(insertGroupCall).toBeDefined();
-    expect(insertGroupCall![1][4]).toContain("Automatically created because LLM returned an invalid/hallucinated duplicate issue group ID");
-
-    // Verify INSERT INTO issue_instances contains the warning
-    const insertInstanceCall = mockClient.query.mock.calls.find((call) =>
-      call[0].includes("INSERT INTO issue_instances")
-    );
-    expect(insertInstanceCall).toBeDefined();
-    expect(insertInstanceCall![1][5]).toContain("Automatically created because LLM returned an invalid/hallucinated duplicate issue group ID");
-
-    consoleWarnSpy.mockRestore();
+    expect(updateJobCall).toBeDefined();
+    expect(updateJobCall![1][1]).toContain("Issue group igr_hallucinated_999 not found in project proj_1");
   });
 });
 

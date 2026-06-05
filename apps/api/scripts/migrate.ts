@@ -15,10 +15,12 @@ if (existsSync(envPath)) {
     const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*?)?\s*$/);
     if (match) {
       const key = match[1];
-      let value = match[2] || "";
-      value = value.replace(/^(['"])(.*)\1$/, "$2");
-      if (!process.env[key]) {
-        process.env[key] = value;
+      if (key) {
+        let value = match[2] || "";
+        value = value.replace(/^(['"])(.*)\1$/, "$2");
+        if (!process.env[key]) {
+          process.env[key] = value;
+        }
       }
     }
   }
@@ -48,7 +50,7 @@ async function runMigrations() {
     // Read all .sql files from migrations/ in sorted order
     const migrationsDir = join(__dirname, "../migrations");
     const files = readdirSync(migrationsDir)
-      .filter((f) => f.endsWith(".sql"))
+      .filter((f: string) => f.endsWith(".sql"))
       .sort();
 
     // Check which migrations have already been applied
