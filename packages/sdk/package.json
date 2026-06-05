@@ -18,7 +18,8 @@
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "track-size": "node scripts/track-size.js"
   },
   "dependencies": {
     "rrweb": "2.0.0-alpha.4"
