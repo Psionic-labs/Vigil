@@ -62,7 +62,10 @@ ingest.post(
     // Retrieve validated json payload from Hono context
     const payload = (c.req.valid as any)("json") as IngestPayload;
 
-    // 1. Project Validation — previously queried DB here; now consumed from context.
+    // 1. Project Validation — consumed from middleware cache or verified in-transaction below.
+    // NOTE: When projectId is set from cache, is_active is not re-checked against the DB.
+    // This creates a ≤60s authorization window after project deactivation (cache TTL).
+    // Mitigation: call globalProjectCache.invalidate(projectKey) on project deactivation.
     let projectId = c.get("projectId") as string | undefined;
 
   // 2. Compute Summary Flags

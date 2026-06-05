@@ -55,6 +55,20 @@ ALTER TABLE events_summary
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
   DEFERRABLE INITIALLY DEFERRED;
 
--- 3. Documentation on sessions.project_id:
+-- 3. Cleanup trigger for sessions on project deletion:
 -- The foreign key from sessions.project_id to projects(id) is intentionally omitted
 -- to optimize the performance of the high-throughput sessions table upserts.
+-- Instead, a trigger ensures orphaned sessions are deleted when a project is removed.
+
+CREATE OR REPLACE FUNCTION fn_cleanup_sessions_on_project_delete()
+RETURNS TRIGGER AS $$
+BEGIN
+  DELETE FROM sessions WHERE project_id = OLD.id;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_cleanup_sessions_on_project_delete
+  BEFORE DELETE ON projects
+  FOR EACH ROW
+  EXECUTE FUNCTION fn_cleanup_sessions_on_project_delete();
