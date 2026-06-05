@@ -1,3 +1,9 @@
+/**
+ * @file blob-storage.test.ts
+ * @description Tests local file operations, path validation, and compression safety in the blob-storage module.
+ * @why Guarantees that local storage writes are atomic, secure against traversal, and handle compression errors correctly.
+ */
+
 import { vi, describe, it, expect, beforeEach, afterEach, beforeAll } from "vitest";
 import path from "node:path";
 import fs from "node:fs/promises";

@@ -1,3 +1,9 @@
+/**
+ * @file session-finalization.test.ts
+ * @description Tests explicit and implicit session finalization mechanics.
+ * @why Validates the database state transition and downstream trigger events when closing a session.
+ */
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import app from "../app";
 import { pool, withTransaction } from "../db";

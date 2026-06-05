@@ -1,3 +1,9 @@
+/**
+ * @file verify-e2e.ts
+ * @description Runs end-to-end integration and verification checks by calling ingest and metrics endpoints.
+ * @why Ensures that the server correctly ingests, processes, and displays metrics for simulated sessions, verifying end-to-end flow correctness.
+ */
+
 import { Pool } from "@neondatabase/serverless";
 import { readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
@@ -35,7 +41,7 @@ const pool = new Pool({ connectionString: databaseUrl });
 
 async function verify() {
   const sessionId = "sess_e2e_" + Date.now();
-  console.log(`🚀 Starting E2E telemetry verification for Session: ${sessionId}`);
+  console.log(`Starting E2E telemetry verification for Session: ${sessionId}`);
 
   // 1. Send first payload (isFinal: false) to initialize session
   const payload1 = {
@@ -61,7 +67,8 @@ async function verify() {
   const res1 = await fetch("http://localhost:3001/api/v1/ingest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload1)
+    body: JSON.stringify(payload1),
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!res1.ok) {
@@ -113,7 +120,8 @@ async function verify() {
   const res2 = await fetch("http://localhost:3001/api/v1/ingest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload2)
+    body: JSON.stringify(payload2),
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!res2.ok) {

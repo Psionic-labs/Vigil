@@ -1,3 +1,9 @@
+/**
+ * @file ingest-summary-idempotency.test.ts
+ * @description Verifies idempotency controls when ingesting identical session summaries concurrently or sequentially.
+ * @why Prevents double-counting or duplicating events if clients retry ingestion payloads.
+ */
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import app from "../app";
 import { pool, withTransaction } from "../db";

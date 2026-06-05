@@ -1,3 +1,9 @@
+/**
+ * @file health.test.ts
+ * @description Basic health check endpoint integration tests.
+ * @why Verifies the service is alive, accepting HTTP requests, and connecting to the database.
+ */
+
 import { describe, it, expect } from "vitest";
 import app from "../app";
 

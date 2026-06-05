@@ -1,3 +1,9 @@
+/**
+ * @file lifecycle-finalization.test.ts
+ * @description Integration tests for session lifecycle hooks, timeout detection, and session finalization.
+ * @why Ensures sessions transition out of active states and are marked finished when idle boundaries are crossed.
+ */
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import app from "../app";
 import { pool, withTransaction } from "../db";

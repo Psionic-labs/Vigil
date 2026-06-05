@@ -1,3 +1,9 @@
+/**
+ * @file session-upsert.test.ts
+ * @description Tests session table upsert query pathways under high concurrency or conflicting inputs.
+ * @why Prevents deadlocks, duplicate keys, and metadata corruption during raw SQL session writes.
+ */
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import app from "../app";
 import { pool, withTransaction } from "../db";

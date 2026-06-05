@@ -71,7 +71,13 @@ export function validateTimeoutBounds(leaseTimeoutMs: number, llmTimeoutMs: numb
 validateTimeoutBounds(leaseTimeoutMs, llmTimeoutMs);
 
 // Fail-fast boot block: OPENROUTER_API_KEY is required in non-testing environments unless MOCK_AI is enabled.
-const useMockAi = process.env.MOCK_AI === "true";
+const useMockAi =
+  process.env.MOCK_AI === "true" &&
+  process.env.NODE_ENV !== "production";
+
+if (process.env.MOCK_AI === "true" && process.env.NODE_ENV === "production") {
+  console.warn("[TriageConfig] MOCK_AI=true is ignored in production. Unset it or use a real provider.");
+}
 
 if (!useMockAi && !process.env.OPENROUTER_API_KEY && process.env.NODE_ENV !== "test") {
   console.error("❌ OPENROUTER_API_KEY environment variable is required.");

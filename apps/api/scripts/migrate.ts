@@ -1,3 +1,9 @@
+/**
+ * @file migrate.ts
+ * @description Sequentially executes SQL database migration scripts.
+ * @why Enables automated, versioned schema updates across development, staging, and production databases to guarantee structural consistency.
+ */
+
 import { Pool } from "@neondatabase/serverless";
 import { readFileSync, readdirSync } from "fs";
 import { join, dirname } from "path";

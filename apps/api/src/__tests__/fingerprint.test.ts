@@ -1,3 +1,9 @@
+/**
+ * @file fingerprint.test.ts
+ * @description Tests key event fingerprinting algorithms and grouping mappings.
+ * @why Ensures unique issue identification and correct association with candidate groups.
+ */
+
 import { describe, it, expect } from "vitest";
 import { 
   normalizeUrlPath, 

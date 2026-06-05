@@ -1,3 +1,9 @@
+/**
+ * @file ingest.test.ts
+ * @description Integration tests for the primary HTTP session ingestion endpoint.
+ * @why Validates request payloads, auth signatures, limits, database inserts, and error responses.
+ */
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import app from "../app";
 import { pool, withTransaction } from "../db";

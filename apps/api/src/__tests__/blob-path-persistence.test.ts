@@ -1,3 +1,9 @@
+/**
+ * @file blob-path-persistence.test.ts
+ * @description Tests the asynchronous persistence of session event replays into local blob storage.
+ * @why Confirms that event ingestion correctly offloads file compression and updates database columns without blocking requests.
+ */
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import app from "../app";
 import { pool, withTransaction } from "../db";
