@@ -47,19 +47,21 @@ process.on("SIGTERM", () => {
 });
 
 async function main() {
-  console.log("Booting API Server on port 3001...");
-  const apiServer = spawn("npx", ["tsx", "src/index.ts"], {
+  const isWin = process.platform === "win32";
+  const cmd = "npx";
+  const spawnOpts = {
     cwd: projectRoot,
-    stdio: "inherit",
-    shell: true,
-  });
+    stdio: "inherit" as const,
+    shell: isWin,
+  };
+
+  console.log("Booting API Server on port 3001...");
+  const apiServer = spawn(cmd, ["tsx", "src/index.ts"], spawnOpts);
   children.push(apiServer);
 
   console.log("Booting Triage Worker in Sandbox (Mock AI) mode...");
-  const worker = spawn("npx", ["tsx", "src/workers/triage-worker.ts"], {
-    cwd: projectRoot,
-    stdio: "inherit",
-    shell: true,
+  const worker = spawn(cmd, ["tsx", "src/workers/triage-worker.ts"], {
+    ...spawnOpts,
     env: { ...process.env, MOCK_AI: "true" },
   });
   children.push(worker);
@@ -89,11 +91,8 @@ async function main() {
   console.log("✅ API Server is ready.");
 
   console.log("Running E2E verification checks...");
-  const verifyProc = spawn("npx", ["tsx", "scripts/verify-e2e.ts"], {
-    cwd: projectRoot,
-    stdio: "inherit",
-    shell: true,
-  });
+  const verifyProc = spawn(cmd, ["tsx", "scripts/verify-e2e.ts"], spawnOpts);
+  children.push(verifyProc);
 
   verifyProc.on("exit", (code) => {
     cleanup();

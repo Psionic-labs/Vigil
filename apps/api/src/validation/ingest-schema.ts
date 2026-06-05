@@ -90,11 +90,11 @@ export const IngestPayloadSchema = z.object({
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
     if (isUuid) return true;
     if (process.env.NODE_ENV !== "production") {
-      return /^sess_[a-zA-Z0-9_-]+$/i.test(val);
+      return val.length <= 100 && /^sess_[a-zA-Z0-9_-]+$/i.test(val);
     }
     return false;
   }, {
-    message: "Invalid sessionId format. Must be a valid UUID.",
+    message: "Invalid sessionId format. Must be a valid UUID, or non-production sess_ prefix format (max 100 chars).",
   }),
   metadata: SessionMetadataSchema,
   summary: z.array(SummaryEventSchema).max(50), // Caps aggregated event summaries to 50 items per payload

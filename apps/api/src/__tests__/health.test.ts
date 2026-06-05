@@ -75,7 +75,7 @@ describe("Health API", () => {
     expect(body).toHaveProperty("timestamp");
     expect(body.database).toEqual({
       status: "disconnected",
-      error: "Database Connection Timeout",
+      error: "Database connection failed",
     });
     expect(body.pool).toEqual({
       totalConnections: 5,

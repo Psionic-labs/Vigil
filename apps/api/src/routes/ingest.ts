@@ -195,17 +195,9 @@ ingest.post(
 
       // Verify that the insert/update succeeded (i.e. did not violate project boundary check)
       if (sessionResult && sessionResult.rows && sessionResult.rows.length === 0) {
-        if (process.env.NODE_ENV === "test") {
-          if (payload.sessionId.includes("collision")) {
-            const err = new Error("Conflict: Session ID collision across projects");
-            (err as any).status = 409;
-            throw err;
-          }
-        } else {
-          const err = new Error("Conflict: Session ID collision across projects");
-          (err as any).status = 409;
-          throw err;
-        }
+        const err = new Error("Conflict: Session ID collision across projects");
+        (err as any).status = 409;
+        throw err;
       }
 
       // Batch Insert Summary Events (Step 2)

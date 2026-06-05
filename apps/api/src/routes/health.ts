@@ -62,7 +62,7 @@ healthRouter.get("/ready", async (c) => {
         timestamp: new Date().toISOString(),
         database: {
           status: "disconnected",
-          error: err.message || String(err),
+          error: "Database connection failed",
         },
         pool: {
           totalConnections: pool.totalCount ?? 0,

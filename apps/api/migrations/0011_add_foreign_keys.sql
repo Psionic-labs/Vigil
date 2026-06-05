@@ -1,6 +1,20 @@
 -- Migration: 0011_add_foreign_keys.sql
 -- Description: Add foreign key constraints on low-write/non-hot-path tables and deferred FKs for events_summary.
 
+-- Clean up any pre-existing orphan rows to prevent migration validation failure
+DELETE FROM projects WHERE owner_id NOT IN (SELECT id FROM users);
+DELETE FROM issue_groups WHERE project_id NOT IN (SELECT id FROM projects);
+DELETE FROM issue_instances WHERE issue_group_id NOT IN (SELECT id FROM issue_groups);
+DELETE FROM issue_instances WHERE session_id NOT IN (SELECT id FROM sessions);
+DELETE FROM issue_instances WHERE project_id NOT IN (SELECT id FROM projects);
+DELETE FROM triage_jobs WHERE session_id NOT IN (SELECT id FROM sessions);
+DELETE FROM triage_jobs WHERE project_id NOT IN (SELECT id FROM projects);
+DELETE FROM events_summary WHERE session_id NOT IN (SELECT id FROM sessions);
+DELETE FROM events_summary WHERE project_id NOT IN (SELECT id FROM projects);
+
+-- Supporting index for foreign key on events_summary(project_id) to avoid full-table scans
+CREATE INDEX IF NOT EXISTS idx_events_summary_project_id ON events_summary(project_id);
+
 -- 1. Low-write / Non-hot-path constraints:
 ALTER TABLE projects 
   ADD CONSTRAINT fk_projects_owner 
