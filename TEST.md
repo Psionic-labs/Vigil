@@ -7,7 +7,7 @@ This document describes how to boot, run, and verify each component of the Vigil
 ## 🛠️ Prerequisites
 
 Ensure you have the following installed on your local machine:
-- **Node.js**: `v20` or higher
+- **Node.js**: `v22` or higher (pnpm requires at least v22.13)
 - **pnpm**: `v10` or higher
 - **PostgreSQL CLI** (optional, for direct database CLI query access)
 
