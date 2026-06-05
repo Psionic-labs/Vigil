@@ -63,7 +63,7 @@ async function verify() {
     sdkVersion: "1.0.0"
   };
 
-  console.log("➡️ Sending Payload 1 (isFinal: false)...");
+  console.log("Sending Payload 1 (isFinal: false)...");
   const res1 = await fetch("http://localhost:3001/api/v1/ingest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -78,7 +78,7 @@ async function verify() {
   console.log("✅ Payload 1 ingested successfully.");
 
   // Wait 5.2 seconds to satisfy duration check (> 5s)
-  console.log("⏳ Sleeping 5.2 seconds to satisfy duration check (> 5s)...");
+  console.log("Sleeping 5.2 seconds to satisfy duration check (> 5s)...");
   await new Promise((resolve) => setTimeout(resolve, 5200));
 
   // 2. Send second payload (isFinal: true) with friction events
@@ -116,7 +116,7 @@ async function verify() {
     sdkVersion: "1.0.0"
   };
 
-  console.log("➡️ Sending Payload 2 (isFinal: true)...");
+  console.log("Sending Payload 2 (isFinal: true)...");
   const res2 = await fetch("http://localhost:3001/api/v1/ingest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -131,7 +131,7 @@ async function verify() {
   console.log("✅ Payload 2 ingested successfully.");
 
   // 3. Query the database to check if a triage job was enqueued
-  console.log("⏳ Querying database for triage job status...");
+  console.log("Querying database for triage job status...");
   let jobRow;
   for (let i = 0; i < 10; i++) {
     const dbRes = await pool.query("SELECT * FROM triage_jobs WHERE session_id = $1", [sessionId]);
@@ -152,7 +152,7 @@ async function verify() {
   console.log("✅ Triage job successfully enqueued in database:", jobRow);
 
   // 4. Wait for worker to pick up and process the job
-  console.log("⏳ Waiting for triage worker to process the job (checking for completed status)...");
+  console.log("Waiting for triage worker to process the job (checking for completed status)...");
   let processed = false;
   let finalJobRow;
   for (let i = 0; i < 20; i++) {
@@ -189,7 +189,7 @@ async function verify() {
   console.log("\n--- AI TRIAGE RUNS ---");
   console.log(runsCheck.rows);
 
-  console.log("\n🎉 ALL E2E VERIFICATION CHECKS PASSED!");
+  console.log("\nALL E2E VERIFICATION CHECKS PASSED!");
   await pool.end();
   process.exit(0);
 }

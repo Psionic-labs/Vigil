@@ -41,7 +41,7 @@ if (!databaseUrl) {
 const pool = new Pool({ connectionString: databaseUrl });
 
 async function resetDatabase() {
-  console.log("⏳ Dropping and recreating public schema...");
+  console.log("Dropping and recreating public schema...");
   try {
     await pool.query(`
       BEGIN;

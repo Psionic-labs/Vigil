@@ -41,7 +41,7 @@ if (!databaseUrl) {
 const pool = new Pool({ connectionString: databaseUrl });
 
 async function seedPlayground() {
-  console.log("⏳ Seeding playground user and project...");
+  console.log("Seeding playground user and project...");
   try {
     const now = Date.now();
     const userCheck = await pool.query(

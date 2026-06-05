@@ -16,7 +16,12 @@ vi.mock("../db", () => ({
   },
   withTransaction: vi.fn(async (cb) => {
     // Provide a fake client that tracks queries
-    const fakeClient = { query: vi.fn() };
+    const fakeClient = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{ duration_ms: null, has_js_error: false, has_rage_click: false, has_network_err: false, has_dead_click: false }],
+        rowCount: 1,
+      }),
+    };
     await cb(fakeClient);
     return fakeClient;
   }),
@@ -371,6 +376,48 @@ describe("Ingest API", () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(body.success).toBe(true);
+  });
+
+  it("should return 409 when the session upsert returns 0 rows due to project_id mismatch", async () => {
+    (pool.query as any).mockResolvedValueOnce({ rows: [{ id: "proj_123" }] });
+
+    const mockFakeClient = {
+      query: vi.fn().mockResolvedValueOnce({ rows: [], rowCount: 0 })
+    };
+    vi.mocked(withTransaction).mockImplementationOnce(async (cb) => {
+      await cb(mockFakeClient as any);
+      return mockFakeClient as any;
+    });
+
+    const res = await app.request("/api/v1/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...VALID_PAYLOAD, sessionId: "sess_collision_abc" }),
+    });
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.success).toBe(false);
+    expect(body.error).toContain("Conflict: Session ID collision");
+  });
+
+  it("should return 400 when sessionId is not a UUID or valid sess_ prefixed string", async () => {
+    const invalidPayload = {
+      ...VALID_PAYLOAD,
+      sessionId: "invalid_id_not_uuid_or_prefix",
+    };
+
+    const res = await app.request("/api/v1/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(invalidPayload),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.error.message).toBe("Validation Error");
   });
 
   it("should return 404 for invalid request methods or undefined routes", async () => {

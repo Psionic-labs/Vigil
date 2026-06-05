@@ -71,6 +71,20 @@ describe("Session Upsert Lifecycle", () => {
           }
           return { rows, rowCount: rows.length };
         }
+        if (sql.includes("INSERT INTO sessions")) {
+          return {
+            rows: [
+              {
+                duration_ms: 0,
+                has_js_error: false,
+                has_rage_click: false,
+                has_network_err: false,
+                has_dead_click: false,
+              },
+            ],
+            rowCount: 1,
+          };
+        }
         return { rows: [], rowCount: 0 };
       })
     };
@@ -328,6 +342,20 @@ describe("Session Upsert Lifecycle", () => {
       if (sql.includes("INSERT INTO events_summary")) {
         return { rows: [], rowCount: 0 };
       }
+      if (sql.includes("INSERT INTO sessions")) {
+        return {
+          rows: [
+            {
+              duration_ms: 0,
+              has_js_error: false,
+              has_rage_click: false,
+              has_network_err: false,
+              has_dead_click: false,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
       return { rows: [], rowCount: 0 };
     });
 
@@ -346,6 +374,20 @@ describe("Session Upsert Lifecycle", () => {
     fakeClient.query = vi.fn(async (sql: string) => {
       if (sql.includes("INSERT INTO events_summary")) {
         return { rows: [{ type: "console_error" }], rowCount: 1 };
+      }
+      if (sql.includes("INSERT INTO sessions")) {
+        return {
+          rows: [
+            {
+              duration_ms: 0,
+              has_js_error: false,
+              has_rage_click: false,
+              has_network_err: false,
+              has_dead_click: false,
+            },
+          ],
+          rowCount: 1,
+        };
       }
       return { rows: [], rowCount: 0 };
     });

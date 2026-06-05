@@ -337,6 +337,19 @@ export class KnownProjectCache {
   }
 
   /**
+   * invalidate
+   * Removes a specific project key from the cache immediately.
+   * Call this when a project is deactivated or its key is revoked to close
+   * the authorization window where a cached entry could bypass the is_active check.
+   *
+   * @param key The public project key to invalidate.
+   * @returns true if the key was found and removed, false otherwise.
+   */
+  invalidate(key: string): boolean {
+    return this.cache.delete(key);
+  }
+
+  /**
    * clear
    * Empties cache map and resets hits/misses metrics tracker.
    */
