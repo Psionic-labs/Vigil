@@ -18,7 +18,13 @@ if (databaseUrl && !/^postgres(ql)?:\/\//i.test(databaseUrl)) {
   );
 }
 
-export const pool = new Pool({ connectionString: databaseUrl || "postgres://fake" });
+export const pool = new Pool({
+  connectionString: databaseUrl || "postgres://fake",
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+  statement_timeout: 10000,
+});
 
 export async function withTransaction<T>(
   callback: (client: PoolClient) => Promise<T>,

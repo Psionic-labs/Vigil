@@ -42,7 +42,7 @@ if (!databaseUrl) {
 const pool = new Pool({ connectionString: databaseUrl });
 
 async function runMigrations() {
-  console.log("⏳ Running migrations...");
+  console.log("Running migrations...");
   try {
     // Create tracking table if it doesn't exist
     await pool.query(`
@@ -69,7 +69,7 @@ async function runMigrations() {
 
     for (const file of files) {
       if (appliedSet.has(file)) {
-        console.log(`  ⏭️  ${file} (already applied)`);
+        console.log(`  [skip] ${file} (already applied)`);
         continue;
       }
 

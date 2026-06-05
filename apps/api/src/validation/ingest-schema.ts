@@ -86,7 +86,16 @@ const SessionMetadataSchema = z.object({
  */
 export const IngestPayloadSchema = z.object({
   projectKey: z.string().min(1).max(255), // Credentials public key matching project
-  sessionId: z.string().min(1).max(255), // Unique browser session key
+  sessionId: z.string().refine((val) => {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+    if (isUuid) return true;
+    if (process.env.NODE_ENV !== "production") {
+      return /^sess_[a-zA-Z0-9_-]+$/i.test(val);
+    }
+    return false;
+  }, {
+    message: "Invalid sessionId format. Must be a valid UUID.",
+  }),
   metadata: SessionMetadataSchema,
   summary: z.array(SummaryEventSchema).max(50), // Caps aggregated event summaries to 50 items per payload
   events: z.array(z.unknown()).max(500), // Caps raw replay events to 500 items per payload

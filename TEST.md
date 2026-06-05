@@ -47,9 +47,12 @@ DATABASE_URL="postgresql://neondb_owner:...@ep-jolly-waterfall-....neon.tech/neo
 OPENROUTER_API_KEY="your_openrouter_key"
 ```
 
-### Database Migrations & Seeding
-To reset/migrate schemas and seed the default playground project:
+### Database Migrations, Seeding & Resetting
+To manage the database schemas and data locally:
 ```bash
+# Reset the database schema (drop and recreate public schema)
+pnpm --filter @vigil/api db:reset
+
 # Apply migrations
 pnpm --filter @vigil/api db:migrate
 
@@ -87,15 +90,22 @@ pnpm --filter @vigil/api worker:dev
 ---
 
 ### Automated E2E Telemetry Verification
-To verify the complete ingestion-to-triage pipeline automatically:
-1. Ensure the **Ingest API Server** (Step 2.3) and the **Triage Worker** (Step 2.4) are both running.
-2. In a separate terminal, execute:
-   ```bash
-   pnpm --filter @vigil/api test:e2e
-   ```
+To verify the complete ingestion-to-triage pipeline automatically in a single command:
+```bash
+pnpm --filter @vigil/api test:e2e
+```
 
 > [!NOTE]
-   > The E2E script sends a non-final payload, waits **5.2 seconds** (to satisfy the session duration threshold), and then sends a final payload with a JS Error and Rage Click to trigger triage. Finally, it polls the database to verify successful processing.
+> This command is fully self-contained. It:
+> 1. Spawns the local **Hono API Server** and the **Triage Worker** in sandbox/mock mode in the background.
+> 2. Polls the server until it is fully ready.
+> 3. Sends an initial payload, waits **5.2 seconds** (to satisfy the session duration threshold), and then sends a final payload with a JS Error and Rage Click to trigger triage.
+> 4. Verifies enqueues, database persistence, and triage completions, and then cleans up all background processes automatically.
+
+If you already have the server and worker running manually in separate terminals and only want to execute the verification checks, run:
+```bash
+pnpm --filter @vigil/api test:e2e:verify
+```
 
 ---
 

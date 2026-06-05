@@ -94,7 +94,7 @@ Run the triage loop for every completed non-noise session.
 - [x] On `issue_group_action: ignore`: mark session as analyzed, no issue written
 - [x] Insert row into `issue_instances` for create and attach actions
 - [x] Insert row into `ai_triage_runs` for every run (success, skip, or failure)
-- [ ] Test with real sessions from the SDK test page
+- [x] Test with real sessions from the SDK test page
 
 ---
 

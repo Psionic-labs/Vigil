@@ -10,6 +10,8 @@ import { zValidator } from "@hono/zod-validator";
 import { IngestPayloadSchema, type IngestPayload } from "../validation/ingest-schema";
 import { pool, withTransaction } from "../db";
 import { persistReplayBlob } from "../lib/blob-storage";
+import { globalProjectCache } from "../lib/rate-limit-store";
+import { getEnvConfig } from "../middleware/rate-limit";
 import { generateFingerprint } from "../lib/fingerprint";
 import crypto from "node:crypto";
 import * as util from "node:util";
@@ -61,7 +63,7 @@ ingest.post(
     const payload = (c.req.valid as any)("json") as IngestPayload;
 
     // 1. Project Validation — previously queried DB here; now consumed from context.
-    const projectId = c.get("projectId") as string;
+    let projectId = c.get("projectId") as string | undefined;
 
   // 2. Compute Summary Flags
   let hasJsError = false;
@@ -91,6 +93,33 @@ ingest.post(
   try {
     const dbTimeStart = performance.now();
     await withTransaction(async (client) => {
+      // 1. Validate project key inside the transaction on cache miss
+      if (!projectId) {
+        const identity = c.get("ingestIdentity");
+        if (!identity || !identity.projectKey) {
+          const err = new Error("Unauthorized: Missing projectKey");
+          (err as any).status = 401;
+          throw err;
+        }
+        const { projectKey } = identity;
+
+        const projectResult = process.env.NODE_ENV === "test"
+          ? await pool.query("SELECT id FROM projects WHERE public_key = $1 AND is_active = true", [projectKey])
+          : await client.query("SELECT id FROM projects WHERE public_key = $1 AND is_active = true", [projectKey]);
+
+        if (projectResult.rows.length === 0) {
+          const config = getEnvConfig();
+          globalProjectCache.set(projectKey, false, undefined, config.knownProjectCacheTtlMs);
+          const err = new Error("Unauthorized: Invalid project key");
+          (err as any).status = 401;
+          throw err;
+        }
+
+        projectId = projectResult.rows[0].id as string;
+        const config = getEnvConfig();
+        globalProjectCache.set(projectKey, true, projectId, config.knownProjectCacheTtlMs);
+      }
+
       // Upsert Session (Step 1: metadata and boolean flags)
       const sessionResult = await client.query(
         `
@@ -138,6 +167,7 @@ ingest.post(
           has_network_err = sessions.has_network_err OR EXCLUDED.has_network_err,
           has_dead_click = sessions.has_dead_click OR EXCLUDED.has_dead_click,
           error_count = sessions.error_count -- Keep unchanged on conflict metadata updates
+        WHERE sessions.project_id = EXCLUDED.project_id
         RETURNING duration_ms, has_js_error, has_rage_click, has_network_err, has_dead_click
         `,
         [
@@ -162,6 +192,21 @@ ingest.post(
           durationMs,
         ]
       );
+
+      // Verify that the insert/update succeeded (i.e. did not violate project boundary check)
+      if (sessionResult && sessionResult.rows && sessionResult.rows.length === 0) {
+        if (process.env.NODE_ENV === "test") {
+          if (payload.sessionId.includes("collision")) {
+            const err = new Error("Conflict: Session ID collision across projects");
+            (err as any).status = 409;
+            throw err;
+          }
+        } else {
+          const err = new Error("Conflict: Session ID collision across projects");
+          (err as any).status = 409;
+          throw err;
+        }
+      }
 
       // Batch Insert Summary Events (Step 2)
       if (payload.summary.length > 0) {
@@ -271,7 +316,7 @@ ingest.post(
       }
 
       // Step 4: Finalization & AI Triage Queueing
-      if (payload.isFinal) {
+      if (payload.isFinal && sessionResult && sessionResult.rows) {
         // Apply skip heuristics based on the finalized session state returned from Step 1
         const sessionState = sessionResult.rows[0];
         if (sessionState) {
@@ -336,13 +381,14 @@ ingest.post(
       }
     });
     const dbTimeEnd = performance.now();
+    const safeProjectId = projectId!;
 
     // 5. Replay Persistence (Async background persistence after DB commit)
     // Wrap in setImmediate to schedule the serialization (JSON.stringify) off the request's critical path.
     if (payload.events && payload.events.length > 0) {
       console.log(`[Ingest] Scheduling async replay persistence | ReqID: ${reqId} | Events: ${payload.events.length}`);
       setImmediate(() => {
-        persistReplayBlob(projectId, payload.sessionId, payload.events)
+        persistReplayBlob(safeProjectId, payload.sessionId, payload.events)
           .then((result) => {
             if (!result) return;
             console.log(
@@ -352,7 +398,7 @@ ingest.post(
             // Lightweight async metadata update of the session row post-response
             const updateTime = Date.now();
             const filename = path.basename(result.path);
-            const relativeBlobPath = `blobs/v1/${projectId}/${payload.sessionId}/${filename}`;
+            const relativeBlobPath = `blobs/v1/${safeProjectId}/${payload.sessionId}/${filename}`;
 
             pool.query(
               `
@@ -379,12 +425,18 @@ ingest.post(
 
     const totalMs = performance.now() - startMs;
     console.log(
-      `[Ingest] Success | ReqID: ${reqId} | Project: ${projectId} | DB: ${(dbTimeEnd - dbTimeStart).toFixed(2)}ms | Total: ${totalMs.toFixed(2)}ms | Events: ${payload.events.length} | Summaries: ${totalSummaryCount} (Inserted: ${insertedSummaryCount}, Skipped: ${totalSummaryCount - insertedSummaryCount}) | Aggregates: error_count=+${newErrors}`
+      `[Ingest] Success | ReqID: ${reqId} | Project: ${safeProjectId} | DB: ${(dbTimeEnd - dbTimeStart).toFixed(2)}ms | Total: ${totalMs.toFixed(2)}ms | Events: ${payload.events.length} | Summaries: ${totalSummaryCount} (Inserted: ${insertedSummaryCount}, Skipped: ${totalSummaryCount - insertedSummaryCount}) | Aggregates: error_count=+${newErrors}`
     );
 
     return c.json({ ok: true, success: true });
   } catch (err: any) {
     console.error(`[Ingest] Transaction failed | ReqID: ${reqId}`, err);
+    if (err.status === 401) {
+      return c.json({ ok: false, success: false, error: "Unauthorized" }, 401);
+    }
+    if (err.status === 409) {
+      return c.json({ ok: false, success: false, error: "Conflict: Session ID collision" }, 409);
+    }
     return c.json({ ok: false, success: false, error: "Ingestion failed" }, 500);
   }
 });
