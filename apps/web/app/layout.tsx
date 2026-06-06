@@ -1,26 +1,27 @@
-import type { Metadata } from "next";
-import "./globals.css";
-import { Sidebar } from "@/components/sidebar/Sidebar";
-import { ToastProvider } from "@/components/shared/Toast";
-import { CommandPalette } from "@/components/shared/CommandPalette";
+import type { Metadata } from "next"
+import { GeistSans } from "geist/font/sans"
+import { GeistMono } from "geist/font/mono"
+import "./globals.css"
+import { Sidebar } from "@/components/layout/Sidebar"
+import { TopBar } from "@/components/layout/TopBar"
 
 export const metadata: Metadata = {
   title: "Vigil — AI Bug Triage",
-  description: "AI-native session replay and bug triage for developers.",
-};
+  description: "AI-native session triage for developers",
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="flex flex-col md:flex-row min-h-screen bg-bg text-text-1 antialiased">
-        <ToastProvider>
-          <CommandPalette />
-          <Sidebar />
-          <main className="flex-1 min-w-0 overflow-y-auto">
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+      <body className="flex h-screen overflow-hidden bg-bg font-sans antialiased" suppressHydrationWarning>
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <TopBar />
+          <main className="flex-1 overflow-y-auto bg-bg">
             {children}
           </main>
-        </ToastProvider>
+        </div>
       </body>
     </html>
-  );
+  )
 }

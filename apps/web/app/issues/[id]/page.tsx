@@ -1,166 +1,200 @@
-import { notFound } from "next/navigation";
-import { ArrowLeft, Users, Clock, Calendar } from "lucide-react";
-import Link from "next/link";
-import { MOCK_ISSUES, MOCK_EVENTS, MOCK_SESSIONS, MOCK_PROJECT, MOCK_ISSUE_INSTANCES } from "@/lib/mock-data";
-import { IssueBadge } from "@/components/issues/IssueBadge";
-import { ConfidenceBadge } from "@/components/shared/ConfidenceBadge";
-import { EvidenceTimeline } from "@/components/issues/EvidenceTimeline";
-import { GitHubActionPanel } from "@/components/issues/GitHubActionPanel";
-import { TriageActions } from "@/components/issues/TriageActions";
-import { FrictionBar } from "@/components/sessions/FrictionBar";
-import { RelativeTime } from "@/components/shared/RelativeTime";
-import { formatDuration } from "@/lib/utils";
+import { mockIssues } from "@/lib/mock-data"
+import { IssueBadge } from "@/components/ui/IssueBadge"
+import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
+import { formatRelativeTime, formatTimestamp, severityColor } from "@/lib/utils"
+import { ArrowLeft, Users, Clock, ChevronRight } from "lucide-react"
+import { Github } from "@/components/ui/GithubIcon"
+import Link from "next/link"
+import { mockSessions } from "@/lib/mock-data"
+
+const eventTypeLabel: Record<string, string> = {
+  navigation:    "Navigated to",
+  click:         "Clicked",
+  rage_click:    "Rage clicked",
+  dead_click:    "Dead click on",
+  network_error: "Network error",
+  js_error:      "JS Error",
+  console_error: "Console error",
+}
+const eventColor: Record<string, string> = {
+  navigation:    "bg-accent-light border-accent/20 text-accent",
+  click:         "bg-surface-2 border-border text-text-2",
+  rage_click:    "bg-p2-bg border-yellow-200 text-p2",
+  dead_click:    "bg-surface-2 border-border text-text-3",
+  network_error: "bg-p0-bg border-red-200 text-p0",
+  js_error:      "bg-p1-bg border-orange-200 text-p1",
+  console_error: "bg-surface-2 border-border text-text-3",
+}
 
 export default async function IssueDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = await params;
-  const issue = MOCK_ISSUES.find(i => i.id === resolvedParams.id);
-  if (!issue) notFound();
-
-  const steps: string[] = JSON.parse(issue.reproduction_steps_json);
-  const affectedSessionIds = new Set(
-    MOCK_ISSUE_INSTANCES
-      .filter(instance => instance.issue_group_id === issue.id)
-      .map(instance => instance.session_id)
-  );
-  const affectedSessions = Array.from(affectedSessionIds)
-    .map(sessionId => MOCK_SESSIONS.find(session => session.id === sessionId))
-    .filter((session): session is (typeof MOCK_SESSIONS)[number] => Boolean(session))
-    .slice(0, 5);
-  const relatedIssues = MOCK_ISSUES.filter(i => i.id !== issue.id && i.severity <= issue.severity).slice(0, 3);
+  const { id } = await params
+  const issue = mockIssues.find(i => i.id === id) ?? mockIssues[0]
+  const c = severityColor(issue.severity)
+  const affectedSessions = mockSessions.filter(s => s.issue_instance_count > 0).slice(0, 5)
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Top bar */}
-      <div className="flex items-center gap-4 px-6 py-3 border-b border-border sticky top-0 bg-bg z-10">
-        <Link href="/issues" className="flex items-center gap-1.5 text-text-3 hover:text-text-1 transition-colors text-sm">
-          <ArrowLeft size={13} />
-          Issues
-        </Link>
-        <span className="text-border">/</span>
-        <span className="text-text-2 text-sm font-mono truncate max-w-xs">{issue.id}</span>
-      </div>
+    <div className="p-6 max-w-[1400px] mx-auto">
+      <Link href="/issues" className="inline-flex items-center gap-1.5 text-sm text-text-3
+                                      hover:text-accent transition-colors mb-5">
+        <ArrowLeft className="w-4 h-4" /> Back to Issues
+      </Link>
 
-      {/* Content */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Left column */}
-        <div className="flex-1 min-w-0 overflow-y-auto px-6 py-6 space-y-6">
-          {/* AI Bug Report */}
-          <div className="space-y-4">
-            <h1 className="text-xl font-bold text-text-1 leading-snug">{issue.title}</h1>
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
 
-            <div className="flex items-center gap-3">
-              <IssueBadge severity={issue.severity} />
-              <ConfidenceBadge confidence={issue.confidence} />
-              <span className="text-xs text-text-3">confidence</span>
+        {/* Left — AI report */}
+        <div className="space-y-5">
+          <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden relative">
+            <div className={`h-1 w-full absolute top-0 ${c.dot}`} />
+            <div className="p-6 pt-7">
+              <div className="flex items-center gap-3 mb-4">
+                <IssueBadge severity={issue.severity} />
+                <ConfidenceBadge value={issue.confidence} />
+                {issue.github_auto_raised && (
+                  <span className="text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+                    auto-raised
+                  </span>
+                )}
+                <span className="ml-auto text-xs text-text-3 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  Last seen {formatRelativeTime(issue.last_seen_at)}
+                </span>
+              </div>
+              <h1 className="text-xl font-bold text-text-1 leading-snug">{issue.title}</h1>
+              <div className="flex items-center gap-5 mt-3 text-xs text-text-3">
+                <span className="flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5" />
+                  {issue.affected_session_count} sessions affected
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  First seen {formatRelativeTime(issue.first_seen_at)}
+                </span>
+              </div>
             </div>
 
-            {/* Meta row */}
-            <div className="flex items-center gap-4 text-xs text-text-2">
-              <span className="flex items-center gap-1"><Calendar size={11} className="text-text-3" /> First seen <RelativeTime unixMs={issue.first_seen_at} /></span>
-              <span className="flex items-center gap-1"><Clock size={11} className="text-text-3" /> Last seen <RelativeTime unixMs={issue.last_seen_at} /></span>
-              <span className="flex items-center gap-1"><Users size={11} className="text-text-3" /> {issue.affected_session_count} sessions</span>
-            </div>
+            <div className="border-t border-border divide-y divide-border">
+              {[
+                { label: "Root Cause",      content: issue.root_cause     },
+                { label: "Suggested Fix",   content: issue.suggested_fix  },
+              ].map(({ label, content }) => (
+                <div key={label} className="p-6">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2">{label}</p>
+                  <p className="text-sm text-text-2 leading-relaxed">{content}</p>
+                </div>
+              ))}
 
-            <div className="h-px bg-border" />
+              <div className="p-6">
+                <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-3">Reproduction Steps</p>
+                <ol className="space-y-2.5">
+                  {issue.reproduction_steps.map((step, i) => (
+                    <li key={i} className="flex gap-3 text-sm text-text-2">
+                      <span className="w-6 h-6 rounded-full bg-accent-light text-accent text-xs font-bold
+                                       flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                      {step}
+                    </li>
+                  ))}
+                </ol>
+              </div>
 
-            {/* Root cause */}
-            <div className="space-y-2">
-              <h2 className="text-xs font-semibold text-text-3 uppercase tracking-wider">Root Cause</h2>
-              <p className="text-sm text-text-1 leading-relaxed">{issue.root_cause}</p>
-            </div>
-
-            {/* Suggested fix */}
-            <div className="space-y-2">
-              <h2 className="text-xs font-semibold text-text-3 uppercase tracking-wider">Suggested Fix</h2>
-              <p className="text-sm text-text-1 leading-relaxed">{issue.suggested_fix}</p>
-            </div>
-
-            {/* Reproduction steps */}
-            <div className="space-y-2">
-              <h2 className="text-xs font-semibold text-text-3 uppercase tracking-wider">Reproduction Steps</h2>
-              <ol className="space-y-2">
-                {steps.map((step, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-text-1">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-surface-2 border border-border flex items-center justify-center text-[10px] font-mono text-text-3 mt-0.5">
-                      {i + 1}
-                    </span>
-                    {step}
-                  </li>
-                ))}
-              </ol>
-            </div>
-
-            {/* Evidence */}
-            <div className="space-y-2">
-              <h2 className="text-xs font-semibold text-text-3 uppercase tracking-wider">Evidence</h2>
-              <div className="rounded-lg border border-border bg-surface overflow-hidden">
-                <EvidenceTimeline events={MOCK_EVENTS} />
+              <div className="p-6">
+                <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-3">Evidence Timeline</p>
+                <div className="space-y-3">
+                  {issue.evidence.map((ev, i) => (
+                    <div key={i} className="flex gap-3 items-start">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium border ${eventColor[ev.type] ?? eventColor.click} shrink-0`}>
+                        {eventTypeLabel[ev.type] ?? ev.type}
+                      </span>
+                      <span className="text-sm text-text-1 flex-1">{ev.detail}</span>
+                      <span className="font-mono text-xs text-text-3 bg-surface-2 border border-border px-1.5 py-0.5 rounded shrink-0">
+                        {formatTimestamp(ev.timestamp_ms)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
           {/* Affected sessions */}
-          <div className="space-y-3">
-            <h2 className="text-xs font-semibold text-text-3 uppercase tracking-wider">Affected Sessions</h2>
-            <div className="rounded-lg border border-border bg-surface overflow-hidden">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left px-4 py-2 text-text-3 font-medium">Session</th>
-                    <th className="text-left px-4 py-2 text-text-3 font-medium">URL</th>
-                    <th className="text-left px-4 py-2 text-text-3 font-medium w-32">Friction</th>
-                    <th className="text-left px-4 py-2 text-text-3 font-medium">Duration</th>
-                    <th className="text-left px-4 py-2 text-text-3 font-medium">When</th>
-                    <th className="px-4 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {affectedSessions.map(s => (
-                    <tr key={s.id} className="border-b border-border last:border-0 hover:bg-surface-2 transition-colors">
-                      <td className="px-4 py-2.5 font-mono text-text-2">{s.id}</td>
-                      <td className="px-4 py-2.5 text-text-1 truncate max-w-[120px]">{s.url}</td>
-                      <td className="px-4 py-2.5 w-32"><FrictionBar score={s.ai_friction_score} /></td>
-                      <td className="px-4 py-2.5 font-mono text-text-2">{formatDuration(s.duration_ms)}</td>
-                      <td className="px-4 py-2.5"><RelativeTime unixMs={s.started_at} /></td>
-                      <td className="px-4 py-2.5">
-                        <Link href={`/sessions/${s.id}`} className="text-accent text-xs hover:underline">replay →</Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="px-4 py-2 border-t border-border">
-                <Link href={`/sessions?issue=${issue.id}`} className="text-xs text-accent hover:underline">
-                  Show all {issue.affected_session_count} sessions
+          <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-border">
+              <p className="text-sm font-semibold text-text-1">Affected Sessions</p>
+            </div>
+            <div className="divide-y divide-border">
+              {affectedSessions.map(s => (
+                <Link key={s.id} href={`/sessions/${s.id}`}
+                  className="flex items-center gap-4 px-5 py-3 hover:bg-surface-2 transition-colors group">
+                  <span className="font-mono text-xs text-text-3 w-28 shrink-0">{s.id}</span>
+                  <span className="text-xs text-text-2 flex-1 truncate">{s.url}</span>
+                  <span className={`text-xs font-medium ${s.ai_goal_completed ? "text-ok" : "text-p0"}`}>
+                    {s.ai_goal_completed ? "✓ Goal Met" : "✕ Failed"}
+                  </span>
+                  <span className="text-xs text-text-3 w-14 text-right">{formatRelativeTime(s.started_at)}</span>
+                  <ChevronRight className="w-4 h-4 text-text-3 group-hover:text-accent transition-colors" />
                 </Link>
-              </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Right column — sticky panel */}
-        <div className="w-80 flex-shrink-0 border-l border-border overflow-y-auto px-4 py-6 space-y-4">
-          <TriageActions issue={issue} />
-          <GitHubActionPanel issue={issue} project={MOCK_PROJECT} />
-
-          {/* Related issues */}
-          {relatedIssues.length > 0 && (
-            <div className="rounded-lg border border-border bg-surface p-4 space-y-2">
-              <p className="text-xs font-medium text-text-2 uppercase tracking-wider">Related Issues</p>
-              <div className="space-y-2">
-                {relatedIssues.map(r => (
-                  <Link key={r.id} href={`/issues/${r.id}`} className="flex items-start gap-2 group">
-                    <IssueBadge severity={r.severity} />
-                    <p className="text-xs text-text-2 group-hover:text-text-1 transition-colors truncate leading-tight pt-0.5">
-                      {r.title.slice(0, 50)}…
-                    </p>
-                  </Link>
-                ))}
-              </div>
+        {/* Right — action panel */}
+        <div className="space-y-4">
+          <div className="bg-surface rounded-2xl border border-border shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Github className="w-4 h-4 text-text-2" />
+              <p className="text-sm font-semibold text-text-1">GitHub</p>
             </div>
-          )}
+            {issue.github_issue_url ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 p-3 bg-surface-2 rounded-xl border border-border">
+                  <Github className="w-4 h-4 text-text-2" />
+                  <span className="text-sm text-text-1 font-medium truncate">
+                    acme/checkout-app #{issue.github_issue_number}
+                  </span>
+                  <span className="ml-auto text-xs font-medium text-ok bg-ok-bg border border-green-200 px-2 py-0.5 rounded-full shrink-0">
+                    open
+                  </span>
+                </div>
+                <a href={issue.github_issue_url} target="_blank" rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-2 text-sm font-medium
+                             text-text-2 bg-surface-2 border border-border rounded-xl
+                             hover:border-accent/40 hover:text-accent transition-all cursor-pointer">
+                  View on GitHub
+                </a>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <button className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold
+                                   text-white bg-accent hover:bg-accent-dark rounded-xl transition-colors cursor-pointer">
+                  <Github className="w-4 h-4" />
+                  Raise GitHub Issue
+                </button>
+                <textarea placeholder="Add a comment before raising..." rows={3}
+                  className="w-full text-sm bg-surface-2 border border-border rounded-xl p-3 resize-none
+                             text-text-1 placeholder:text-text-3 focus:outline-none focus:ring-2
+                             focus:ring-accent/30 focus:border-accent transition-all" />
+              </div>
+            )}
+          </div>
+
+          <div className="bg-surface rounded-2xl border border-border shadow-sm p-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-3">Session Stats</p>
+            <div className="space-y-2.5">
+              {[
+                { label: "Affected sessions", value: issue.affected_session_count },
+                { label: "Avg confidence",    value: `${Math.round(issue.confidence * 100)}%` },
+                { label: "First seen",        value: formatRelativeTime(issue.first_seen_at) },
+                { label: "Last seen",         value: formatRelativeTime(issue.last_seen_at) },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-center justify-between">
+                  <span className="text-xs text-text-3">{label}</span>
+                  <span className="text-xs font-semibold text-text-1 font-mono">{value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
-  );
+  )
 }
