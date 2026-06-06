@@ -23,11 +23,11 @@
     "track-size": "node scripts/track-size.js"
   },
   "dependencies": {
-    "rrweb": "2.0.0-alpha.4"
+    "rrweb": "2.0.1"
   },
   "devDependencies": {
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.8"
   }
 }

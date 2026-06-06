@@ -13,19 +13,19 @@
     "framer-motion": "^12.40.0",
     "geist": "^1.7.2",
     "lucide-react": "^1.17.0",
-    "next": "15.5.19",
+    "next": "16.2.7",
     "postcss": "^8.5.15",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "tailwindcss": "^4.3.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@types/node": "^20",
+    "@types/node": "^25",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "15.5.19",
-    "typescript": "^5"
+    "eslint": "^10",
+    "eslint-config-next": "16.2.7",
+    "typescript": "^6"
   }
 }
