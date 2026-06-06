@@ -1,181 +1,190 @@
-"use client";
+import { AlertTriangle, Activity, Monitor, CheckCircle, ArrowRight } from "lucide-react"
+import { StatCard } from "@/components/ui/StatCard"
+import { IssueBadge } from "@/components/ui/IssueBadge"
+import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
+import { FrictionBar } from "@/components/ui/FrictionBar"
+import { PageHeader } from "@/components/ui/PageHeader"
+import { EnvironmentChip } from "@/components/ui/EnvironmentChip"
+import { mockIssues, mockSessions } from "@/lib/mock-data"
+import { formatRelativeTime, formatDuration } from "@/lib/utils"
+import Link from "next/link"
 
-import { useMemo } from "react";
-import { AlertTriangle, Users, ArrowUpRight, Zap, LayoutDashboard } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/shared/Card";
-import { MOCK_ISSUES, MOCK_SESSIONS } from "@/lib/mock-data";
-import { IssueRow } from "@/components/issues/IssueRow";
-import { SessionRow } from "@/components/sessions/SessionRow";
+const severityBreakdown = [
+  { label: "Critical", key: "P0", borderClass: "border-t-p0",  dotClass: "bg-p0",  textClass: "text-p0"  },
+  { label: "High",     key: "P1", borderClass: "border-t-p1",  dotClass: "bg-p1",  textClass: "text-p1"  },
+  { label: "Medium",   key: "P2", borderClass: "border-t-p2",  dotClass: "bg-p2",  textClass: "text-p2"  },
+  { label: "Low",      key: "P3", borderClass: "border-t-p3",  dotClass: "bg-p3",  textClass: "text-p3"  },
+]
 
-export default function OverviewDashboard() {
-  const stats = useMemo(() => {
-    const openIssues = MOCK_ISSUES.filter(i => i.status === "open" || i.status === "linked").length;
-    const totalSessions = MOCK_SESSIONS.length;
-    const avgFriction = totalSessions > 0
-      ? Math.round(MOCK_SESSIONS.reduce((acc, s) => acc + (s.ai_friction_score || 0), 0) / totalSessions)
-      : 0;
-    const p0Count = MOCK_ISSUES.filter(i => i.severity === "P0" && (i.status === "open" || i.status === "linked")).length;
-    const p1Count = MOCK_ISSUES.filter(i => i.severity === "P1" && (i.status === "open" || i.status === "linked")).length;
-    const p2Count = MOCK_ISSUES.filter(i => i.severity === "P2" && (i.status === "open" || i.status === "linked")).length;
-    const p3Count = MOCK_ISSUES.filter(i => i.severity === "P3" && (i.status === "open" || i.status === "linked")).length;
-    
-    return { openIssues, totalSessions, avgFriction, p0Count, p1Count, p2Count, p3Count };
-  }, []);
+export default function OverviewPage() {
+  const openIssuesCount = mockIssues.filter(i => i.status === "open").length
+  const avgFrictionScore = mockSessions.length > 0 ? Math.round(mockSessions.reduce((sum, s) => sum + s.ai_friction_score, 0) / mockSessions.length) : 0
+  const totalSessionsCount = mockSessions.length
+  const completedGoalsCount = mockSessions.filter(s => s.ai_goal_completed).length
+  const goalCompletionRate = mockSessions.length > 0 ? Math.round((completedGoalsCount / mockSessions.length) * 100) : 0
 
-  const recentIssues = MOCK_ISSUES.slice(0, 4);
-  const recentSessions = [...MOCK_SESSIONS]
-    .sort((a, b) => (b.ai_friction_score || 0) - (a.ai_friction_score || 0))
-    .slice(0, 3);
+  const recentIssues = mockIssues.filter(i => i.status !== "ignored").slice(0, 4)
+  const highFrictionSessions = [...mockSessions]
+    .sort((a, b) => b.ai_friction_score - a.ai_friction_score)
+    .slice(0, 3)
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto bg-bg">
-      <div className="px-6 py-6 border-b border-border bg-surface sticky top-0 z-10 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-surface-2 border border-border flex items-center justify-center shadow-sm">
-            <LayoutDashboard size={16} className="text-text-2" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-text-1 tracking-tight">Overview Dashboard</h1>
-            <p className="text-xs text-text-3 mt-0.5">Here's a summary of your app's health and recent AI triage results.</p>
-          </div>
-        </div>
+    <div className="p-6 max-w-[1400px] mx-auto">
+      <PageHeader
+        title="Overview Dashboard"
+        subtitle="Here's a summary of your app's health and recent AI triage results."
+      />
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-7">
+        <StatCard label="Open Issues"       value={openIssuesCount}    trend={{ label: "+3 this week", positive: false }}  subtext="vs last week"          icon={AlertTriangle} leftBorderClass="border-l-p0"     iconBg="bg-p0-bg"        iconColor="text-p0"     />
+        <StatCard label="Avg Friction Score" value={avgFrictionScore}   trend={{ label: "+4 points",    positive: false }}  subtext="since latest release"  icon={Activity}      leftBorderClass="border-l-p1"     iconBg="bg-p1-bg"        iconColor="text-p1"     />
+        <StatCard label="Total Sessions"    value={totalSessionsCount}                                                     subtext="Last 24 hours"         icon={Monitor}       leftBorderClass="border-l-accent"  iconBg="bg-accent-light" iconColor="text-accent" />
+        <StatCard label="Goal Completion"   value={`${goalCompletionRate}%`}  trend={{ label: "+12% this week", positive: true }} subtext="vs last week"          icon={CheckCircle}   leftBorderClass="border-l-ok"     iconBg="bg-ok-bg"        iconColor="text-ok"     />
       </div>
 
-      <div className="p-6 space-y-6 max-w-7xl">
-        {/* Top Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card variant="elevated">
-            <CardHeader className="pb-2 border-none">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-text-2">Open Issues</CardTitle>
-                <AlertTriangle size={16} className="text-amber-500" />
+      {/* Main grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+
+        {/* Left panel */}
+        <div className="xl:col-span-2 space-y-5">
+
+          {/* Severity breakdown */}
+          <div className="bg-surface rounded-2xl border border-border p-5 shadow-sm">
+            <h2 className="text-sm font-semibold text-text-1 mb-4">Severity Breakdown</h2>
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              {severityBreakdown.map(({ label, key, borderClass, dotClass, textClass }) => {
+                const count = mockIssues.filter(i => i.severity === key && i.status !== "ignored").length
+                return (
+                  <div key={key} className={`bg-surface-2 rounded-xl border border-border border-t-[3px] ${borderClass} p-3.5 text-center`}>
+                    <p className={`text-2xl font-bold ${textClass}`}>{count}</p>
+                    <div className="flex items-center justify-center gap-1.5 mt-1">
+                      <span className={`w-2 h-2 rounded-full ${dotClass}`} />
+                      <span className="text-xs text-text-2">{label}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="space-y-2.5">
+              {severityBreakdown.map(({ label, key, dotClass }) => {
+                const count = mockIssues.filter(i => i.severity === key && i.status !== "ignored").length
+                const total = mockIssues.filter(i => i.status !== "ignored").length
+                return (
+                  <div key={key} className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 w-24 shrink-0">
+                      <span className={`w-2 h-2 rounded-full ${dotClass}`} />
+                      <span className="text-xs text-text-2">{key} {label}</span>
+                    </div>
+                    <div className="flex-1 h-1.5 bg-surface-2 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${dotClass}`} style={{ width: `${total > 0 ? (count / total) * 100 : 0}%` }} />
+                    </div>
+                    <span className="text-xs font-mono text-text-3 w-4 text-right">{count}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* AI Insights */}
+          <div className="bg-surface rounded-2xl border border-border p-5 shadow-sm">
+            <div className="flex items-center gap-2 mb-3.5">
+              <div className="w-6 h-6 rounded-md bg-accent-light flex items-center justify-center">
+                <span className="text-accent text-xs font-bold">✦</span>
               </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-3xl font-bold text-text-1">{stats.openIssues}</div>
-              <div className="text-xs text-text-3 mt-1 flex items-center gap-1">
-                <span className="text-success flex items-center"><ArrowUpRight size={12} /> 12%</span> from last week
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card variant="elevated">
-            <CardHeader className="pb-2 border-none">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-text-2">Avg Friction Score</CardTitle>
-                <Zap size={16} className="text-accent" />
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-3xl font-bold text-text-1">{stats.avgFriction}</div>
-              <div className="text-xs text-text-3 mt-1 flex items-center gap-1">
-                <span className="text-error flex items-center"><ArrowUpRight size={12} /> 4</span> points since latest release
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card variant="elevated">
-            <CardHeader className="pb-2 border-none">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-text-2">Total Sessions</CardTitle>
-                <Users size={16} className="text-text-3" />
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-3xl font-bold text-text-1">{stats.totalSessions}</div>
-              <div className="text-xs text-text-3 mt-1 flex items-center gap-1">
-                <span className="text-text-2 flex items-center">Last 24 hours</span>
-              </div>
-            </CardContent>
-          </Card>
+              <h2 className="text-sm font-semibold text-text-1">Vigil AI Insights</h2>
+            </div>
+            <div className="space-y-3 text-sm leading-relaxed text-text-2">
+              <p>
+                <span className="font-semibold text-text-1">Checkout Friction: </span>
+                High friction detected in recent{" "}
+                <code className="text-xs bg-surface-2 border border-border px-1.5 py-0.5 rounded font-mono text-accent">/checkout</code>
+                {" "}sessions due to a 503 error from the payment API.
+              </p>
+              <p>
+                <span className="font-semibold text-text-1">JS Errors: </span>
+                <code className="text-xs bg-red-50 border border-red-100 px-1.5 py-0.5 rounded font-mono text-p0">TypeError: Cannot read properties</code>
+                {" "}is spiking on mobile devices.
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Breakdown & Feed */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Severity */}
-          <div className="lg:col-span-1 space-y-6">
-            <Card variant="inset">
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm">Severity Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <SeverityBar label="P0 Critical" count={stats.p0Count} total={stats.openIssues} color="bg-error" />
-                <SeverityBar label="P1 High" count={stats.p1Count} total={stats.openIssues} color="bg-amber-500" />
-                <SeverityBar label="P2 Medium" count={stats.p2Count} total={stats.openIssues} color="bg-blue-500" />
-                <SeverityBar label="P3 Low" count={stats.p3Count} total={stats.openIssues} color="bg-text-3" />
-              </CardContent>
-            </Card>
-            
-            <Card variant="accent">
-              <CardHeader className="py-3 bg-accent/5">
-                <CardTitle className="text-sm text-accent flex items-center gap-2">
-                  <Zap size={14} />
-                  Vigil AI Insights
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-text-2 space-y-3">
-                <p>
-                  <strong className="text-text-1">Checkout Friction:</strong> High friction detected in recent <code className="text-xs bg-surface-2 px-1 rounded text-accent">/checkout</code> sessions due to a 503 error from the payment API.
-                </p>
-                <p>
-                  <strong className="text-text-1">JS Errors:</strong> <code className="text-xs bg-surface-2 px-1 rounded text-error">TypeError: Cannot read properties</code> is spiking on mobile devices.
-                </p>
-              </CardContent>
-            </Card>
+        {/* Right panel */}
+        <div className="xl:col-span-3 space-y-5">
+
+          {/* Recent triage inbox */}
+          <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+              <h2 className="text-sm font-semibold text-text-1">Recent Triage Inbox</h2>
+              <Link href="/issues" className="text-xs text-accent hover:text-accent-dark font-medium transition-colors flex items-center gap-1">
+                View all <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <div className="divide-y divide-border">
+              {recentIssues.map(issue => (
+                <Link
+                  key={issue.id}
+                  href={`/issues/${issue.id}`}
+                  className="flex items-start gap-3.5 px-5 py-3.5 hover:bg-surface-2 transition-colors group"
+                >
+                  <IssueBadge severity={issue.severity} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text-1 truncate group-hover:text-accent transition-colors">
+                      {issue.title}
+                    </p>
+                    <p className="text-xs text-text-3 mt-0.5 truncate">{issue.root_cause}</p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-text-1">{issue.affected_session_count}</p>
+                      <p className="text-xs text-text-3 leading-none">sessions</p>
+                    </div>
+                    <ConfidenceBadge value={issue.confidence} />
+                    <span className="text-xs text-text-3 w-12 text-right">
+                      {formatRelativeTime(issue.last_seen_at)}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
 
-          {/* Right: Activity Feed */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card variant="elevated" className="overflow-hidden overflow-x-auto">
-              <CardHeader className="flex flex-row items-center justify-between py-3 bg-surface-2/50 min-w-[600px]">
-                <CardTitle className="text-sm">Recent Triage Inbox</CardTitle>
-              </CardHeader>
-              <div className="divide-y divide-border min-w-[600px]">
-                {recentIssues.map(issue => (
-                  <IssueRow key={issue.id} issue={issue} />
-                ))}
-              </div>
-            </Card>
-            
-            <Card variant="elevated" className="overflow-hidden overflow-x-auto">
-              <CardHeader className="flex flex-row items-center justify-between py-3 bg-surface-2/50 min-w-[800px]">
-                <CardTitle className="text-sm">Recent High-Friction Sessions</CardTitle>
-              </CardHeader>
-              <table className="w-full text-sm min-w-[800px]">
-                <thead className="bg-surface border-b border-border">
-                  <tr>
-                    {["Session ID", "URL", "Friction", "Goal", "Issues", "Signals", "Duration", "Env", "Started", "Actions"].map(h => (
-                      <th key={h} className="text-left px-4 py-2 text-[10px] font-semibold text-text-3 uppercase tracking-wider whitespace-nowrap">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentSessions.map(session => (
-                    <SessionRow key={session.id} session={session} />
-                  ))}
-                </tbody>
-              </table>
-            </Card>
+          {/* High friction sessions */}
+          <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+              <h2 className="text-sm font-semibold text-text-1">Recent High-Friction Sessions</h2>
+              <Link href="/sessions" className="text-xs text-accent hover:text-accent-dark font-medium transition-colors flex items-center gap-1">
+                View all <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <div className="divide-y divide-border">
+              {highFrictionSessions.map(session => (
+                <Link
+                  key={session.id}
+                  href={`/sessions/${session.id}`}
+                  className="flex items-center gap-4 px-5 py-3 hover:bg-surface-2 transition-colors group"
+                >
+                  <span className="font-mono text-xs text-text-3 w-24 shrink-0 truncate">{session.id}</span>
+                  <span className="text-xs text-text-2 w-24 shrink-0 truncate">{session.url}</span>
+                  <FrictionBar score={session.ai_friction_score} className="flex-1" />
+                  <span className={`text-xs flex items-center gap-1 shrink-0 w-20 ${session.ai_goal_completed ? "text-ok" : "text-p0"}`}>
+                    {session.ai_goal_completed ? "✓ Met" : "✕ Failed"}
+                  </span>
+                  <span className="font-mono text-xs text-text-3 w-14 shrink-0 text-right">
+                    {formatDuration(session.duration_ms)}
+                  </span>
+                  <EnvironmentChip env={session.environment} />
+                  <span className="text-xs text-text-3 w-12 text-right shrink-0">
+                    {formatRelativeTime(session.started_at)}
+                  </span>
+                </Link>
+              ))}
+            </div>
           </div>
+
         </div>
       </div>
     </div>
-  );
-}
-
-function SeverityBar({ label, count, total, color }: { label: string, count: number, total: number, color: string }) {
-  const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
-  return (
-    <div>
-      <div className="flex justify-between text-xs mb-1.5">
-        <span className="text-text-2 font-medium">{label}</span>
-        <span className="text-text-1 font-mono">{count}</span>
-      </div>
-      <div className="h-1.5 w-full bg-border rounded-full overflow-hidden shadow-inner">
-        <div className={`h-full ${color} rounded-full transition-all duration-1000`} style={{ width: `${percentage}%` }} />
-      </div>
-    </div>
-  );
+  )
 }

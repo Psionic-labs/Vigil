@@ -1,121 +1,88 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
 
 :root {
-  /* ── Core surfaces ── */
-  --bg: 248 250 252;
-  --surface: 255 255 255;
-  --surface-2: 241 245 249;
-  --border: 226 232 240;
+  --sidebar:        30 27 75;
+  --sidebar-active: 79 70 229;
+  --sidebar-hover:  49 46 129;
+  --sidebar-text:   199 210 254;
+  --sidebar-muted:  129 140 248;
 
-  /* ── Text hierarchy ── */
-  --text-1: 15 23 42;
-  --text-2: 71 85 105;
+  --bg:        248 250 252;
+  --surface:   255 255 255;
+  --surface-2: 241 245 249;
+  --border:    226 232 240;
+
+  --text-1: 15  23  42;
+  --text-2: 71  85  105;
   --text-3: 148 163 184;
 
-  /* ── Brand accent ── */
-  --accent: 59 130 246;
+  --accent:       99  102 241;
+  --accent-light: 238 242 255;
+  --accent-dark:  67  56  202;
 
-  /* ── Severity palette ── */
-  --p0: 220 38 38;
-  --p1: 234 88 12;
-  --p2: 202 138 4;
-  --p3: 100 116 139;
+  --p0: 220 38  38;   --p0-bg: 254 226 226;
+  --p1: 234 88  12;   --p1-bg: 255 237 213;
+  --p2: 202 138 4;    --p2-bg: 254 249 195;
+  --p3: 100 116 139;  --p3-bg: 241 245 249;
 
-  /* ── Semantic ── */
-  --success: 22 163 74;
+  --ok: 22 163 74;    --ok-bg: 220 252 231;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+@theme {
+  --color-sidebar:        rgb(var(--sidebar));
+  --color-sidebar-active: rgb(var(--sidebar-active));
+  --color-sidebar-hover:  rgb(var(--sidebar-hover));
+  --color-sidebar-text:   rgb(var(--sidebar-text));
+  --color-sidebar-muted:  rgb(var(--sidebar-muted));
 
-html, body {
-  background-color: rgb(var(--bg));
-  color: rgb(var(--text-1));
-  font-family: 'Geist', 'Inter', system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --color-bg:        rgb(var(--bg));
+  --color-surface:   rgb(var(--surface));
+  --color-surface-2: rgb(var(--surface-2));
+  --color-border:    rgb(var(--border));
+
+  --color-text-1: rgb(var(--text-1));
+  --color-text-2: rgb(var(--text-2));
+  --color-text-3: rgb(var(--text-3));
+
+  --color-accent:       rgb(var(--accent));
+  --color-accent-light: rgb(var(--accent-light));
+  --color-accent-dark:  rgb(var(--accent-dark));
+
+  --color-p0: rgb(var(--p0));  --color-p0-bg: rgb(var(--p0-bg));
+  --color-p1: rgb(var(--p1));  --color-p1-bg: rgb(var(--p1-bg));
+  --color-p2: rgb(var(--p2));  --color-p2-bg: rgb(var(--p2-bg));
+  --color-p3: rgb(var(--p3));  --color-p3-bg: rgb(var(--p3-bg));
+
+  --color-ok: rgb(var(--ok));  --color-ok-bg: rgb(var(--ok-bg));
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-/* ── Premium gradient background ── */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(ellipse 80% 60% at 10% 5%, rgba(59, 130, 246, 0.06), transparent 50%),
-    radial-gradient(ellipse 60% 50% at 90% 90%, rgba(139, 92, 246, 0.04), transparent 50%),
-    radial-gradient(ellipse 40% 40% at 50% 50%, rgba(59, 130, 246, 0.02), transparent 60%);
-  pointer-events: none;
-}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background-color: rgb(var(--bg)); font-family: var(--font-sans); }
 
-/* ── Text selection ── */
-::selection { background: rgba(var(--accent), 0.15); color: rgb(var(--text-1)); }
-
-/* ── Scrollbar (thin, refined) ── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgb(var(--text-3)); }
-
-/* ── Skeleton shimmer ── */
-@keyframes shimmer {
-  0% { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
-}
-
-.skeleton {
-  background: linear-gradient(90deg, rgb(var(--surface-2)) 25%, rgb(var(--surface)) 50%, rgb(var(--surface-2)) 75%);
-  background-size: 400px 100%;
-  animation: shimmer 1.4s ease infinite;
+*:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
   border-radius: 4px;
 }
 
-/* ── P0 badge pulse ── */
-@keyframes pulse-p0 {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--p0), 0.25); }
-  50% { box-shadow: 0 0 0 4px rgba(var(--p0), 0.1); }
+.animate-fade-up {
+  animation: fadeUp 0.3s ease-out both;
 }
-
-.badge-p0 { animation: pulse-p0 2s ease-in-out infinite; }
-
-/* ── Stagger entry animation ── */
-@keyframes staggerFade {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.stagger-item {
-  animation: staggerFade 0.3s ease-out both;
-}
-
-.stagger-item:nth-child(1) { animation-delay: 50ms; }
-.stagger-item:nth-child(2) { animation-delay: 100ms; }
-.stagger-item:nth-child(3) { animation-delay: 150ms; }
-.stagger-item:nth-child(4) { animation-delay: 200ms; }
-.stagger-item:nth-child(5) { animation-delay: 250ms; }
-.stagger-item:nth-child(6) { animation-delay: 300ms; }
-.stagger-item:nth-child(7) { animation-delay: 350ms; }
-.stagger-item:nth-child(8) { animation-delay: 400ms; }
-.stagger-item:nth-child(9) { animation-delay: 450ms; }
-.stagger-item:nth-child(10) { animation-delay: 500ms; }
-.stagger-item:nth-child(n+11) { animation-delay: 550ms; }
-
-@media (prefers-reduced-motion: reduce) {
-  .skeleton,
-  .badge-p0,
-  .stagger-item {
-    animation: none !important;
-    transition: none !important;
-    transform: none !important;
-    box-shadow: none !important;
-    background-position: 0 0 !important;
-  }
-}
-
-/* ── Focus ring utility ── */
-.focus-ring:focus-visible {
-  outline: 2px solid rgb(var(--accent));
-  outline-offset: 2px;
+.animate-shimmer {
+  background: linear-gradient(90deg, rgb(var(--surface-2)) 25%, rgb(var(--surface)) 50%, rgb(var(--surface-2)) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
 }
