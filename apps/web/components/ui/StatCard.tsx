@@ -18,7 +18,7 @@ export function StatCard({ label, value, subtext, trend, icon: Icon, leftBorderC
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-text-3">{label}</p>
           <p className="text-3xl font-bold text-text-1 mt-1.5 leading-none tracking-tight">{value}</p>
-          {subtext && <p className="text-xs text-text-3 mt-1">{subtext}</p>}
+          {subtext && !trend && <p className="text-xs text-text-3 mt-1">{subtext}</p>}
         </div>
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconBg}`}>
           <Icon className={`w-5 h-5 ${iconColor}`} />
@@ -31,7 +31,7 @@ export function StatCard({ label, value, subtext, trend, icon: Icon, leftBorderC
                             ${trend.positive ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
             {trend.positive ? "↑" : "↓"} {trend.label}
           </span>
-          <span className="text-xs text-text-3">vs last week</span>
+          {subtext && <span className="text-xs text-text-3">{subtext}</span>}
         </div>
       )}
     </div>

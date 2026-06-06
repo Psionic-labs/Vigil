@@ -493,7 +493,12 @@ export function getSessionsForIssue(issueId: string): Session[] {
   if (issueId === "igr_sessex") return mockSessions.filter(s => s.id === "ses_m3n4p5")
   if (issueId === "igr_promo") return mockSessions.filter(s => s.id === "ses_q7r8s9")
   if (issueId === "igr_postcd") return mockSessions.filter(s => s.id === "ses_t1u2v3" || s.id === "ses_p7q8r9")
-  return []
+  if (issueId === "igr_mobnav") return mockSessions.filter(s => s.id === "ses_q7r8s9" || s.id === "ses_x9y8z7")
+  if (issueId === "igr_lcp") return mockSessions.filter(s => s.id === "ses_w4x5y6" || s.id === "ses_a1b2c3")
+  if (issueId === "igr_keys") return mockSessions.filter(s => s.id === "ses_w4x5y6")
+  
+  const filtered = mockSessions.filter(s => s.issue_instance_count > 0)
+  return filtered.length > 0 ? filtered : mockSessions.slice(0, 3)
 }
 
 export function getIssuesForSession(sessionId: string): IssueGroup[] {
@@ -502,5 +507,5 @@ export function getIssuesForSession(sessionId: string): IssueGroup[] {
   if (sessionId === "ses_m3n4p5") return mockIssues.filter(i => i.id === "igr_sessex")
   if (sessionId === "ses_q7r8s9") return mockIssues.filter(i => i.id === "igr_promo")
   if (sessionId === "ses_t1u2v3" || sessionId === "ses_p7q8r9") return mockIssues.filter(i => i.id === "igr_postcd")
-  return []
+  return mockIssues.filter(i => i.status !== "ignored").slice(0, 2)
 }

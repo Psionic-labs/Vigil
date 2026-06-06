@@ -94,7 +94,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
                 <div key={i}
                   className={`absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm
                     ${ev.type === "network_error" || ev.type === "js_error" ? "bg-p0" : "bg-p2"}`}
-                  style={{ left: `${Math.min((ev.timestamp_ms / session.duration_ms) * 100, 95)}%` }}
+                  style={{ left: `${session.duration_ms > 0 ? Math.min((ev.timestamp_ms / session.duration_ms) * 100, 95) : 0}%` }}
                   title={ev.type}
                 />
               ))}

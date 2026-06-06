@@ -3,7 +3,7 @@ import { IssueBadge } from "@/components/ui/IssueBadge"
 import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
 import { formatRelativeTime, formatTimestamp, severityColor } from "@/lib/utils"
 import { ArrowLeft, Users, Clock, ChevronRight } from "lucide-react"
-import { Github } from "@/components/ui/GithubIcon"
+import { GitHubIntegrationCard } from "@/components/issues/GitHubIntegrationCard"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
@@ -142,43 +142,10 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ id
 
         {/* Right — action panel */}
         <div className="space-y-4">
-          <div className="bg-surface rounded-2xl border border-border shadow-sm p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Github className="w-4 h-4 text-text-2" />
-              <p className="text-sm font-semibold text-text-1">GitHub</p>
-            </div>
-            {issue.github_issue_url ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 p-3 bg-surface-2 rounded-xl border border-border">
-                  <Github className="w-4 h-4 text-text-2" />
-                  <span className="text-sm text-text-1 font-medium truncate">
-                    acme/checkout-app #{issue.github_issue_number}
-                  </span>
-                  <span className="ml-auto text-xs font-medium text-ok bg-ok-bg border border-green-200 px-2 py-0.5 rounded-full shrink-0">
-                    open
-                  </span>
-                </div>
-                <a href={issue.github_issue_url} target="_blank" rel="noopener noreferrer"
-                  className="w-full flex items-center justify-center gap-2 py-2 text-sm font-medium
-                             text-text-2 bg-surface-2 border border-border rounded-xl
-                             hover:border-accent/40 hover:text-accent transition-all cursor-pointer">
-                  View on GitHub
-                </a>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <button className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold
-                                   text-white bg-accent hover:bg-accent-dark rounded-xl transition-colors cursor-pointer">
-                  <Github className="w-4 h-4" />
-                  Raise GitHub Issue
-                </button>
-                <textarea placeholder="Add a comment before raising..." rows={3}
-                  className="w-full text-sm bg-surface-2 border border-border rounded-xl p-3 resize-none
-                             text-text-1 placeholder:text-text-3 focus:outline-none focus:ring-2
-                             focus:ring-accent/30 focus:border-accent transition-all" />
-              </div>
-            )}
-          </div>
+          <GitHubIntegrationCard
+            initialIssueUrl={issue.github_issue_url}
+            initialIssueNumber={issue.github_issue_number}
+          />
 
           <div className="bg-surface rounded-2xl border border-border shadow-sm p-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-3">Session Stats</p>

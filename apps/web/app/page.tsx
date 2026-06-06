@@ -17,7 +17,7 @@ const severityBreakdown = [
 ]
 
 export default function OverviewPage() {
-  const openIssuesCount = mockIssues.filter(i => i.status === "open" || i.status === "linked").length
+  const openIssuesCount = mockIssues.filter(i => i.status === "open").length
   const avgFrictionScore = mockSessions.length > 0 ? Math.round(mockSessions.reduce((sum, s) => sum + s.ai_friction_score, 0) / mockSessions.length) : 0
   const totalSessionsCount = mockSessions.length
   const completedGoalsCount = mockSessions.filter(s => s.ai_goal_completed).length

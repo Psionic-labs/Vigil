@@ -16,6 +16,7 @@ const FILTERS: Filter[] = ["All", "P0", "P1", "P2", "P3", "Linked to GitHub", "I
 export default function IssuesPage() {
   const [filter, setFilter] = useState<Filter>("All")
   const [search, setSearch] = useState("")
+  const [sortBy, setSortBy] = useState<"severity" | "sessions" | "newest">("severity")
 
   const visible = mockIssues.filter(issue => {
     const q = search.toLowerCase()
@@ -27,6 +28,28 @@ export default function IssuesPage() {
       issue.severity === filter
     return matchSearch && matchFilter
   })
+
+  const sorted = [...visible].sort((a, b) => {
+    if (sortBy === "severity") {
+      const order = { P0: 0, P1: 1, P2: 2, P3: 3 }
+      return order[a.severity] - order[b.severity]
+    }
+    if (sortBy === "sessions") {
+      return b.affected_session_count - a.affected_session_count
+    }
+    if (sortBy === "newest") {
+      return b.last_seen_at - a.last_seen_at
+    }
+    return 0
+  })
+
+  const cycleSort = () => {
+    setSortBy(prev => {
+      if (prev === "severity") return "sessions"
+      if (prev === "sessions") return "newest"
+      return "severity"
+    })
+  }
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
@@ -44,10 +67,10 @@ export default function IssuesPage() {
                        focus:ring-accent/30 focus:border-accent transition-all"
           />
         </div>
-        <button className="ml-auto flex items-center gap-2 px-3.5 py-2 text-sm text-text-2
+        <button onClick={cycleSort} className="ml-auto flex items-center gap-2 px-3.5 py-2 text-sm text-text-2
                            bg-surface border border-border rounded-xl hover:border-accent/40 transition-all cursor-pointer">
           <ArrowUpDown className="w-3.5 h-3.5" />
-          Sort: Severity
+          Sort: {sortBy === "severity" ? "Severity" : sortBy === "sessions" ? "Sessions" : "Newest"}
         </button>
       </div>
 
@@ -65,11 +88,11 @@ export default function IssuesPage() {
       </div>
 
       {/* Issue rows */}
-      {visible.length === 0 ? (
+      {sorted.length === 0 ? (
         <EmptyState icon={Search} title="No issues found" description="Try adjusting your search or filter criteria." />
       ) : (
         <div className="space-y-2">
-          {visible.map((issue, i) => (
+          {sorted.map((issue, i) => (
             <Link
               key={issue.id}
               href={`/issues/${issue.id}`}
