@@ -451,15 +451,28 @@ export async function processTriageJob(
 
         // Create issue instance record linked to the target group
         const instanceId = `inst_${crypto.randomUUID().replace(/-/g, "").substring(0, 16)}`;
-        const issueDetail = triageData.issues?.[0] || {
-          title: triageData.session_summary || "Session Issue Instance",
-          root_cause: null,
-          suggested_fix: null,
-          severity: "P2" as const,
-          confidence: 0.5,
-          evidence: [],
-          reproduction_steps: [],
-        };
+
+        // For "attach" actions the LLM returns no issues[] — pull metadata from the matched candidate
+        const matchedCandidate = candidates.find((c) => c.id === targetGroupId);
+        const issueDetail = triageData.issues?.[0] || (matchedCandidate
+          ? {
+              title: matchedCandidate.title,
+              root_cause: matchedCandidate.root_cause ?? null,
+              suggested_fix: matchedCandidate.suggested_fix ?? null,
+              severity: matchedCandidate.severity ?? "P2",
+              confidence: triageData.confidence ?? matchedCandidate.confidence ?? 0.5,
+              evidence: [],
+              reproduction_steps: matchedCandidate.reproduction_steps ?? [],
+            }
+          : {
+              title: triageData.session_summary || "Session Issue Instance",
+              root_cause: null,
+              suggested_fix: null,
+              severity: "P2" as const,
+              confidence: 0.5,
+              evidence: [],
+              reproduction_steps: [],
+            });
 
         const primaryFp = timeline.fingerprints[0] || null;
 

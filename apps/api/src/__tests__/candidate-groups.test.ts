@@ -34,7 +34,17 @@ describe("Candidate Issue Group Retrieval", () => {
 
     const result = await findCandidateIssueGroups("proj_1", ["fp1"]);
     expect(result).toEqual([
-      { id: "igr_1", title: "Error 1", fingerprint: "fp1", severity: "P1", lastSeenAt: 1700000000000 },
+      { 
+        id: "igr_1", 
+        title: "Error 1", 
+        fingerprint: "fp1", 
+        severity: "P1", 
+        lastSeenAt: 1700000000000,
+        root_cause: null,
+        suggested_fix: null,
+        confidence: null,
+        reproduction_steps: null,
+      },
     ]);
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining("project_id = $1"),

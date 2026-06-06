@@ -75,6 +75,10 @@ describe("buildTriagePrompt", () => {
           fingerprint: "fp_hash_1",
           severity: "P1",
           lastSeenAt: 1700000000000,
+          root_cause: null,
+          suggested_fix: null,
+          confidence: null,
+          reproduction_steps: null,
         },
         {
           id: "igr_def456",
@@ -82,6 +86,10 @@ describe("buildTriagePrompt", () => {
           fingerprint: "fp_hash_2",
           severity: "P2",
           lastSeenAt: 1699999000000,
+          root_cause: null,
+          suggested_fix: null,
+          confidence: null,
+          reproduction_steps: null,
         },
       ],
     });
@@ -108,6 +116,10 @@ describe("buildTriagePrompt", () => {
       fingerprint: `fp_${i}`,
       severity: "P2",
       lastSeenAt: 1700000000000,
+      root_cause: null,
+      suggested_fix: null,
+      confidence: null,
+      reproduction_steps: null,
     }));
 
     const prompt = buildTriagePrompt(makeContext({ candidate_issue_groups: candidates }));

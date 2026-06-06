@@ -32,11 +32,15 @@ export interface TimelineEvent {
  * Provided to the LLM to perform inline deduplication (deciding to link to an existing group vs creating a new one).
  */
 export interface CandidateIssueGroup {
-  id: string;            // Unique issue group identifier (e.g. 'igr_...')
-  title: string;         // Summarized title of the issue group
-  fingerprint: string;   // Associated issue hash
-  severity: string;      // Issue priority status (e.g. P0, P1, P2, P3)
-  lastSeenAt: number;    // Timestamp when this issue group was last matched to a session
+  id: string;                          // Unique issue group identifier (e.g. 'igr_...')
+  title: string;                       // Summarized title of the issue group
+  fingerprint: string;                 // Associated issue hash
+  severity: string;                    // Issue priority status (e.g. P0, P1, P2, P3)
+  lastSeenAt: number;                  // Timestamp when this issue group was last matched to a session
+  root_cause: string | null;           // Known root cause (used to populate attach-action instances)
+  suggested_fix: string | null;        // Known suggested fix (used to populate attach-action instances)
+  confidence: number | null;           // AI confidence score for the group
+  reproduction_steps: string[] | null; // Steps to reproduce (used to populate attach-action instances)
 }
 
 /**

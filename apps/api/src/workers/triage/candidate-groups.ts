@@ -41,6 +41,10 @@ export async function findCandidateIssueGroups(
         ig.severity,
         ig.status,
         ig.last_seen_at,
+        ig.root_cause,
+        ig.suggested_fix,
+        ig.confidence,
+        ig.reproduction_steps_json,
         sf.freq,
         ROW_NUMBER() OVER (
           PARTITION BY ig.fingerprint 
@@ -60,7 +64,8 @@ export async function findCandidateIssueGroups(
       WHERE ig.project_id = $1
       AND ig.status = 'open'
     )
-    SELECT id, title, fingerprint, severity, status, last_seen_at
+    SELECT id, title, fingerprint, severity, status, last_seen_at,
+           root_cause, suggested_fix, confidence, reproduction_steps_json
     FROM ranked_groups
     WHERE rn = 1
     ORDER BY
@@ -79,11 +84,26 @@ export async function findCandidateIssueGroups(
   );
 
   // Map database snake_case fields to camelCase properties for consistency
-  return result.rows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    fingerprint: row.fingerprint,
-    severity: row.severity,
-    lastSeenAt: Number(row.last_seen_at)
-  }));
+  return result.rows.map((row) => {
+    let parsedSteps = null;
+    if (row.reproduction_steps_json) {
+      try {
+        parsedSteps = JSON.parse(row.reproduction_steps_json);
+      } catch {
+        parsedSteps = null; // Fallback gracefully if db text is invalid JSON
+      }
+    }
+
+    return {
+      id: row.id,
+      title: row.title,
+      fingerprint: row.fingerprint,
+      severity: row.severity,
+      lastSeenAt: Number(row.last_seen_at),
+      root_cause: row.root_cause ?? null,
+      suggested_fix: row.suggested_fix ?? null,
+      confidence: row.confidence != null ? Number(row.confidence) : null,
+      reproduction_steps: parsedSteps,
+    };
+  });
 }

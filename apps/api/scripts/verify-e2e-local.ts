@@ -6,6 +6,7 @@
  *      eliminating the need to manually manage multiple running terminals.
  */
 
+import "dotenv/config";
 import { spawn, execSync, ChildProcess } from "child_process";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -59,10 +60,11 @@ async function main() {
   const apiServer = spawn(cmd, ["tsx", "src/index.ts"], spawnOpts);
   children.push(apiServer);
 
-  console.log("Booting Triage Worker in Sandbox (Mock AI) mode...");
+  const mockAi = process.env.MOCK_AI !== "false";
+  console.log(`Booting Triage Worker in ${mockAi ? "Sandbox (Mock AI)" : "Real AI"} mode...`);
   const worker = spawn(cmd, ["tsx", "src/workers/triage-worker.ts"], {
     ...spawnOpts,
-    env: { ...process.env, MOCK_AI: "true" },
+    env: { ...process.env, MOCK_AI: mockAi ? "true" : "false" },
   });
   children.push(worker);
 
