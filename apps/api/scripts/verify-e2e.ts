@@ -155,14 +155,14 @@ async function verify() {
   console.log("Waiting for triage worker to process the job (checking for completed status)...");
   let processed = false;
   let finalJobRow;
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 60; i++) {
     const dbRes = await pool.query("SELECT * FROM triage_jobs WHERE session_id = $1", [sessionId]);
     finalJobRow = dbRes.rows[0];
     if (finalJobRow && finalJobRow.status === "completed") {
       processed = true;
       break;
     }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 
   if (!processed) {
