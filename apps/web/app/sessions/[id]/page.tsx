@@ -1,9 +1,10 @@
-import { mockSessions, mockIssues } from "@/lib/mock-data"
+import { mockSessions, getIssuesForSession } from "@/lib/mock-data"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { FrictionBar } from "@/components/ui/FrictionBar"
 import { formatRelativeTime, formatDuration, formatTimestamp } from "@/lib/utils"
 import { ArrowLeft, Play, MonitorPlay } from "lucide-react"
 import Link from "next/link"
+import { notFound } from "next/navigation"
 
 const eventTypeLabel: Record<string, string> = {
   navigation:    "Navigated to",
@@ -26,8 +27,11 @@ const eventColor: Record<string, string> = {
 
 export default async function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const session = mockSessions.find(s => s.id === id) ?? mockSessions[0]
-  const linkedIssues = mockIssues.filter(i => i.affected_session_count > 0).slice(0, 2)
+  const session = mockSessions.find(s => s.id === id)
+  if (!session) {
+    notFound()
+  }
+  const linkedIssues = getIssuesForSession(session.id).slice(0, 2)
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">

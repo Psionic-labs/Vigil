@@ -7,7 +7,7 @@ import { EnvironmentChip } from "@/components/ui/EnvironmentChip"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { EmptyState } from "@/components/ui/EmptyState"
 import { mockSessions } from "@/lib/mock-data"
-import { formatDuration } from "@/lib/utils"
+import { formatDuration, formatRelativeTime } from "@/lib/utils"
 import Link from "next/link"
 
 type Filter = "All" | "Has Issues" | "Goal Failed" | "Has JS Error" | "Has Rage Click" | "Production only"
@@ -19,7 +19,7 @@ export default function SessionsPage() {
 
   const visible = mockSessions.filter(s => {
     const q = search.toLowerCase()
-    const matchSearch = !q || s.id.includes(q) || s.url.includes(q)
+    const matchSearch = !q || s.id.toLowerCase().includes(q) || s.url.toLowerCase().includes(q)
     const matchFilter =
       filter === "All"              ? true :
       filter === "Has Issues"       ? s.issue_instance_count > 0 :
@@ -66,7 +66,7 @@ export default function SessionsPage() {
       </div>
 
       {/* Table header */}
-      <div className="grid grid-cols-[148px_1fr_180px_110px_60px_80px_100px_90px_36px]
+      <div className="grid grid-cols-[148px_1fr_180px_110px_60px_80px_100px_90px_90px_36px]
                       gap-3 px-5 py-2.5 text-xs font-semibold uppercase tracking-wider
                       text-text-3 mb-1.5 border-b border-border">
         <span>Session</span>
@@ -76,6 +76,7 @@ export default function SessionsPage() {
         <span>Issues</span>
         <span>Signals</span>
         <span>Duration</span>
+        <span>Env</span>
         <span>Started</span>
         <span />
       </div>
@@ -88,7 +89,7 @@ export default function SessionsPage() {
             <Link
               key={session.id}
               href={`/sessions/${session.id}`}
-              className="animate-fade-up grid grid-cols-[148px_1fr_180px_110px_60px_80px_100px_90px_36px]
+              className="animate-fade-up grid grid-cols-[148px_1fr_180px_110px_60px_80px_100px_90px_90px_36px]
                          gap-3 items-center bg-surface border border-border rounded-2xl px-5 py-3.5
                          hover:shadow-md hover:border-accent/30 transition-all group"
               style={{ animationDelay: `${i * 30}ms` }}
@@ -109,6 +110,7 @@ export default function SessionsPage() {
               <SignalIcons signals={session} />
               <span className="font-mono text-xs text-text-3">{formatDuration(session.duration_ms)}</span>
               <EnvironmentChip env={session.environment} />
+              <span className="text-xs text-text-3 truncate">{formatRelativeTime(session.started_at)}</span>
               <ArrowRight className="w-4 h-4 text-text-3 group-hover:text-accent transition-colors" />
             </Link>
           ))}

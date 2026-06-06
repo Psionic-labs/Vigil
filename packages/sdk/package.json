@@ -17,6 +17,7 @@
     "build": "tsup && tsc --emitDeclarationOnly",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "track-size": "node scripts/track-size.js"

@@ -486,3 +486,21 @@ export const mockSessions: Session[] = [
     ],
   },
 ]
+
+export function getSessionsForIssue(issueId: string): Session[] {
+  if (issueId === "igr_pay500") return mockSessions.filter(s => s.id === "ses_x9y8z7")
+  if (issueId === "igr_authlp") return mockSessions.filter(s => s.id === "ses_j1k2l3")
+  if (issueId === "igr_sessex") return mockSessions.filter(s => s.id === "ses_m3n4p5")
+  if (issueId === "igr_promo") return mockSessions.filter(s => s.id === "ses_q7r8s9")
+  if (issueId === "igr_postcd") return mockSessions.filter(s => s.id === "ses_t1u2v3" || s.id === "ses_p7q8r9")
+  return []
+}
+
+export function getIssuesForSession(sessionId: string): IssueGroup[] {
+  if (sessionId === "ses_x9y8z7") return mockIssues.filter(i => i.id === "igr_pay500")
+  if (sessionId === "ses_j1k2l3") return mockIssues.filter(i => i.id === "igr_authlp")
+  if (sessionId === "ses_m3n4p5") return mockIssues.filter(i => i.id === "igr_sessex")
+  if (sessionId === "ses_q7r8s9") return mockIssues.filter(i => i.id === "igr_promo")
+  if (sessionId === "ses_t1u2v3" || sessionId === "ses_p7q8r9") return mockIssues.filter(i => i.id === "igr_postcd")
+  return []
+}

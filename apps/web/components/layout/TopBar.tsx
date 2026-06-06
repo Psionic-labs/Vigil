@@ -16,7 +16,7 @@ export function TopBar() {
           <Globe className="w-3.5 h-3.5 text-ok" />
           <span>All Systems Operational</span>
         </div>
-        <button className="relative w-8 h-8 rounded-lg bg-surface hover:bg-surface-2 border border-border flex items-center justify-center text-text-2 hover:text-accent transition-colors">
+        <button aria-label="Notifications" className="relative w-8 h-8 rounded-lg bg-surface hover:bg-surface-2 border border-border flex items-center justify-center text-text-2 hover:text-accent transition-colors">
           <Bell className="w-4 h-4" />
           <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-p0" />
         </button>

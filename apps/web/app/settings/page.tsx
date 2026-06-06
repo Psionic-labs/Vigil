@@ -32,7 +32,7 @@ const SCRIPT_CODE = `<script src="https://cdn.vigil.dev/sdk.js" defer></script>
   Vigil.init({
     projectKey: "pk_live_vg_c8f2a91d3e4b5f6a",
     environment: "production",
-    release: process.env.NEXT_PUBLIC_RELEASE,
+    release: "1.0.0", // Replace with your release/version
   });
 </script>`
 

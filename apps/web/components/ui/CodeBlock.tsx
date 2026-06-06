@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Copy, Check } from "lucide-react"
 
 interface CodeBlockProps {
@@ -10,11 +10,20 @@ interface CodeBlockProps {
 export function CodeBlock({ label, code }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+    } catch (err) {
+      console.error("Failed to copy code: ", err)
+    }
   }
+
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
 
   return (
     <div className="rounded-xl overflow-hidden border border-border mb-4">

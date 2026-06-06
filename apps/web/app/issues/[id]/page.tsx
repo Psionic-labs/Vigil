@@ -1,11 +1,11 @@
-import { mockIssues } from "@/lib/mock-data"
+import { mockIssues, getSessionsForIssue } from "@/lib/mock-data"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
 import { formatRelativeTime, formatTimestamp, severityColor } from "@/lib/utils"
 import { ArrowLeft, Users, Clock, ChevronRight } from "lucide-react"
 import { Github } from "@/components/ui/GithubIcon"
 import Link from "next/link"
-import { mockSessions } from "@/lib/mock-data"
+import { notFound } from "next/navigation"
 
 const eventTypeLabel: Record<string, string> = {
   navigation:    "Navigated to",
@@ -28,9 +28,12 @@ const eventColor: Record<string, string> = {
 
 export default async function IssueDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const issue = mockIssues.find(i => i.id === id) ?? mockIssues[0]
+  const issue = mockIssues.find(i => i.id === id)
+  if (!issue) {
+    notFound()
+  }
   const c = severityColor(issue.severity)
-  const affectedSessions = mockSessions.filter(s => s.issue_instance_count > 0).slice(0, 5)
+  const affectedSessions = getSessionsForIssue(issue.id).slice(0, 5)
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">

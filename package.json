@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "lint": "eslint . && turbo lint",
+    "lint": "turbo lint",
     "type-check": "turbo type-check",
     "typecheck": "turbo type-check",
     "test:local": "pnpm run lint && pnpm run typecheck && pnpm --filter @vigil/sdk test && pnpm --filter @vigil/api test && pnpm run build && pnpm --filter @vigil/sdk track-size"

@@ -17,6 +17,12 @@ const severityBreakdown = [
 ]
 
 export default function OverviewPage() {
+  const openIssuesCount = mockIssues.filter(i => i.status === "open" || i.status === "linked").length
+  const avgFrictionScore = mockSessions.length > 0 ? Math.round(mockSessions.reduce((sum, s) => sum + s.ai_friction_score, 0) / mockSessions.length) : 0
+  const totalSessionsCount = mockSessions.length
+  const completedGoalsCount = mockSessions.filter(s => s.ai_goal_completed).length
+  const goalCompletionRate = mockSessions.length > 0 ? Math.round((completedGoalsCount / mockSessions.length) * 100) : 0
+
   const recentIssues = mockIssues.filter(i => i.status !== "ignored").slice(0, 4)
   const highFrictionSessions = [...mockSessions]
     .sort((a, b) => b.ai_friction_score - a.ai_friction_score)
@@ -31,10 +37,10 @@ export default function OverviewPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-7">
-        <StatCard label="Open Issues"       value={7}    trend={{ label: "+3 this week", positive: false }}  subtext="vs last week"          icon={AlertTriangle} leftBorderClass="border-l-p0"     iconBg="bg-p0-bg"        iconColor="text-p0"     />
-        <StatCard label="Avg Friction Score" value={49}   trend={{ label: "+4 points",    positive: false }}  subtext="since latest release"  icon={Activity}      leftBorderClass="border-l-p1"     iconBg="bg-p1-bg"        iconColor="text-p1"     />
-        <StatCard label="Total Sessions"    value={12}                                                        subtext="Last 24 hours"         icon={Monitor}       leftBorderClass="border-l-accent"  iconBg="bg-accent-light" iconColor="text-accent" />
-        <StatCard label="Goal Completion"   value="25%"  trend={{ label: "+12% this week", positive: true }} subtext="vs last week"          icon={CheckCircle}   leftBorderClass="border-l-ok"     iconBg="bg-ok-bg"        iconColor="text-ok"     />
+        <StatCard label="Open Issues"       value={openIssuesCount}    trend={{ label: "+3 this week", positive: false }}  subtext="vs last week"          icon={AlertTriangle} leftBorderClass="border-l-p0"     iconBg="bg-p0-bg"        iconColor="text-p0"     />
+        <StatCard label="Avg Friction Score" value={avgFrictionScore}   trend={{ label: "+4 points",    positive: false }}  subtext="since latest release"  icon={Activity}      leftBorderClass="border-l-p1"     iconBg="bg-p1-bg"        iconColor="text-p1"     />
+        <StatCard label="Total Sessions"    value={totalSessionsCount}                                                     subtext="Last 24 hours"         icon={Monitor}       leftBorderClass="border-l-accent"  iconBg="bg-accent-light" iconColor="text-accent" />
+        <StatCard label="Goal Completion"   value={`${goalCompletionRate}%`}  trend={{ label: "+12% this week", positive: true }} subtext="vs last week"          icon={CheckCircle}   leftBorderClass="border-l-ok"     iconBg="bg-ok-bg"        iconColor="text-ok"     />
       </div>
 
       {/* Main grid */}
@@ -162,8 +168,8 @@ export default function OverviewPage() {
                   <span className="font-mono text-xs text-text-3 w-24 shrink-0 truncate">{session.id}</span>
                   <span className="text-xs text-text-2 w-24 shrink-0 truncate">{session.url}</span>
                   <FrictionBar score={session.ai_friction_score} className="flex-1" />
-                  <span className="text-xs text-p0 flex items-center gap-1 shrink-0 w-20">
-                    <span>✕</span> Goal Failed
+                  <span className={`text-xs flex items-center gap-1 shrink-0 w-20 ${session.ai_goal_completed ? "text-ok" : "text-p0"}`}>
+                    {session.ai_goal_completed ? "✓ Met" : "✕ Failed"}
                   </span>
                   <span className="font-mono text-xs text-text-3 w-14 shrink-0 text-right">
                     {formatDuration(session.duration_ms)}
