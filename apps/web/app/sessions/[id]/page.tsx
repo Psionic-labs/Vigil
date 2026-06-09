@@ -1,3 +1,9 @@
+/**
+ * @file page.tsx
+ * @description Details view of a single recorded session with event timelines.
+ * @why Inspects what a user did leading up to a specific error.
+ */
+
 import { mockSessions, getIssuesForSession } from "@/lib/mock-data"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { FrictionBar } from "@/components/ui/FrictionBar"

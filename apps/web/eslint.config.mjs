@@ -1,3 +1,9 @@
+/**
+ * @file eslint.config.mjs
+ * @description Linter settings specifying coding style guidelines for web dashboard.
+ * @why Maintains unified code cleanliness and formatting constraints.
+ */
+
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { FlatCompat } from "@eslint/eslintrc";

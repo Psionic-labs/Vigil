@@ -1,3 +1,9 @@
+/**
+ * @file EmptyState.tsx
+ * @description Display container when list resources are empty.
+ * @why Guides developers with call-to-actions when no data has arrived.
+ */
+
 import type { LucideIcon } from "lucide-react"
 
 export function EmptyState({ icon: Icon, title, description }: {

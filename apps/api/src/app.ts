@@ -12,6 +12,7 @@ import { globalErrorHandler } from "./middleware/error-handler";
 import { healthRouter } from "./routes/health";
 import { metricsRouter } from "./routes/metrics";
 import ingestRouter from "./routes/ingest";
+import { projectsRouter } from "./routes/projects";
 
 import type { AppEnv } from "./lib/types";
 
@@ -98,5 +99,6 @@ app.route("/metrics", metricsRouter);
 
 // 4. Ingestion API V1
 app.route("/api/v1/ingest", ingestRouter);
+app.route("/api/v1/projects", projectsRouter);
 
 export default app;

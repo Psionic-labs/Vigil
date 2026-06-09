@@ -1,3 +1,9 @@
+/**
+ * @file main.ts
+ * @description Simple client-side app mimicking host product interactions with the SDK.
+ * @why Provides a real sandbox to trigger errors, clicks, and test SDK capture behavior.
+ */
+
 import { Vigil } from '@vigil/sdk';
 
 // 1. Initialize the SDK

@@ -1,3 +1,9 @@
+/**
+ * @file EnvironmentChip.tsx
+ * @description Colored chip component indicating development or production scopes.
+ * @why Visualizes session environment origins.
+ */
+
 export function EnvironmentChip({ env }: { env: string | null }) {
   if (!env) return null
   const s: Record<string, string> = {

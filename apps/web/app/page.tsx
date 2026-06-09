@@ -1,4 +1,12 @@
-import { AlertTriangle, Activity, Monitor, CheckCircle, ArrowRight } from "lucide-react"
+/**
+ * @file page.tsx
+ * @description Main landing dashboard of the Vigil web app.
+ * @why Prompts project selection or gives a summary overview of tracked metrics.
+ */
+
+"use client"
+import { useState } from "react"
+import { AlertTriangle, Activity, Monitor, CheckCircle, ArrowRight, FolderPlus } from "lucide-react"
 import { StatCard } from "@/components/ui/StatCard"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
@@ -8,6 +16,8 @@ import { EnvironmentChip } from "@/components/ui/EnvironmentChip"
 import { mockIssues, mockSessions } from "@/lib/mock-data"
 import { formatRelativeTime, formatDuration } from "@/lib/utils"
 import Link from "next/link"
+import { useProjects } from "@/lib/projects-context"
+import { CreateProjectModal } from "@/components/projects/CreateProjectModal"
 
 const severityBreakdown = [
   { label: "Critical", key: "P0", borderClass: "border-t-p0",  dotClass: "bg-p0",  textClass: "text-p0"  },
@@ -17,6 +27,9 @@ const severityBreakdown = [
 ]
 
 export default function OverviewPage() {
+  const { projects, isLoading, createProject } = useProjects()
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
   const openIssuesCount = mockIssues.filter(i => i.status === "open").length
   const avgFrictionScore = mockSessions.length > 0 ? Math.round(mockSessions.reduce((sum, s) => sum + s.ai_friction_score, 0) / mockSessions.length) : 0
   const totalSessionsCount = mockSessions.length
@@ -27,6 +40,40 @@ export default function OverviewPage() {
   const highFrictionSessions = [...mockSessions]
     .sort((a, b) => b.ai_friction_score - a.ai_friction_score)
     .slice(0, 3)
+
+  if (isLoading) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto flex items-center justify-center min-h-[50vh]">
+        <p className="text-text-3 font-mono text-sm animate-pulse">Loading dashboard...</p>
+      </div>
+    )
+  }
+
+  if (projects.length === 0) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto flex flex-col items-center justify-center min-h-[70vh]">
+        <div className="w-16 h-16 rounded-2xl bg-surface-2 border border-border flex items-center justify-center mb-6 shadow-sm">
+          <FolderPlus className="w-8 h-8 text-accent" />
+        </div>
+        <h1 className="text-2xl font-bold text-text-1 mb-2">Welcome to Vigil</h1>
+        <p className="text-text-2 text-center max-w-md mb-8">
+          Get started by creating your first project. Once created, you&apos;ll be able to install the SDK and start tracking AI bug triage.
+        </p>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="px-6 py-3 bg-accent hover:bg-accent-light text-white font-medium rounded-xl transition-colors shadow-sm"
+        >
+          Create Your First Project
+        </button>
+
+        <CreateProjectModal 
+          isOpen={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+          onSubmit={createProject} 
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">

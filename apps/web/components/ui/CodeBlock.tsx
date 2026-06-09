@@ -1,3 +1,9 @@
+/**
+ * @file CodeBlock.tsx
+ * @description Stylized, copyable code component.
+ * @why Simplifies copying SDK configuration and script setup code snippets.
+ */
+
 "use client"
 import { useState, useEffect } from "react"
 import { Copy, Check } from "lucide-react"

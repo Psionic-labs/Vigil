@@ -1,3 +1,9 @@
+/**
+ * @file StatCard.tsx
+ * @description Card formatting numeric stats and label descriptions.
+ * @why Formats dashboard summary metric reports.
+ */
+
 import type { LucideIcon } from "lucide-react"
 
 interface Props {

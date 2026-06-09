@@ -1,3 +1,9 @@
+/**
+ * @file utils.ts
+ * @description General helper methods for UI formatting.
+ * @why Standardizes time durations, severity mappings, and text formatting.
+ */
+
 export function formatRelativeTime(ms: number): string {
   const diff = Date.now() - ms
   const minutes = Math.floor(diff / 60000)

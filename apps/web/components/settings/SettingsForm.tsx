@@ -40,11 +40,10 @@ const getNpmCode = (key: string) => `npm install @vigil/sdk
 import { Vigil } from "@vigil/sdk";
 Vigil.init({ projectKey: "${key}" });`
 
-interface SettingsFormProps {
-  projectKey: string
-}
+import { useProjects } from "@/lib/projects-context"
 
-export function SettingsForm({ projectKey }: SettingsFormProps) {
+export function SettingsForm() {
+  const { activeProject } = useProjects()
   const [keyVisible, setKeyVisible] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [autoRaise, setAutoRaise] = useState(true)
@@ -68,8 +67,13 @@ export function SettingsForm({ projectKey }: SettingsFormProps) {
   }, [copied])
 
   const CopyBtn = ({ text, id }: { text: string; id: string }) => (
-    <button onClick={() => copy(text, id)}
-      className="flex items-center gap-1.5 text-xs text-text-3 hover:text-accent transition-colors cursor-pointer">
+    <button 
+      onClick={() => text && copy(text, id)}
+      disabled={!text}
+      className={`flex items-center gap-1.5 text-xs transition-colors ${
+        !text ? "opacity-40 cursor-not-allowed text-text-3" : "text-text-3 hover:text-accent cursor-pointer"
+      }`}
+    >
       {copied === id
         ? <Check className="w-3.5 h-3.5 text-ok" />
         : <Copy className="w-3.5 h-3.5" />}
@@ -82,24 +86,35 @@ export function SettingsForm({ projectKey }: SettingsFormProps) {
       <PageHeader title="Settings" subtitle="Manage configuration, API keys, and repository integrations." />
 
       <Section icon={Code2} title="SDK Installation" description="Add Vigil to your app with one script tag or npm package.">
-        <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2">Via Script Tag</p>
-        <CodeBlock label="html" code={getScriptCode(projectKey)} />
-        <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2 mt-5">Via NPM</p>
-        <CodeBlock label="typescript" code={getNpmCode(projectKey)} />
-        <div className="mt-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2">Project Key</p>
-          <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-2 border border-border rounded-xl">
-            <span className="font-mono text-sm text-text-1 flex-1 truncate">
-              {keyVisible ? projectKey : `pk_live_${"•".repeat(16)}`}
-            </span>
-            <button onClick={() => setKeyVisible(v => !v)}
-              aria-label={keyVisible ? "Hide project key" : "Show project key"}
-              className="text-text-3 hover:text-accent transition-colors cursor-pointer">
-              {keyVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-            <CopyBtn text={projectKey} id="key" />
+        {!activeProject ? (
+          <div className="flex flex-col items-center justify-center py-6 px-4 border border-dashed border-border rounded-2xl bg-surface-2 text-center">
+            <p className="text-sm font-semibold text-text-2 mb-1">No Project Selected</p>
+            <p className="text-xs text-text-3 max-w-sm">
+              Please select or create a project from the sidebar to view integration snippets and retrieve API keys.
+            </p>
           </div>
-        </div>
+        ) : (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2">Via Script Tag</p>
+            <CodeBlock label="html" code={getScriptCode(activeProject.publicKey)} />
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2 mt-5">Via NPM</p>
+            <CodeBlock label="typescript" code={getNpmCode(activeProject.publicKey)} />
+            <div className="mt-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2">Project Key</p>
+              <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-2 border border-border rounded-xl">
+                <span className="font-mono text-sm text-text-1 flex-1 truncate">
+                  {keyVisible ? activeProject.publicKey : `pk_live_${"•".repeat(16)}`}
+                </span>
+                <button onClick={() => setKeyVisible(v => !v)}
+                  aria-label={keyVisible ? "Hide project key" : "Show project key"}
+                  className="text-text-3 hover:text-accent transition-colors cursor-pointer">
+                  {keyVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+                <CopyBtn text={activeProject.publicKey} id="key" />
+              </div>
+            </div>
+          </>
+        )}
       </Section>
 
       <Section icon={Github} title="GitHub Integration" description="Connect a repository to auto-raise issues from Vigil's dashboard.">
@@ -186,14 +201,22 @@ export function SettingsForm({ projectKey }: SettingsFormProps) {
         <div className="space-y-4">
           <div>
             <label className="text-xs font-semibold uppercase tracking-wider text-text-3 block mb-1.5">Project Name</label>
-            <input defaultValue="Checkout App"
+            <input 
+              value={activeProject?.name || ""}
+              readOnly
               className="w-full px-4 py-2.5 text-sm bg-surface border border-border rounded-xl
-                         text-text-1 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all" />
+                         text-text-1 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all opacity-75 cursor-not-allowed" />
           </div>
           <div>
             <label className="text-xs font-semibold uppercase tracking-wider text-text-3 block mb-1.5">Project ID</label>
             <div className="px-4 py-2.5 text-sm font-mono bg-surface-2 border border-border rounded-xl text-text-3 select-all">
-              proj_a1b2c3
+              {activeProject?.id || "..."}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wider text-text-3 block mb-1.5">Created</label>
+            <div className="px-4 py-2.5 text-sm bg-surface-2 border border-border rounded-xl text-text-3">
+              {activeProject?.createdAt ? new Date(activeProject.createdAt).toLocaleDateString() : "..."}
             </div>
           </div>
         </div>

@@ -1,7 +1,16 @@
+/**
+ * @file Sidebar.tsx
+ * @description Main navigation sidebar containing the project selector dropdown.
+ * @why Controls app navigation and project scope switches.
+ */
+
 "use client"
+import { useState, useRef, useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { LayoutDashboard, AlertTriangle, Monitor, Settings, ChevronDown, Activity, User } from "lucide-react"
 import { mockIssues } from "@/lib/mock-data"
+import { useProjects } from "@/lib/projects-context"
+import { CreateProjectModal } from "@/components/projects/CreateProjectModal"
 
 import { NavItem } from "./NavItem"
 
@@ -16,9 +25,23 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { projects, activeProject, setActiveProjectId, createProject } = useProjects()
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   return (
-    <aside className="w-60 bg-sidebar flex flex-col shrink-0 h-full">
+    <aside className="w-60 bg-sidebar flex flex-col shrink-0 h-full z-10">
       {/* Logo */}
       <div className="px-5 pt-5 pb-4 border-b border-indigo-800/60">
         <div className="flex items-center gap-2.5">
@@ -33,20 +56,62 @@ export function Sidebar() {
       </div>
 
       {/* Project switcher */}
-      <div className="px-3 py-3 border-b border-indigo-800/60">
+      <div className="px-3 py-3 border-b border-indigo-800/60 relative" ref={dropdownRef}>
         <button
+          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
           suppressHydrationWarning
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg
                      bg-indigo-900/50 border border-indigo-700/50
                      hover:bg-indigo-900 transition-colors"
         >
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
+          <span className={`w-2 h-2 rounded-full shrink-0 ${activeProject ? "bg-green-400 animate-pulse" : "bg-gray-500"}`} />
           <span className="text-sm text-sidebar-text font-medium flex-1 text-left truncate">
-            Checkout App
+            {activeProject ? activeProject.name : "Select Project"}
           </span>
-          <ChevronDown className="w-3.5 h-3.5 text-sidebar-muted shrink-0" />
+          <ChevronDown className={`w-3.5 h-3.5 text-sidebar-muted shrink-0 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
         </button>
+
+        {isDropdownOpen && (
+          <div className="absolute top-full left-3 right-3 mt-1 py-1 bg-surface border border-border rounded-lg shadow-xl z-50 overflow-hidden">
+            <div className="max-h-48 overflow-y-auto">
+              {projects.map((project) => (
+                <button
+                  key={project.id}
+                  onClick={() => {
+                    setActiveProjectId(project.id)
+                    setIsDropdownOpen(false)
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                    activeProject?.id === project.id 
+                      ? "bg-accent/10 text-accent font-medium" 
+                      : "text-text-2 hover:bg-surface-2 hover:text-text-1"
+                  }`}
+                >
+                  {project.name}
+                </button>
+              ))}
+            </div>
+            
+            {projects.length > 0 && <div className="h-px bg-border my-1" />}
+            
+            <button
+              onClick={() => {
+                setIsModalOpen(true)
+                setIsDropdownOpen(false)
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-surface-2 transition-colors font-medium flex items-center gap-2"
+            >
+              <span className="text-lg leading-none">+</span> Create Project
+            </button>
+          </div>
+        )}
       </div>
+
+      <CreateProjectModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSubmit={createProject} 
+      />
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-3 space-y-0.5">

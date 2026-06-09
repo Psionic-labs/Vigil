@@ -1,3 +1,9 @@
+/**
+ * @file PageHeader.tsx
+ * @description Clean header component for content sections.
+ * @why Standardizes page title layouts.
+ */
+
 export function PageHeader({
   title, subtitle, count, countLabel = "open", actions,
 }: {

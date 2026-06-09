@@ -1,3 +1,9 @@
+/**
+ * @file SkeletonRow.tsx
+ * @description Loading placeholders matching standard table or list entries.
+ * @why Implements perceived performance layouts during content loading.
+ */
+
 export function SkeletonRow() {
   return (
     <div className="flex items-center gap-4 bg-surface border border-border rounded-2xl px-5 py-4 animate-pulse">

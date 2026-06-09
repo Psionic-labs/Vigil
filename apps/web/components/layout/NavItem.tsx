@@ -1,3 +1,9 @@
+/**
+ * @file NavItem.tsx
+ * @description Renders sidebar navigational links.
+ * @why Unified styling for link navigation.
+ */
+
 "use client"
 import Link from "next/link"
 import type { LucideIcon } from "lucide-react"

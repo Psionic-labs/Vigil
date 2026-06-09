@@ -1,3 +1,9 @@
+/**
+ * @file page.tsx
+ * @description Renders the list of tracked issue groups.
+ * @why Allows users to view and filter all active issues.
+ */
+
 "use client"
 import { useState } from "react"
 import { Search, ArrowUpDown } from "lucide-react"
