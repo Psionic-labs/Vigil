@@ -1,8 +1,9 @@
 /**
  * @file lifecycle.ts
- * @description Manages teardown callbacks for the SDK to ensure idempotent shutdowns.
- * Every detector and timer must register its cleanup function here.
+ * @description Coordinates event listeners and tracking routines during session lifecycles.
+ * @why Ensures initialization, beacon tracking, and flush loops are safely scheduled.
  */
+
 export interface LifecycleManager {
   addCleanup: (fn: () => void) => void;
   cleanupAll: () => void;

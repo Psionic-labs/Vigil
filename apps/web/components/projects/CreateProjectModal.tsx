@@ -1,3 +1,9 @@
+/**
+ * @file CreateProjectModal.tsx
+ * @description Modal dialog to create new projects in the dashboard.
+ * @why Enables users to dynamically register new application monitoring contexts.
+ */
+
 "use client"
 import { useState } from "react"
 import { X } from "lucide-react"
@@ -39,11 +45,17 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit }: CreateProjectM
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-surface border border-border rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div 
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+        className="bg-surface border border-border rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface-2">
-          <h2 className="text-sm font-semibold text-text-1">Create Project</h2>
+          <h2 id="modal-title" className="text-sm font-semibold text-text-1">Create Project</h2>
           <button 
             onClick={onClose}
+            aria-label="Close dialog"
             className="text-text-3 hover:text-text-1 transition-colors p-1 rounded-md hover:bg-surface"
           >
             <X className="w-4 h-4" />

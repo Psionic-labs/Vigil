@@ -1,3 +1,9 @@
+/**
+ * @file mock-data.ts
+ * @description Static mock objects matching the dashboard API contract.
+ * @why Used for development before backends are fully connected.
+ */
+
 export type Severity = "P0" | "P1" | "P2" | "P3"
 export type IssueStatus = "open" | "linked" | "ignored" | "resolved"
 export type Environment = "production" | "preview" | "development"

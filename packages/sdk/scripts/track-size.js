@@ -1,3 +1,9 @@
+/**
+ * @file track-size.js
+ * @description Measures compiled output bundle sizes.
+ * @why Helps maintain a lightweight SDK footprint to minimize host page impact.
+ */
+
 /* global console, process */
 import fs from "node:fs";
 import path from "node:path";

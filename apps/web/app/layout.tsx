@@ -1,3 +1,9 @@
+/**
+ * @file layout.tsx
+ * @description Root layout wrapping Next.js page components with context providers.
+ * @why Shared navigation headers, page margins, and fonts.
+ */
+
 import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"

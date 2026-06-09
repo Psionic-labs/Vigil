@@ -1,8 +1,9 @@
 /**
  * @file defaults.ts
- * @description Provides the fallback default configuration values for the SDK.
- * These are applied if the host application omits optional properties during initialization.
+ * @description Fallback default configurations for the SDK configuration.
+ * @why Avoids crashes by providing safe parameter defaults for limits and endpoints.
  */
+
 import type { NormalizedVigilOptions } from "../types";
 
 export const DEFAULT_ENDPOINT = "https://ingest.usevigilhq.com/api/ingest";

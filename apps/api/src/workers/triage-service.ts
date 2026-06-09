@@ -1,9 +1,9 @@
 /**
  * @file triage-service.ts
- * @description Defines the Zod validation schema and type for AI triage outputs.
- * @why AI output is highly variable. Using Zod guarantees type-safety and field value bounds on model outputs
- *      before attempting database writes. The schema is provider-agnostic and shared across all AIProvider implementations.
+ * @description Service class interacting with the LLM API to execute triage requests.
+ * @why Standardizes structured parsing of the AI's JSON diagnosis response.
  */
+
 
 import { z } from "zod";
 

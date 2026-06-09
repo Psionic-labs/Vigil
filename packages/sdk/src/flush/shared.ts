@@ -1,9 +1,9 @@
 /**
  * @file shared.ts
- * @description Shared utilities and context definitions for the flush module.
- * Contains critical, stack-safe buffer manipulation functions (e.g., `restoreBuffer`) 
- * to handle enormous telemetry payloads without triggering JavaScript engine limits.
+ * @description Shared queue definitions and scheduled task references for flushes.
+ * @why Synchronizes timing configurations between normal and exit flushing routines.
  */
+
 import type { SummaryEvent, IngestPayload, SessionMetadata } from "../types";
 import { sanitizeUrl } from "../utils";
 

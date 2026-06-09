@@ -1,9 +1,9 @@
 /**
  * @file issue-group-actions.ts
- * @description Implement transactional handling of AI triage issue group actions (create/attach).
- * @why Encapsulating database queries for issue groups ensures proper duplicate protection,
- *      concurrency safety, and idempotency guarantees.
+ * @description Database functions to create or attach new issue instances to issue groups.
+ * @why Integrates triage decisions with transactional persistence layer.
  */
+
 
 import crypto from "node:crypto";
 import type { PoolClient } from "@neondatabase/serverless";

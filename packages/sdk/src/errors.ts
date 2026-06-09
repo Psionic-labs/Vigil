@@ -1,9 +1,9 @@
 /**
  * @file errors.ts
- * @description Global JavaScript exception and unhandled promise rejection tracking.
- * Hooks into window.onerror and window.onunhandledrejection to capture runtime 
- * failures and push structured error summaries to the SDK state.
+ * @description Registers global error listeners to grab unhandled errors.
+ * @why Ensures runtime errors are automatically captured and sent.
  */
+
 import type { SummaryEvent } from "./types";
 
 const MAX_MSG_LEN = 500;

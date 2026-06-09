@@ -1,16 +1,9 @@
 /**
  * @file openrouter-provider.ts
- * @description OpenRouter API provider implementing the AIProvider interface.
- *              Uses the OpenAI-compatible chat completions format.
- * @why OpenRouter provides access to multiple LLM models through a unified API.
- *      This provider targets `openrouter/owl-alpha` by default but works with any
- *      model available on the OpenRouter platform.
- *
- * Provider Contract:
- * - No retry logic. Retries are managed by the triage runner.
- * - Validates the OpenRouter response structure before attempting JSON extraction.
- * - Never logs prompt text, API keys, or user PII.
+ * @description Implements the OpenRouter AI client wrapper to call OpenAI/Anthropic/Gemini LLMs.
+ * @why Resolves provider endpoints and formats request payloads for OpenRouter compatibility.
  */
+
 
 import { type AIProvider, type LLMResult } from "./provider";
 

@@ -1,10 +1,9 @@
 /**
  * @file triage-worker.ts
- * @description Master daemon polling loop that claims pending jobs via row-level locks,
- *              verifies configurations, and delegates executions to the triage runner.
- * @why Utilizing SKIP LOCKED allows multiple worker processes to safely poll the same table concurrently,
- *      achieving horizontal scalability without double-processing jobs or causing row-lock blocks.
+ * @description Worker loop wrapping the triage job execution queue.
+ * @why Drives continuous background processing of session errors to populate insights.
  */
+
 
 import "dotenv/config";
 import os from "node:os";

@@ -1,9 +1,9 @@
 /**
  * @file blob-storage.ts
- * @description Local disk filesystem-based gzipped blob persistence.
- * @how Compresses raw rrweb replay arrays into gzip and writes them to unique file paths.
- * @why Stores heavy DOM replay timelines efficiently on local disk without bloating the relational DB.
+ * @description Manages local or cloud-based file persistence for session replay recording payloads.
+ * @why Decouples heavy file storage from the transactional database to optimize performance.
  */
+
 
 import fs from "node:fs/promises";
 import path from "node:path";

@@ -1,9 +1,9 @@
 /**
  * @file fingerprint.ts
- * @description Hash fingerprinting system for client-side telemetry events.
- * @how Normalizes variables (URLs, selectors, error callstacks) using regex parsers and hashes them using SHA-256.
- * @why Enables noise-filtering and deduplication by generating identical hashes for issues sharing the same root cause.
+ * @description Formats and hashes session errors to generate unique error fingerprints.
+ * @why Groups identical errors together even across different sessions and stack trace lines.
  */
+
 
 import crypto from "node:crypto";
 import type { SummaryEvent } from "../validation/ingest-schema";

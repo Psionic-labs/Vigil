@@ -1,9 +1,9 @@
 /**
  * @file significant-click-detector.ts
- * @description Tracks user interactions with explicit interactive elements (buttons, links).
- * Uses DOM traversal to resolve clicks on nested elements (like icons inside a button) 
- * up to their semantic parent, capturing safe metadata without leaking PII.
+ * @description Identifies interaction clicks that alter page states.
+ * @why Filters normal actions from dead clicks on the timeline.
  */
+
 import type { SummaryEvent } from "../types";
 import { sanitizeUrl } from "../utils";
 

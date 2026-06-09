@@ -1,3 +1,9 @@
+/**
+ * @file SignalIcons.tsx
+ * @description Visual icons showing connectivity or warning states.
+ * @why UI indicators for session lifecycle events.
+ */
+
 import { AlertTriangle, WifiOff, MousePointerClick, MousePointer } from "lucide-react"
 
 interface Signals {

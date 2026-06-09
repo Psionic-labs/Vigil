@@ -1,3 +1,9 @@
+/**
+ * @file tsup.config.ts
+ * @description Bundler configs specifying SDK build options.
+ * @why Produces optimized ESM, CJS, and browser-ready builds of the SDK.
+ */
+
 import { defineConfig } from "tsup";
 
 declare const process: any;

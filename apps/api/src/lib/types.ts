@@ -1,8 +1,9 @@
 /**
  * @file types.ts
- * @description Ingestion contexts and application environment type definitions.
- * @why Enforces compiler guarantees on values shared on Hono context variables throughout the request pipeline.
+ * @description Common TypeScript types and interfaces used throughout the API.
+ * @why Shares definitions like database models, configurations, and contexts between modules.
  */
+
 
 import type { ProjectCacheEntry } from "./rate-limit-store";
 

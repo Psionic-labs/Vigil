@@ -1,9 +1,9 @@
 /**
  * @file identity.ts
- * @description Ingestion identity extraction middleware.
- * @how Parses the JSON request body once and extracts projectKey and sessionId.
- * @why Adheres to the Single Parse Principle to prevent redundant parse and CPU usage.
+ * @description Standardized middleware to resolve current organization or user identity from request metadata.
+ * @why Resolves and injects tenant details into the request context for multi-tenancy support.
  */
+
 
 import type { MiddlewareHandler, Context, Next } from "hono";
 import { z } from "zod";

@@ -1,3 +1,9 @@
+/**
+ * @file GithubIcon.tsx
+ * @description Custom SVG element rendering the GitHub logo.
+ * @why Consistency in developer platform branding integrations.
+ */
+
 import * as React from "react"
 
 export function Github({

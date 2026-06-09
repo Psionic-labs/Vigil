@@ -1,3 +1,9 @@
+/**
+ * @file IssueBadge.tsx
+ * @description Small badge showing issue severity and priority labels.
+ * @why Enhances scanability of issue lists.
+ */
+
 import { severityColor } from "@/lib/utils"
 
 export function IssueBadge({ severity }: { severity: string }) {

@@ -1,9 +1,9 @@
 /**
  * @file health.ts
- * @description Liveness / readiness probe endpoints.
- * @how Serves a lightweight JSON payload for liveness, and queries the database for readiness with pool metrics.
- * @why Enables external infrastructure (Docker/Kubernetes/Railway/load balancers) to verify the process is alive and database is reachable.
+ * @description Standard health check routing returning server uptime and status.
+ * @why Allows load balancers and container orchestrators to probe service viability.
  */
+
 import { Hono } from "hono";
 import { checkDatabaseConnection, pool } from "../db";
 

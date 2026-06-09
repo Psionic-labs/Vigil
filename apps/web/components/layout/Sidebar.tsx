@@ -1,3 +1,9 @@
+/**
+ * @file Sidebar.tsx
+ * @description Main navigation sidebar containing the project selector dropdown.
+ * @why Controls app navigation and project scope switches.
+ */
+
 "use client"
 import { useState, useRef, useEffect } from "react"
 import { usePathname } from "next/navigation"

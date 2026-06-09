@@ -1,9 +1,9 @@
 /**
  * @file sampling-storage.ts
- * @description Manages the persistence of the session sampling decision.
- * Ensures that if a user is "sampled out", they remain sampled out across tab 
- * reloads to prevent them from refreshing until they bypass the sampling logic.
+ * @description Interfaces local storage to remember sampling decisions.
+ * @why Preserves session continuity when navigating between domains.
  */
+
 
 const SAMPLED_OUT_KEY = "vigil_sampled_out";
 let fallbackSampledDecision: boolean | undefined;

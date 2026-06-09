@@ -1,9 +1,9 @@
 /**
  * @file triage-runner.ts
- * @description Coordinates session eligibility, candidate lookup, prompt build, LLM call, and transactional database updates.
- * @why Separating DB connections from external network calls prevents connection pool depletion.
- *      Validating lease ownership inside database write transactions guarantees duplicate writes are avoided if processing lags.
+ * @description Pipeline runner that fetches unprocessed triage jobs and coordinates AI calls.
+ * @why Schedules and controls execution flow of queue-based asynchronous triage runs.
  */
+
 
 import crypto from "node:crypto";
 import { pool, withTransaction } from "../db";

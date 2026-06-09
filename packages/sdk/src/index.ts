@@ -1,10 +1,9 @@
 /**
  * @file index.ts
- * @description Main entry point for the Vigil SDK. 
- * This file exposes the public API surface that consuming applications will interact with.
- * It primarily exports the singleton `Vigil` object and its `init` method, alongside 
- * necessary TypeScript interfaces for configuration and events.
+ * @description Main module exports for SDK packages.
+ * @why Unified integration API package entrypoint.
  */
+
 
 import type { VigilOptions, SummaryEvent, SessionMetadata } from "./types";
 import { Vigil } from "./client/vigil-client";

@@ -1,9 +1,9 @@
 /**
  * @file ingest.ts
- * @description Telemetry ingestion endpoint.
- * @how Validates project credentials, enforces batch payload size limits, and performs atomic session upserts, summary logs, and background replay persistence.
- * @why Acts as the core entry gate for client-side SDK signals, ensuring fast, idempotent, and transactional recording.
+ * @description Public endpoint route handlers to receive SDK payload payloads.
+ * @why Processes, validates, and persists incoming session events and logs.
  */
+
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { zValidator } from "@hono/zod-validator";

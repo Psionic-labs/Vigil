@@ -1,3 +1,9 @@
+/**
+ * @file TopBar.tsx
+ * @description Global top bar displaying current project and user details.
+ * @why Provides context-switching controls and user visual reference.
+ */
+
 "use client"
 import { Bell, Search, Globe } from "lucide-react"
 

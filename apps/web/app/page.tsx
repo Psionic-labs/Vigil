@@ -1,3 +1,9 @@
+/**
+ * @file page.tsx
+ * @description Main landing dashboard of the Vigil web app.
+ * @why Prompts project selection or gives a summary overview of tracked metrics.
+ */
+
 "use client"
 import { useState } from "react"
 import { AlertTriangle, Activity, Monitor, CheckCircle, ArrowRight, FolderPlus } from "lucide-react"

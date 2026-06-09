@@ -1,10 +1,9 @@
 /**
  * @file navigation-observer.ts
- * @description Tracks Single Page Application (SPA) route changes.
- * Safely monkey-patches `history.pushState` and `history.replaceState` while 
- * also listening for `popstate` and `hashchange` to capture virtual navigations.
- * Also acts as a shared publisher for other detectors (like dead-clicks) to know when the route changes.
+ * @description Monitors URL route updates and page changes.
+ * @why Correlates routing with errors and events to build timeline reports.
  */
+
 import type { SummaryEvent } from "../types";
 import { sanitizeUrl } from "../utils";
 

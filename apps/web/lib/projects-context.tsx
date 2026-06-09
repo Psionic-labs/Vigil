@@ -1,3 +1,9 @@
+/**
+ * @file projects-context.tsx
+ * @description React context holding active and listed projects.
+ * @why Synchronizes project state across pages, sidebars, and top navigation.
+ */
+
 "use client"
 import { createContext, useContext, useEffect, useState } from "react"
 
@@ -19,6 +25,8 @@ interface ProjectsContextType {
 
 const ProjectsContext = createContext<ProjectsContextType | null>(null)
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+
 export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([])
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null)
@@ -26,7 +34,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch("http://localhost:3001/api/v1/projects")
+      const res = await fetch(`${API_BASE_URL}/api/v1/projects`)
       if (!res.ok) throw new Error("Failed to fetch projects")
       const { data } = await res.json()
       return data as Project[]
@@ -67,7 +75,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }
 
   const createProject = async (name: string): Promise<Project> => {
-    const res = await fetch("http://localhost:3001/api/v1/projects", {
+    const res = await fetch(`${API_BASE_URL}/api/v1/projects`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),

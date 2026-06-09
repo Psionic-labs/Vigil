@@ -1,8 +1,9 @@
 /**
  * @file repair-prompt.ts
- * @description Generates the correction/repair prompt for the LLM when initial triage validation fails.
- * @why Enforcing a strict slice limit avoids prompt-token inflation on long malformed outputs.
+ * @description Formats the LLM prompt for repairing or updating root cause analyses.
+ * @why Guides the AI to refine diagnoses when more session data or errors are observed.
  */
+
 
 /**
  * buildRepairPrompt

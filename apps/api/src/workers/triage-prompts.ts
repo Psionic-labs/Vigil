@@ -1,8 +1,9 @@
 /**
  * @file triage-prompts.ts
- * @description Generates structured XML-based prompt templates for LLM triage evaluations.
- * @why Separating prompt serialization from the execution runner isolates prompt formatting, prevents injections, and maintains clean, structured instructions.
+ * @description Main prompt template builder for the AI triage task.
+ * @why Controls what contextual details and instructions the LLM receives during triaging.
  */
+
 
 import type { TriageContext } from "./triage-types";
 

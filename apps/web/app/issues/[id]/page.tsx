@@ -1,3 +1,9 @@
+/**
+ * @file page.tsx
+ * @description Detailed page displaying diagnostics, AI suggestions, and sessions for an issue group.
+ * @why Helps developers debug issues using AI root cause analysis and timelines.
+ */
+
 import { mockIssues, getSessionsForIssue } from "@/lib/mock-data"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"

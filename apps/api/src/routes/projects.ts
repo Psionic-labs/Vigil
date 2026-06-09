@@ -1,3 +1,9 @@
+/**
+ * @file projects.ts
+ * @description Private routing to manage project creation, update, and deletion settings.
+ * @why Enables dashboard UI interactions for project administration.
+ */
+
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
@@ -19,7 +25,7 @@ projectsRouter.get("/", async (c) => {
     const result = await pool.query(
       `SELECT id, name, public_key, created_at 
        FROM projects 
-       WHERE owner_id = $1 
+       WHERE owner_id = $1 AND is_active = true
        ORDER BY created_at DESC`,
       [OWNER_ID]
     );
@@ -44,7 +50,7 @@ projectsRouter.get("/:id", async (c) => {
     const result = await pool.query(
       `SELECT id, name, public_key, created_at 
        FROM projects 
-       WHERE id = $1 AND owner_id = $2`,
+       WHERE id = $1 AND owner_id = $2 AND is_active = true`,
       [projectId, OWNER_ID]
     );
 

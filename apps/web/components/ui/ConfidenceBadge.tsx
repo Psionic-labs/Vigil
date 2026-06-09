@@ -1,3 +1,9 @@
+/**
+ * @file ConfidenceBadge.tsx
+ * @description Renders visual markers indicating AI diagnosis confidence levels.
+ * @why Assists user prioritization based on AI assessment accuracy.
+ */
+
 export function ConfidenceBadge({ value }: { value: number }) {
   const pct = Math.round(value * 100)
   const color = pct >= 90 ? "text-ok" : pct >= 75 ? "text-p2" : "text-p3"

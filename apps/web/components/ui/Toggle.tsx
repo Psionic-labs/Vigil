@@ -1,3 +1,9 @@
+/**
+ * @file Toggle.tsx
+ * @description Standardized switcher form input component.
+ * @why Allows clean true/false state selections.
+ */
+
 "use client"
 export function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
   return (

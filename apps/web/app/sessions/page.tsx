@@ -1,3 +1,9 @@
+/**
+ * @file page.tsx
+ * @description Displays the list of recorded user sessions.
+ * @why Allows developers to audit user experiences and filter by friction.
+ */
+
 "use client"
 import { useState } from "react"
 import { Search, ArrowRight, ArrowUpDown } from "lucide-react"

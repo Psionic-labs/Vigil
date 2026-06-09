@@ -1,3 +1,9 @@
+/**
+ * @file project-key.ts
+ * @description Utility helper to generate secure, unique project API keys.
+ * @why Uniquely identifies projects and authorizes SDK ingestion requests.
+ */
+
 import crypto from "crypto";
 import type { Pool } from "@neondatabase/serverless";
 

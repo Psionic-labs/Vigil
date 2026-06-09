@@ -1,3 +1,9 @@
+/**
+ * @file FrictionBar.tsx
+ * @description Bar component summarizing user friction points like dead/rage clicks.
+ * @why Graphically represents friction index indicators.
+ */
+
 export function FrictionBar({ score, className = "" }: { score: number; className?: string }) {
   const bar  = score >= 80 ? "bg-p0" : score >= 60 ? "bg-p1" : score >= 30 ? "bg-p2" : "bg-ok"
   const text = score >= 80 ? "text-p0" : score >= 60 ? "text-p1" : score >= 30 ? "text-p2" : "text-ok"

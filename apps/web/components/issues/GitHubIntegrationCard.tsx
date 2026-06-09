@@ -1,3 +1,9 @@
+/**
+ * @file GitHubIntegrationCard.tsx
+ * @description Component rendering options to link Vigil issues with GitHub issues.
+ * @why Facilitates issue synchronization with developers' project trackers.
+ */
+
 "use client"
 import { useState } from "react"
 import { Github } from "@/components/ui/GithubIcon"

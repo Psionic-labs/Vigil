@@ -67,8 +67,13 @@ export function SettingsForm() {
   }, [copied])
 
   const CopyBtn = ({ text, id }: { text: string; id: string }) => (
-    <button onClick={() => copy(text, id)}
-      className="flex items-center gap-1.5 text-xs text-text-3 hover:text-accent transition-colors cursor-pointer">
+    <button 
+      onClick={() => text && copy(text, id)}
+      disabled={!text}
+      className={`flex items-center gap-1.5 text-xs transition-colors ${
+        !text ? "opacity-40 cursor-not-allowed text-text-3" : "text-text-3 hover:text-accent cursor-pointer"
+      }`}
+    >
       {copied === id
         ? <Check className="w-3.5 h-3.5 text-ok" />
         : <Copy className="w-3.5 h-3.5" />}
@@ -81,24 +86,35 @@ export function SettingsForm() {
       <PageHeader title="Settings" subtitle="Manage configuration, API keys, and repository integrations." />
 
       <Section icon={Code2} title="SDK Installation" description="Add Vigil to your app with one script tag or npm package.">
-        <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2">Via Script Tag</p>
-        <CodeBlock label="html" code={getScriptCode(activeProject?.publicKey || "...")} />
-        <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2 mt-5">Via NPM</p>
-        <CodeBlock label="typescript" code={getNpmCode(activeProject?.publicKey || "...")} />
-        <div className="mt-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2">Project Key</p>
-          <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-2 border border-border rounded-xl">
-            <span className="font-mono text-sm text-text-1 flex-1 truncate">
-              {keyVisible ? (activeProject?.publicKey || "...") : `pk_live_${"•".repeat(16)}`}
-            </span>
-            <button onClick={() => setKeyVisible(v => !v)}
-              aria-label={keyVisible ? "Hide project key" : "Show project key"}
-              className="text-text-3 hover:text-accent transition-colors cursor-pointer">
-              {keyVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-            <CopyBtn text={activeProject?.publicKey || ""} id="key" />
+        {!activeProject ? (
+          <div className="flex flex-col items-center justify-center py-6 px-4 border border-dashed border-border rounded-2xl bg-surface-2 text-center">
+            <p className="text-sm font-semibold text-text-2 mb-1">No Project Selected</p>
+            <p className="text-xs text-text-3 max-w-sm">
+              Please select or create a project from the sidebar to view integration snippets and retrieve API keys.
+            </p>
           </div>
-        </div>
+        ) : (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2">Via Script Tag</p>
+            <CodeBlock label="html" code={getScriptCode(activeProject.publicKey)} />
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2 mt-5">Via NPM</p>
+            <CodeBlock label="typescript" code={getNpmCode(activeProject.publicKey)} />
+            <div className="mt-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2">Project Key</p>
+              <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-2 border border-border rounded-xl">
+                <span className="font-mono text-sm text-text-1 flex-1 truncate">
+                  {keyVisible ? activeProject.publicKey : `pk_live_${"•".repeat(16)}`}
+                </span>
+                <button onClick={() => setKeyVisible(v => !v)}
+                  aria-label={keyVisible ? "Hide project key" : "Show project key"}
+                  className="text-text-3 hover:text-accent transition-colors cursor-pointer">
+                  {keyVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+                <CopyBtn text={activeProject.publicKey} id="key" />
+              </div>
+            </div>
+          </>
+        )}
       </Section>
 
       <Section icon={Github} title="GitHub Integration" description="Connect a repository to auto-raise issues from Vigil's dashboard.">

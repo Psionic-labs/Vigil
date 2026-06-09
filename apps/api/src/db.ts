@@ -1,9 +1,9 @@
 /**
  * @file db.ts
- * @description Database connection pool and transaction manager.
- * @how Wraps Neon PostgreSQL serverless client with a transaction helper and connection validator.
- * @why Enables clean, thread-safe transactional DB operations with automatic rollbacks.
+ * @description Provides database pool connections and transaction helper utilities.
+ * @why Ensures consistent PostgreSQL database connectivity and safe transaction block execution across the API.
  */
+
 import { Pool, type PoolClient } from "@neondatabase/serverless";
 
 const databaseUrl = process.env.DATABASE_URL;
