@@ -1,9 +1,13 @@
 /**
  * @file session.ts
- * @description Generates and manages the primary unique session identifier.
- * @why Relates independent event recordings to a singular session context.
+ * @description Manages the Vigil session ID for a browser tab.
+ *
+ * Rules:
+ *  - One session ID per browser tab lifetime (sessionStorage is tab-scoped).
+ *  - Persists across soft navigations (SPA pushState, page reloads within the tab).
+ *  - Cleared automatically when the tab is closed (sessionStorage behaviour).
+ *  - Falls back gracefully if sessionStorage is unavailable (private-mode restrictions, etc.).
  */
-
 
 const SESSION_KEY = "vigil_session_id";
 let fallbackSessionId: string | undefined;

@@ -1,9 +1,9 @@
 /**
  * @file reconciliation.ts
- * @description Runs background cron worker to reconcile abandoned or timeout sessions.
- * @why Finalizes sessions that have stopped sending beacons but didn't explicitly shut down.
+ * @description In-process session timeout reconciliation worker.
+ * @how Periodically identifies inactive, unfinalized sessions and transitionally marks them as abandoned.
+ * @why Resolves permanently unfinalized sessions caused by browser crashes, mobile app suspensions, and process termination.
  */
-
 
 import { pool } from "../db";
 

@@ -1,9 +1,7 @@
 /**
  * @file index.ts
- * @description Exports the selected AI provider instance configured for triaging.
- * @why Abstracts vendor-specific LLM details behind a clean, unified interface.
+ * @description Barrel exports for the provider-agnostic AI module.
  */
-
 
 export type { AIProvider, LLMResult } from "./provider";
 export { extractAndValidateJSON, AIValidationError, getRawOutput } from "./provider";

@@ -1,7 +1,8 @@
 /**
  * @file session-sampling.ts
- * @description Evaluates whether a session should be tracked according to options.
- * @why Controls cloud costs and bandwidth usage via percentage sampling.
+ * @description Implements deterministic session sampling logic.
+ * Evaluates `Math.random()` against the configured `sessionSampleRate` once per 
+ * session initialization, securely storing the result.
  */
 
 import { getStoredSamplingDecision, saveSamplingDecision } from "./sampling-storage";

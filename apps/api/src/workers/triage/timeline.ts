@@ -1,9 +1,8 @@
 /**
  * @file timeline.ts
- * @description Helper utility to rebuild chronological event timelines from session data.
- * @why Gives the LLM context of user actions leading up to the error.
+ * @description Assembles a compact, chronological, human-readable timeline of key events for session triage.
+ * @why Provides concise user-activity context for the LLM without exceeding context windows or including noisy interaction logs.
  */
-
 
 import { pool } from "../../db";
 

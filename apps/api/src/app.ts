@@ -1,9 +1,9 @@
 /**
  * @file app.ts
- * @description Sets up Express application middleware, routes, and error handling.
- * @why Serves as the central API routing and middleware configuration wrapper.
+ * @description Main application configurer and router.
+ * @how Integrates global middleware (CORS, RequestId, Logging, Error Handler) and binds endpoints.
+ * @why Establishes a standardized pipeline for routing and sanitizing API requests.
  */
-
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";

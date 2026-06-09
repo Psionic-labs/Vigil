@@ -1,9 +1,9 @@
 /**
  * @file final-flush.ts
- * @description Guarantees events queue is sent before a page closes.
- * @why Employs beacon transport to prevent data loss on page exit.
+ * @description Handles terminal data flushing during browser unload events (`pagehide`, `beforeunload`).
+ * Also manages non-destructive opportunistic "visibility" flushes when the tab is hidden, ensuring 
+ * data is not lost if mobile operating systems terminate the backgrounded browser process.
  */
-
 import { abortInflightRequests, sendBatch, sendFinalBatch } from "./transport";
 import type { FlushContext, FlushTimer } from "./shared";
 import { buildPayload, buildSnapshotPayload, cancelAllScheduledFlushes } from "./shared";

@@ -1,9 +1,10 @@
 /**
  * @file verify-e2e-local.ts
- * @description Executes end-to-end verification tests against the locally running server.
- * @why Validates integration flows locally before pushing changes.
+ * @description Automation runner that boots the API server and worker locally, polls for readiness,
+ *              executes E2E telemetry verification checks, and guarantees clean teardown of child processes.
+ * @why Enables developers and CI runners to execute the integration/E2E test suite in a single command,
+ *      eliminating the need to manually manage multiple running terminals.
  */
-
 
 import "dotenv/config";
 import { spawn, execSync, ChildProcess } from "child_process";

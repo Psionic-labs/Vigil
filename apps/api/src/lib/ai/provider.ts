@@ -1,9 +1,11 @@
 /**
  * @file provider.ts
- * @description Declares the base abstract class and types for AI providers.
- * @why Standardizes LLM communication interfaces for modularity and testing mocks.
+ * @description Defines the provider-agnostic AIProvider interface, LLMResult type,
+ *              and shared JSON extraction/validation utilities.
+ * @why Decoupling the triage pipeline from any specific LLM vendor allows model swaps
+ *      via configuration changes only. Providers do NOT handle retries — that responsibility
+ *      stays with the triage runner/worker layer.
  */
-
 
 import { AISchema, type AITriageOutput } from "../../workers/triage-service";
 

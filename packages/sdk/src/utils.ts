@@ -1,9 +1,7 @@
 /**
  * @file utils.ts
- * @description Generic helper routines like URL cleaners.
- * @why Prevents leaking sensitive credential tokens within paths.
+ * @description Generic utility functions used across the SDK.
  */
-
 
 /**
  * Sanitizes a URL string by stripping query parameters and hash fragments.

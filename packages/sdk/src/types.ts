@@ -1,9 +1,10 @@
 /**
  * @file types.ts
- * @description Typings and definitions for SDK events and options.
- * @why Guarantees static type analysis correctness throughout the SDK build.
+ * @description Shared type definitions and interfaces for the Vigil SDK.
+ * These definitions represent the rigid data contracts expected by the ingest API,
+ * as well as the initialization options provided by the host application.
+ * Mirrors the v1 contract outlined in docs/vigil-sdk-contract.md.
  */
-
 // ---------------------------------------------------------------------------
 // Init options
 // ---------------------------------------------------------------------------

@@ -4,7 +4,6 @@
  * @why Enables the LLM to deduplicate issues by linking new session errors to existing open issues.
  */
 
-
 import { pool } from "../../db";
 import type { CandidateIssueGroup } from "../triage-types";
 

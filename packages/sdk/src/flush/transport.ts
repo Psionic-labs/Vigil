@@ -1,9 +1,7 @@
 /**
  * @file transport.ts
- * @description Network transport wrapper calling sendBeacon or fetch.
- * @why Abstract transport selection depending on document availability.
+ * @description Serialized transport for replay batches and one terminal unload dispatch.
  */
-
 import type { SDKState } from "../client/state";
 import type { IngestPayload } from "../types";
 

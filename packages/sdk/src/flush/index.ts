@@ -1,9 +1,9 @@
 /**
  * @file index.ts
- * @description Controls periodic background event queue flushes.
- * @why Optimizes network transfers by batching beacons.
+ * @description Coordinates the periodic background flushing of telemetry data.
+ * Manages the `setInterval` loop, prevents overlapping network requests via locks, 
+ * and handles exponential backoff/retry semantics if the ingest endpoint is temporarily unreachable.
  */
-
 import type { SummaryEvent } from "../types";
 import { sendBatch } from "./transport";
 import type { SDKState } from "../client/state";

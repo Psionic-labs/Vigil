@@ -1,9 +1,9 @@
 /**
  * @file vigil-client.ts
- * @description Core class exposing initialization and manual error capturing methods.
- * @why Main interface developers import to configure and use the SDK client.
+ * @description The core bootstrapper for the SDK.
+ * Handles configuration validation, state initialization, detector 
+ * orchestration, and ensures clean shutdown/teardown mechanics.
  */
-
 import { record } from "rrweb";
 import { getOrCreateSessionId, clearSessionId } from "../session";
 import { isSessionSampled } from "../sampling/session-sampling";

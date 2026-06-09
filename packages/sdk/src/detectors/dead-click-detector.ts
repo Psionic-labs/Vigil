@@ -1,9 +1,9 @@
 /**
  * @file dead-click-detector.ts
- * @description Evaluates whether pointer clicks resulted in actual changes.
- * @why Marks useless user interactions that signal bad UX.
+ * @description Detects when a user clicks on an element but the DOM fails to react.
+ * Uses a combination of a global click listener and a transient MutationObserver 
+ * to verify if a click resulted in visual feedback within a 500ms window.
  */
-
 import type { SummaryEvent } from "../types";
 import type { NavigationCallback } from "./navigation-observer";
 

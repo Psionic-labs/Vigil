@@ -1,9 +1,9 @@
 /**
  * @file rate-limit.ts
- * @description Express rate limiter middleware checking IP addresses and project keys.
- * @why Prevents abuse of the public ingest routes by restricting request rates.
+ * @description Ingestion rate limiting middlewares.
+ * @how Implements IP, unknown project, database lookup, project, and session limit checks.
+ * @why Secures the ingest route from abuse and DB connection pools from exhaustion.
  */
-
 
 import type { MiddlewareHandler, Context, Next } from "hono";
 import { globalLimiterStore, globalProjectCache, type ProjectCacheEntry } from "../lib/rate-limit-store";

@@ -1,9 +1,9 @@
 /**
  * @file error-handler.ts
- * @description Global Express middleware to catch and format unhandled API errors.
- * @why Avoids server crashes and returns standard JSON error responses to callers.
+ * @description Global exception handler middleware.
+ * @how Intercepts Zod Validation and runtime exceptions, formatting them into standardized JSON.
+ * @why Avoids leaking internal node/database stack traces and ensures clean client communication.
  */
-
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { ZodError } from "zod";

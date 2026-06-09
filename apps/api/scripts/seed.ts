@@ -1,9 +1,8 @@
 /**
  * @file seed.ts
- * @description Seeds the PostgreSQL database with development or testing data.
- * @why Provides mock projects, sessions, and issues for local development and testing.
+ * @description Seeds the local database with initial playground user, project, and session data.
+ * @why Provides a repeatable, idempotent way to initialize developer and test environments with a realistic baseline dataset.
  */
-
 
 import { Pool } from "@neondatabase/serverless";
 import { readFileSync, existsSync } from "fs";

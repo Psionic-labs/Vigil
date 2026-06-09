@@ -1,9 +1,10 @@
 /**
  * @file metrics.ts
- * @description Exposes system and pipeline latency statistics and count metrics.
- * @why Feeds dashboard statistics or Prometheus scraping scripts.
+ * @description Operational metrics endpoint.
+ * @how Exposes hit counters, bucket sizes, and memory usage estimates from the rate limiting stores.
+ *      Exposes AI triage queue processing statistics aggregated directly from PostgreSQL.
+ * @why Enables external telemetry/observability systems (e.g. Prometheus/Grafana) to monitor limiter and worker health.
  */
-
 
 import { Hono, type Context } from "hono";
 import { globalLimiterStore, globalProjectCache } from "../lib/rate-limit-store";

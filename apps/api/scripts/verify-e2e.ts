@@ -1,9 +1,8 @@
 /**
  * @file verify-e2e.ts
- * @description Runs end-to-end testing verification suite in CI/CD pipeline environments.
- * @why Ensures that deployment builds conform to integration test specifications.
+ * @description Runs end-to-end integration and verification checks by calling ingest and metrics endpoints.
+ * @why Ensures that the server correctly ingests, processes, and displays metrics for simulated sessions, verifying end-to-end flow correctness.
  */
-
 
 import { Pool } from "@neondatabase/serverless";
 import { readFileSync, existsSync } from "fs";

@@ -1,9 +1,9 @@
 /**
  * @file rate-limit-store.ts
- * @description Implements in-memory caching and stores for IP and project rate-limiting.
- * @why Protects API ingestion endpoints from DDOS attacks and unauthorized keys.
+ * @description Storage abstraction and in-memory rate limiter logic.
+ * @how Implements Token Bucket algorithm with Map-insertion order LRU cache eviction and project TTL caching.
+ * @why Decouples rate limit rules from underlying storage engine, preparing for future Redis backend.
  */
-
 
 export interface RateLimitDecision {
   allowed: boolean;

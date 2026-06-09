@@ -1,9 +1,9 @@
 /**
  * @file state.ts
- * @description Handles internal event caches, summary bounds, and status flags.
- * @why Stores session metadata and aggregates errors/clicks for flushes.
+ * @description Centralized state management for the SDK.
+ * Holds memory buffers for rrweb events and summary events, enforcing strict 
+ * bounds limits to prevent browser OOM (Out of Memory) crashes.
  */
-
 import type { SummaryEvent, SessionMetadata } from "../types";
 
 // Derive the event type from rrweb's own record signature

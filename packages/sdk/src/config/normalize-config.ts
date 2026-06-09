@@ -1,9 +1,8 @@
 /**
  * @file normalize-config.ts
- * @description Converts raw developer config options to a standard internal layout.
- * @why Cleans user inputs and ensures consistency.
+ * @description Normalizes the user-provided configuration object by merging it
+ * with the SDK defaults, ensuring that all optional fields have a guaranteed value internally.
  */
-
 import type { VigilOptions, NormalizedVigilOptions } from "../types";
 import { DEFAULT_CONFIG } from "./defaults";
 

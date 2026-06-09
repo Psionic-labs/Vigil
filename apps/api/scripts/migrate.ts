@@ -1,9 +1,8 @@
 /**
  * @file migrate.ts
- * @description Runs database migrations on the PostgreSQL instance.
- * @why Keeps database schema up to date with the latest changes during deployment or development.
+ * @description Sequentially executes SQL database migration scripts.
+ * @why Enables automated, versioned schema updates across development, staging, and production databases to guarantee structural consistency.
  */
-
 
 import { Pool } from "@neondatabase/serverless";
 import { readFileSync, readdirSync } from "fs";

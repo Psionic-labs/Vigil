@@ -1,9 +1,9 @@
 /**
  * @file triage-types.ts
- * @description Type definitions for the triage module data models.
- * @why Provides static analysis safety across triage runner, service, and prompts.
+ * @description Strongly-typed interfaces representing session replay telemetry events,
+ *              existing issue group candidates, queue jobs, and worker contexts.
+ * @why Provides compilation and type-safety guarantees across telemetry prompts formulation, LLM calls, and transactional database writes.
  */
-
 
 import type { SessionTimeline } from "./triage/timeline";
 

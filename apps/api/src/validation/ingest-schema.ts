@@ -1,9 +1,9 @@
 /**
  * @file ingest-schema.ts
- * @description Zod validation schemas for incoming ingestion payloads.
- * @why Enforces request payload payloads conform to the SDK contract structure.
+ * @description Zod validation schemas for ingestion request payloads.
+ * @how Declares schemas with strict bounds on fields, batch event counts (max 500), and summary events (max 50).
+ * @why Enforces structural contract validation at the edge before any database/disk processing begins.
  */
-
 
 import { z } from "zod";
 
