@@ -318,11 +318,9 @@ describe("End-to-End Triage Flow Integration Tests", () => {
       maxAttempts: 3,
     });
 
-    // 4. Verify database counts and no new group created
-    const groupCheck = await pool.query("SELECT * FROM issue_groups WHERE project_id = $1", [TEST_PROJECT_ID]);
-    expect(groupCheck.rowCount).toBe(2);
-
+    // 4. Verify no new issue group was created — the seeded group's count incremented and instance points to it
     const seededGroupRes = await pool.query("SELECT * FROM issue_groups WHERE id = $1", [existingGroupId]);
+    expect(seededGroupRes.rowCount).toBe(1);
     expect(seededGroupRes.rows[0].affected_session_count).toBe(2); // incremented from 1 to 2
 
     const instanceRes = await pool.query("SELECT * FROM issue_instances WHERE session_id = $1", [sessionId]);

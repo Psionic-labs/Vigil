@@ -182,10 +182,7 @@ sessionsRouter.get("/:id/events", async (c) => {
       return c.json({ ok: false, success: false, error: "Session not found or unauthorized" }, 404);
     }
 
-    const { blob_path, project_id } = sessionRes.rows[0];
-    if (!blob_path) {
-      return c.json({ ok: true, success: true, events: [] });
-    }
+    const { project_id } = sessionRes.rows[0];
 
     try {
       const events = await readAllSessionEvents(project_id, sessionId);

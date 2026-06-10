@@ -36,8 +36,9 @@ export default function IssuesPage() {
     }
 
     setIsDataLoading(true)
+    const controller = new AbortController()
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-    fetch(`${API_BASE_URL}/api/v1/issues?projectId=${activeProject.id}`)
+    fetch(`${API_BASE_URL}/api/v1/issues?projectId=${activeProject.id}`, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch issues")
         return res.json()
@@ -46,11 +47,15 @@ export default function IssuesPage() {
         setIssues(json.data || [])
       })
       .catch((err) => {
-        console.error("Failed to load issues:", err)
+        if (err.name !== "AbortError") {
+          console.error("Failed to load issues:", err)
+        }
       })
       .finally(() => {
         setIsDataLoading(false)
       })
+
+    return () => controller.abort()
   }, [activeProject])
 
   if (isDataLoading) {

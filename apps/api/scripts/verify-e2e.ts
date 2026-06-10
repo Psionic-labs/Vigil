@@ -110,8 +110,8 @@ async function verify() {
       }
     ],
     events: [
-      { type: 4, data: { href: "http://localhost:3000/" } },
-      { type: 2, data: {} }
+      { type: 4, timestamp: Date.now() - 3000, data: { href: "http://localhost:3000/" } },
+      { type: 2, timestamp: Date.now() - 2000, data: {} }
     ],
     isFinal: true,
     sdkVersion: "1.0.0"

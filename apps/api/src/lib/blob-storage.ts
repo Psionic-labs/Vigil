@@ -23,6 +23,7 @@ const BLOBS_ROOT = process.env.BLOBS_ROOT || path.resolve(__dirname, "../../blob
 
 // In-memory cache for parsed replay events to avoid re-reading and re-processing blob files.
 const CACHE_TTL_MS = 60_000; // 1 minute
+const MAX_CACHE_ENTRIES = 50;
 const eventCache = new Map<string, { events: unknown[]; timestamp: number }>();
 
 function getCachedEvents(key: string): unknown[] | null {
@@ -35,7 +36,15 @@ function getCachedEvents(key: string): unknown[] | null {
 }
 
 function setCachedEvents(key: string, events: unknown[]): void {
+  if (eventCache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = eventCache.keys().next().value;
+    if (oldest !== undefined) eventCache.delete(oldest);
+  }
   eventCache.set(key, { events, timestamp: Date.now() });
+}
+
+function invalidateSessionCache(projectId: string, sessionId: string): void {
+  eventCache.delete(`${projectId}:${sessionId}`);
 }
 
 /**
@@ -138,6 +147,9 @@ export async function persistReplayBlob(
   await fs.rename(tempFilePath, filePath);
   const writeDurationMs = performance.now() - writeStart;
 
+  // Invalidate the in-memory cache so subsequent reads pick up the new batch
+  invalidateSessionCache(projectId, sessionId);
+
   return {
     path: filePath,
     compressedBytes: compressed.length,
@@ -161,13 +173,12 @@ export async function persistReplayBlob(
  */
 export async function readReplayBlob(blobPath: string): Promise<unknown[]> {
   const resolvedBlobsRoot = path.resolve(BLOBS_ROOT);
-  // Resolve path relative to the apps/api/ directory
-  const fullPath = path.resolve(__dirname, "../../", blobPath);
+  // blobPath is stored as a relative path starting with blobs/v1/, so resolve
+  // from BLOBS_ROOT's parent to keep path resolution consistent with writes.
+  const fullPath = path.resolve(resolvedBlobsRoot, "../..", blobPath);
 
   // Path traversal check
   const relative = path.relative(resolvedBlobsRoot, fullPath);
-  // Because blobPath starts with blobs/v1/ and BLOBS_ROOT is resolvedBlobsRoot,
-  // relative might be project/session/file, which shouldn't start with '..'
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
     throw new Error("Path traversal detected.");
   }

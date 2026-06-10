@@ -35,8 +35,9 @@ export default function SessionsPage() {
     }
 
     setIsDataLoading(true)
+    const controller = new AbortController()
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-    fetch(`${API_BASE_URL}/api/v1/sessions?projectId=${activeProject.id}`)
+    fetch(`${API_BASE_URL}/api/v1/sessions?projectId=${activeProject.id}`, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch sessions")
         return res.json()
@@ -45,11 +46,15 @@ export default function SessionsPage() {
         setSessions(json.data || [])
       })
       .catch((err) => {
-        console.error("Failed to load sessions:", err)
+        if (err.name !== "AbortError") {
+          console.error("Failed to load sessions:", err)
+        }
       })
       .finally(() => {
         setIsDataLoading(false)
       })
+
+    return () => controller.abort()
   }, [activeProject])
 
   if (isDataLoading) {

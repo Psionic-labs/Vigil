@@ -43,22 +43,27 @@ export default function OverviewPage() {
     }
 
     setIsDataLoading(true)
+    const controller = new AbortController()
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 
     Promise.all([
-      fetch(`${API_BASE_URL}/api/v1/issues?projectId=${activeProject.id}`).then((res) => res.json()),
-      fetch(`${API_BASE_URL}/api/v1/sessions?projectId=${activeProject.id}`).then((res) => res.json())
+      fetch(`${API_BASE_URL}/api/v1/issues?projectId=${activeProject.id}`, { signal: controller.signal }).then((res) => { if (!res.ok) throw new Error("Failed to fetch issues"); return res.json() }),
+      fetch(`${API_BASE_URL}/api/v1/sessions?projectId=${activeProject.id}`, { signal: controller.signal }).then((res) => { if (!res.ok) throw new Error("Failed to fetch sessions"); return res.json() })
     ])
       .then(([issuesRes, sessionsRes]) => {
         setIssues(issuesRes.data || [])
         setSessions(sessionsRes.data || [])
       })
       .catch((err) => {
-        console.error("Failed to fetch dashboard overview data:", err)
+        if (err.name !== "AbortError") {
+          console.error("Failed to fetch dashboard overview data:", err)
+        }
       })
       .finally(() => {
         setIsDataLoading(false)
       })
+
+    return () => controller.abort()
   }, [activeProject])
 
   if (isLoading) {
