@@ -110,7 +110,8 @@ async function verify() {
       }
     ],
     events: [
-      { type: 4, data: { href: "http://localhost:3000/" } }
+      { type: 4, data: { href: "http://localhost:3000/" } },
+      { type: 2, data: {} }
     ],
     isFinal: true,
     sdkVersion: "1.0.0"

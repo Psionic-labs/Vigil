@@ -5,7 +5,7 @@
  */
 
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AlertTriangle, Activity, Monitor, CheckCircle, ArrowRight, FolderPlus } from "lucide-react"
 import { StatCard } from "@/components/ui/StatCard"
 import { IssueBadge } from "@/components/ui/IssueBadge"
@@ -13,11 +13,11 @@ import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
 import { FrictionBar } from "@/components/ui/FrictionBar"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { EnvironmentChip } from "@/components/ui/EnvironmentChip"
-import { mockIssues, mockSessions } from "@/lib/mock-data"
 import { formatRelativeTime, formatDuration } from "@/lib/utils"
 import Link from "next/link"
 import { useProjects } from "@/lib/projects-context"
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal"
+import { IssueGroup, Session } from "@/lib/mock-data"
 
 const severityBreakdown = [
   { label: "Critical", key: "P0", borderClass: "border-t-p0",  dotClass: "bg-p0",  textClass: "text-p0"  },
@@ -27,19 +27,39 @@ const severityBreakdown = [
 ]
 
 export default function OverviewPage() {
-  const { projects, isLoading, createProject } = useProjects()
+  const { projects, isLoading, activeProject, createProject } = useProjects()
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  const openIssuesCount = mockIssues.filter(i => i.status === "open").length
-  const avgFrictionScore = mockSessions.length > 0 ? Math.round(mockSessions.reduce((sum, s) => sum + s.ai_friction_score, 0) / mockSessions.length) : 0
-  const totalSessionsCount = mockSessions.length
-  const completedGoalsCount = mockSessions.filter(s => s.ai_goal_completed).length
-  const goalCompletionRate = mockSessions.length > 0 ? Math.round((completedGoalsCount / mockSessions.length) * 100) : 0
+  const [issues, setIssues] = useState<IssueGroup[]>([])
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [isDataLoading, setIsDataLoading] = useState(true)
 
-  const recentIssues = mockIssues.filter(i => i.status !== "ignored").slice(0, 4)
-  const highFrictionSessions = [...mockSessions]
-    .sort((a, b) => b.ai_friction_score - a.ai_friction_score)
-    .slice(0, 3)
+  useEffect(() => {
+    if (!activeProject) {
+      setIssues([])
+      setSessions([])
+      setIsDataLoading(false)
+      return
+    }
+
+    setIsDataLoading(true)
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+
+    Promise.all([
+      fetch(`${API_BASE_URL}/api/v1/issues?projectId=${activeProject.id}`).then((res) => res.json()),
+      fetch(`${API_BASE_URL}/api/v1/sessions?projectId=${activeProject.id}`).then((res) => res.json())
+    ])
+      .then(([issuesRes, sessionsRes]) => {
+        setIssues(issuesRes.data || [])
+        setSessions(sessionsRes.data || [])
+      })
+      .catch((err) => {
+        console.error("Failed to fetch dashboard overview data:", err)
+      })
+      .finally(() => {
+        setIsDataLoading(false)
+      })
+  }, [activeProject])
 
   if (isLoading) {
     return (
@@ -75,6 +95,25 @@ export default function OverviewPage() {
     )
   }
 
+  if (isDataLoading) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto flex items-center justify-center min-h-[50vh]">
+        <p className="text-text-3 font-mono text-sm animate-pulse">Loading project data...</p>
+      </div>
+    )
+  }
+
+  const openIssuesCount = issues.filter(i => i.status === "open").length
+  const avgFrictionScore = sessions.length > 0 ? Math.round(sessions.reduce((sum, s) => sum + s.ai_friction_score, 0) / sessions.length) : 0
+  const totalSessionsCount = sessions.length
+  const completedGoalsCount = sessions.filter(s => s.ai_goal_completed).length
+  const goalCompletionRate = sessions.length > 0 ? Math.round((completedGoalsCount / sessions.length) * 100) : 0
+
+  const recentIssues = issues.filter(i => i.status !== "ignored").slice(0, 4)
+  const highFrictionSessions = [...sessions]
+    .sort((a, b) => b.ai_friction_score - a.ai_friction_score)
+    .slice(0, 3)
+
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
       <PageHeader
@@ -101,7 +140,7 @@ export default function OverviewPage() {
             <h2 className="text-sm font-semibold text-text-1 mb-4">Severity Breakdown</h2>
             <div className="grid grid-cols-2 gap-3 mb-5">
               {severityBreakdown.map(({ label, key, borderClass, dotClass, textClass }) => {
-                const count = mockIssues.filter(i => i.severity === key && i.status !== "ignored").length
+                const count = issues.filter(i => i.severity === key && i.status !== "ignored").length
                 return (
                   <div key={key} className={`bg-surface-2 rounded-xl border border-border border-t-[3px] ${borderClass} p-3.5 text-center`}>
                     <p className={`text-2xl font-bold ${textClass}`}>{count}</p>
@@ -115,8 +154,8 @@ export default function OverviewPage() {
             </div>
             <div className="space-y-2.5">
               {severityBreakdown.map(({ label, key, dotClass }) => {
-                const count = mockIssues.filter(i => i.severity === key && i.status !== "ignored").length
-                const total = mockIssues.filter(i => i.status !== "ignored").length
+                const count = issues.filter(i => i.severity === key && i.status !== "ignored").length
+                const total = issues.filter(i => i.status !== "ignored").length
                 return (
                   <div key={key} className="flex items-center gap-3">
                     <div className="flex items-center gap-1.5 w-24 shrink-0">

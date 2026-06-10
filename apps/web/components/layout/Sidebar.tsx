@@ -8,26 +8,17 @@
 import { useState, useRef, useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { LayoutDashboard, AlertTriangle, Monitor, Settings, ChevronDown, Activity, User } from "lucide-react"
-import { mockIssues } from "@/lib/mock-data"
 import { useProjects } from "@/lib/projects-context"
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal"
-
 import { NavItem } from "./NavItem"
-
-const openCount = mockIssues.filter(i => i.status === "open").length
-
-const navItems = [
-  { href: "/",         label: "Overview",  icon: LayoutDashboard },
-  { href: "/issues",   label: "Issues",    icon: AlertTriangle,   badge: openCount },
-  { href: "/sessions", label: "Sessions",  icon: Monitor },
-  { href: "/settings", label: "Settings",  icon: Settings },
-]
+import { IssueGroup } from "@/lib/mock-data"
 
 export function Sidebar() {
   const pathname = usePathname()
   const { projects, activeProject, setActiveProjectId, createProject } = useProjects()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [openIssuesCount, setOpenIssuesCount] = useState<number | undefined>(undefined)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -39,6 +30,36 @@ export function Sidebar() {
     document.addEventListener("mousedown", handleClickOutside)
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (!activeProject) {
+      setOpenIssuesCount(undefined)
+      return
+    }
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+    fetch(`${API_BASE_URL}/api/v1/issues?projectId=${activeProject.id}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch open issues count")
+        return res.json()
+      })
+      .then((json) => {
+        const count = json.data?.filter(
+          (i: IssueGroup) => i.status === "open" && ["P0", "P1", "P2", "P3"].includes(i.severity)
+        ).length ?? 0
+        setOpenIssuesCount(count)
+      })
+      .catch((err) => {
+        console.error("Failed to load open issues count in sidebar:", err)
+        setOpenIssuesCount(0)
+      })
+  }, [activeProject])
+
+  const navItems = [
+    { href: "/",         label: "Overview",  icon: LayoutDashboard },
+    { href: "/issues",   label: "Issues",    icon: AlertTriangle,   badge: openIssuesCount },
+    { href: "/sessions", label: "Sessions",  icon: Monitor },
+    { href: "/settings", label: "Settings",  icon: Settings },
+  ]
 
   return (
     <aside className="w-60 bg-sidebar flex flex-col shrink-0 h-full z-10">

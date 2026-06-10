@@ -5,26 +5,71 @@
  */
 
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, ArrowUpDown } from "lucide-react"
 import { Github } from "@/components/ui/GithubIcon"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { EmptyState } from "@/components/ui/EmptyState"
-import { mockIssues } from "@/lib/mock-data"
 import { formatRelativeTime } from "@/lib/utils"
 import Link from "next/link"
+import { useProjects } from "@/lib/projects-context"
+import { IssueGroup } from "@/lib/mock-data"
 
 type Filter = "All" | "P0" | "P1" | "P2" | "P3" | "Linked to GitHub" | "Ignored"
 const FILTERS: Filter[] = ["All", "P0", "P1", "P2", "P3", "Linked to GitHub", "Ignored"]
 
 export default function IssuesPage() {
+  const { activeProject } = useProjects()
+  const [issues, setIssues] = useState<IssueGroup[]>([])
+  const [isDataLoading, setIsDataLoading] = useState(true)
   const [filter, setFilter] = useState<Filter>("All")
   const [search, setSearch] = useState("")
   const [sortBy, setSortBy] = useState<"severity" | "sessions" | "newest">("severity")
 
-  const visible = mockIssues.filter(issue => {
+  useEffect(() => {
+    if (!activeProject) {
+      setIssues([])
+      setIsDataLoading(false)
+      return
+    }
+
+    setIsDataLoading(true)
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+    fetch(`${API_BASE_URL}/api/v1/issues?projectId=${activeProject.id}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch issues")
+        return res.json()
+      })
+      .then((json) => {
+        setIssues(json.data || [])
+      })
+      .catch((err) => {
+        console.error("Failed to load issues:", err)
+      })
+      .finally(() => {
+        setIsDataLoading(false)
+      })
+  }, [activeProject])
+
+  if (isDataLoading) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto flex items-center justify-center min-h-[50vh]">
+        <p className="text-text-3 font-mono text-sm animate-pulse">Loading issues...</p>
+      </div>
+    )
+  }
+
+  if (!activeProject) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto flex items-center justify-center min-h-[50vh]">
+        <p className="text-text-3 font-mono text-sm">Please select or create a project to view issues.</p>
+      </div>
+    )
+  }
+
+  const visible = issues.filter(issue => {
     const q = search.toLowerCase()
     const matchSearch = !q || issue.title.toLowerCase().includes(q) || issue.root_cause.toLowerCase().includes(q)
     const matchFilter =
@@ -37,8 +82,8 @@ export default function IssuesPage() {
 
   const sorted = [...visible].sort((a, b) => {
     if (sortBy === "severity") {
-      const order = { P0: 0, P1: 1, P2: 2, P3: 3 }
-      return order[a.severity] - order[b.severity]
+      const order: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 }
+      return (order[a.severity] ?? 99) - (order[b.severity] ?? 99)
     }
     if (sortBy === "sessions") {
       return b.affected_session_count - a.affected_session_count
@@ -59,7 +104,7 @@ export default function IssuesPage() {
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
-      <PageHeader title="Issues" count={mockIssues.filter(i => i.status === "open").length} />
+      <PageHeader title="Issues" count={issues.filter(i => i.status === "open").length} />
 
       {/* Controls row */}
       <div className="flex items-center gap-3 mb-5">
