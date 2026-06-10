@@ -4,14 +4,27 @@
  * @why Helps developers debug issues using AI root cause analysis and timelines.
  */
 
-import { mockIssues, getSessionsForIssue } from "@/lib/mock-data"
+"use client"
+import { use, useEffect, useState } from "react"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
 import { formatRelativeTime, formatTimestamp, severityColor } from "@/lib/utils"
 import { ArrowLeft, Users, Clock, ChevronRight } from "lucide-react"
 import { GitHubIntegrationCard } from "@/components/issues/GitHubIntegrationCard"
 import Link from "next/link"
-import { notFound } from "next/navigation"
+import { IssueGroup } from "@/lib/mock-data"
+
+interface AffectedSession {
+  id: string
+  url: string
+  ai_goal_completed: boolean
+  started_at: number
+}
+
+interface IssueDetail extends IssueGroup {
+  project_id: string
+  affectedSessions: AffectedSession[]
+}
 
 const eventTypeLabel: Record<string, string> = {
   navigation:    "Navigated to",
@@ -32,14 +45,59 @@ const eventColor: Record<string, string> = {
   console_error: "bg-surface-2 border-border text-text-3",
 }
 
-export default async function IssueDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const issue = mockIssues.find(i => i.id === id)
-  if (!issue) {
-    notFound()
+export default function IssueDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const [issue, setIssue] = useState<IssueDetail | null>(null)
+  const [isDataLoading, setIsDataLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setIsDataLoading(true)
+    setError(null)
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+    fetch(`${API_BASE_URL}/api/v1/issues/${id}`)
+      .then((res) => {
+        if (!res.ok) {
+          if (res.status === 404 || res.status === 401) {
+            throw new Error("Issue not found or unauthorized")
+          }
+          throw new Error("Failed to fetch issue details")
+        }
+        return res.json()
+      })
+      .then((json) => {
+        setIssue(json.data || null)
+      })
+      .catch((err) => {
+        console.error("Failed to load issue:", err)
+        setError(err.message || "Failed to load issue")
+      })
+      .finally(() => {
+        setIsDataLoading(false)
+      })
+  }, [id])
+
+  if (isDataLoading) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto flex items-center justify-center min-h-[50vh]">
+        <p className="text-text-3 font-mono text-sm animate-pulse">Loading issue details...</p>
+      </div>
+    )
   }
+
+  if (error || !issue) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto flex flex-col items-center justify-center min-h-[50vh]">
+        <p className="text-p0 font-mono text-sm mb-4">{error || "Issue not found."}</p>
+        <Link href="/issues" className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline">
+          <ArrowLeft className="w-4 h-4" /> Back to Issues
+        </Link>
+      </div>
+    )
+  }
+
   const c = severityColor(issue.severity)
-  const affectedSessions = getSessionsForIssue(issue.id).slice(0, 5)
+  const affectedSessions = issue.affectedSessions || []
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
@@ -95,7 +153,7 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ id
               <div className="p-6">
                 <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-3">Reproduction Steps</p>
                 <ol className="space-y-2.5">
-                  {issue.reproduction_steps.map((step, i) => (
+                  {(issue.reproduction_steps || []).map((step: string, i: number) => (
                     <li key={i} className="flex gap-3 text-sm text-text-2">
                       <span className="w-6 h-6 rounded-full bg-accent-light text-accent text-xs font-bold
                                        flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
@@ -108,7 +166,7 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ id
               <div className="p-6">
                 <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-3">Evidence Timeline</p>
                 <div className="space-y-3">
-                  {issue.evidence.map((ev, i) => (
+                  {(issue.evidence || []).map((ev: { type: string; detail: string; timestamp_ms: number }, i: number) => (
                     <div key={i} className="flex gap-3 items-start">
                       <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium border ${eventColor[ev.type] ?? eventColor.click} shrink-0`}>
                         {eventTypeLabel[ev.type] ?? ev.type}
@@ -130,10 +188,10 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ id
               <p className="text-sm font-semibold text-text-1">Affected Sessions</p>
             </div>
             <div className="divide-y divide-border">
-              {affectedSessions.map(s => (
+              {affectedSessions.map((s: AffectedSession) => (
                 <Link key={s.id} href={`/sessions/${s.id}`}
                   className="flex items-center gap-4 px-5 py-3 hover:bg-surface-2 transition-colors group">
-                  <span className="font-mono text-xs text-text-3 w-28 shrink-0">{s.id}</span>
+                  <span className="font-mono text-xs text-text-3 w-36 shrink-0 truncate">{s.id}</span>
                   <span className="text-xs text-text-2 flex-1 truncate">{s.url}</span>
                   <span className={`text-xs font-medium ${s.ai_goal_completed ? "text-ok" : "text-p0"}`}>
                     {s.ai_goal_completed ? "✓ Goal Met" : "✕ Failed"}

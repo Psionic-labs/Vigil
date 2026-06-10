@@ -1,7 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@vigil/sdk": ["../../packages/sdk/src/index.ts"]
+    }
   },
   "include": ["src/**/*"]
 }

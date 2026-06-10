@@ -4,8 +4,10 @@
  * @why Ensures generated stylesheets work consistently across multiple browser types.
  */
 
-export default {
+const config = {
   plugins: {
     '@tailwindcss/postcss': {},
   },
 }
+
+export default config

@@ -5,25 +5,75 @@
  */
 
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, ArrowRight, ArrowUpDown } from "lucide-react"
 import { FrictionBar } from "@/components/ui/FrictionBar"
 import { SignalIcons } from "@/components/ui/SignalIcons"
 import { EnvironmentChip } from "@/components/ui/EnvironmentChip"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { EmptyState } from "@/components/ui/EmptyState"
-import { mockSessions } from "@/lib/mock-data"
 import { formatDuration, formatRelativeTime } from "@/lib/utils"
 import Link from "next/link"
+import { useProjects } from "@/lib/projects-context"
+import { Session } from "@/lib/mock-data"
 
 type Filter = "All" | "Has Issues" | "Goal Failed" | "Has JS Error" | "Has Rage Click" | "Production only"
 const FILTERS: Filter[] = ["All", "Has Issues", "Goal Failed", "Has JS Error", "Has Rage Click", "Production only"]
 
 export default function SessionsPage() {
+  const { activeProject } = useProjects()
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [isDataLoading, setIsDataLoading] = useState(true)
   const [filter, setFilter] = useState<Filter>("All")
   const [search, setSearch] = useState("")
 
-  const visible = mockSessions.filter(s => {
+  useEffect(() => {
+    if (!activeProject) {
+      setSessions([])
+      setIsDataLoading(false)
+      return
+    }
+
+    setIsDataLoading(true)
+    const controller = new AbortController()
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+    fetch(`${API_BASE_URL}/api/v1/sessions?projectId=${activeProject.id}`, { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch sessions")
+        return res.json()
+      })
+      .then((json) => {
+        setSessions(json.data || [])
+      })
+      .catch((err) => {
+        if (err.name !== "AbortError") {
+          console.error("Failed to load sessions:", err)
+        }
+      })
+      .finally(() => {
+        setIsDataLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [activeProject])
+
+  if (isDataLoading) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto flex items-center justify-center min-h-[50vh]">
+        <p className="text-text-3 font-mono text-sm animate-pulse">Loading sessions...</p>
+      </div>
+    )
+  }
+
+  if (!activeProject) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto flex items-center justify-center min-h-[50vh]">
+        <p className="text-text-3 font-mono text-sm">Please select or create a project to view sessions.</p>
+      </div>
+    )
+  }
+
+  const visible = sessions.filter(s => {
     const q = search.toLowerCase()
     const matchSearch = !q || s.id.toLowerCase().includes(q) || s.url.toLowerCase().includes(q)
     const matchFilter =
@@ -39,7 +89,7 @@ export default function SessionsPage() {
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
-      <PageHeader title="Sessions" count={mockSessions.length} countLabel="total" />
+      <PageHeader title="Sessions" count={sessions.length} countLabel="total" />
 
       <div className="flex items-center gap-3 mb-5">
         <div className="relative max-w-sm w-full">

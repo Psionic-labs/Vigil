@@ -13,6 +13,8 @@ import { healthRouter } from "./routes/health";
 import { metricsRouter } from "./routes/metrics";
 import ingestRouter from "./routes/ingest";
 import { projectsRouter } from "./routes/projects";
+import { issuesRouter } from "./routes/issues";
+import { sessionsRouter } from "./routes/sessions";
 
 import type { AppEnv } from "./lib/types";
 
@@ -100,5 +102,7 @@ app.route("/metrics", metricsRouter);
 // 4. Ingestion API V1
 app.route("/api/v1/ingest", ingestRouter);
 app.route("/api/v1/projects", projectsRouter);
+app.route("/api/v1/issues", issuesRouter);
+app.route("/api/v1/sessions", sessionsRouter);
 
 export default app;

@@ -18,14 +18,19 @@ const __dirname = path.dirname(__filename);
 
 const TEST_BLOBS_ROOT = path.resolve(__dirname, "../../test-blobs");
 
-import type { persistReplayBlob as persistReplayBlobFn } from "../lib/blob-storage";
+import type {
+  persistReplayBlob as persistReplayBlobFn,
+  readAllSessionEvents as readAllSessionEventsFn,
+} from "../lib/blob-storage";
 
 let persistReplayBlob: typeof persistReplayBlobFn;
+let readAllSessionEvents: typeof readAllSessionEventsFn;
 
 beforeAll(async () => {
   process.env.BLOBS_ROOT = TEST_BLOBS_ROOT;
   const mod = await import("../lib/blob-storage");
   persistReplayBlob = mod.persistReplayBlob;
+  readAllSessionEvents = mod.readAllSessionEvents;
 });
 
 async function cleanUpTestBlobs() {
@@ -159,5 +164,104 @@ describe("Local Replay Blob Persistence", () => {
     await expect(
       persistReplayBlob("proj_fail", "sess_fail", events)
     ).rejects.toThrow("Disk full or permission denied");
+  });
+
+  describe("readAllSessionEvents Replay Reconstruction", () => {
+    it("should return empty array if session has no blobs", async () => {
+      const res = await readAllSessionEvents("proj_nonexist", "sess_nonexist");
+      expect(res).toEqual([]);
+    });
+
+    it("should correctly reconstruct replay from a single valid batch", async () => {
+      const events = [
+        { type: 4, timestamp: 1000, data: { href: "http://localhost/" } },
+        { type: 2, timestamp: 1100, data: { node: {} } },
+      ];
+
+      await persistReplayBlob("proj_single", "sess_single", events);
+      const res = await readAllSessionEvents("proj_single", "sess_single");
+
+      expect(res).toEqual(events);
+    });
+
+    it("should merge multiple batches chronologically", async () => {
+      const batch1 = [
+        { type: 4, timestamp: 1000, data: { href: "http://localhost/" } },
+      ];
+      const batch2 = [
+        { type: 2, timestamp: 1100, data: { node: {} } },
+      ];
+      const batch3 = [
+        { type: 3, timestamp: 1200, data: { source: 0 } },
+      ];
+
+      // We wait to ensure timestamps in file creation differ slightly or we rely on sorting
+      await persistReplayBlob("proj_multi", "sess_multi", batch1);
+      // Wait 1ms to ensure filenames are sorted correctly
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      await persistReplayBlob("proj_multi", "sess_multi", batch2);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      await persistReplayBlob("proj_multi", "sess_multi", batch3);
+
+      const res = await readAllSessionEvents("proj_multi", "sess_multi");
+      expect(res).toEqual([...batch1, ...batch2, ...batch3]);
+    });
+
+    it("should validate and throw if metadata (type 4) or full snapshot (type 2) is missing in non-empty session", async () => {
+      const invalidEvents = [
+        { type: 3, timestamp: 1200, data: { source: 0 } },
+      ];
+
+      await persistReplayBlob("proj_invalid", "sess_invalid", invalidEvents);
+      await expect(
+        readAllSessionEvents("proj_invalid", "sess_invalid")
+      ).rejects.toThrow("Missing metadata or full snapshot in replay events");
+    });
+
+    it("should tolerate and skip unreadable/corrupt intermediate batches", async () => {
+      const batch1 = [
+        { type: 4, timestamp: 1000, data: { href: "http://localhost/" } },
+        { type: 2, timestamp: 1100, data: { node: {} } },
+      ];
+      const batch3 = [
+        { type: 3, timestamp: 1200, data: { source: 2 } },
+      ];
+
+      await persistReplayBlob("proj_corrupt", "sess_corrupt", batch1);
+      
+      // Manually write a corrupt non-gzip file to the session directory to simulate corruption
+      const sessionDir = path.resolve(TEST_BLOBS_ROOT, "proj_corrupt", "sess_corrupt");
+      await fs.mkdir(sessionDir, { recursive: true });
+      await fs.writeFile(path.join(sessionDir, "1781064000000_123456_events.json.gz"), "invalid-gzip-content");
+
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      await persistReplayBlob("proj_corrupt", "sess_corrupt", batch3);
+
+      const res = await readAllSessionEvents("proj_corrupt", "sess_corrupt");
+      expect(res).toEqual([...batch1, ...batch3]);
+    });
+
+    it("should deduplicate duplicate events correctly", async () => {
+      const batch1 = [
+        { type: 4, timestamp: 1000, data: { href: "http://localhost/" } },
+        { type: 2, timestamp: 1100, data: { node: {} } },
+      ];
+      // batch2 contains a duplicate event from batch1
+      const batch2 = [
+        { type: 2, timestamp: 1100, data: { node: {} } }, // Duplicate
+        { type: 3, timestamp: 1200, data: { source: 0 } },
+      ];
+
+      await persistReplayBlob("proj_dedup", "sess_dedup", batch1);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      await persistReplayBlob("proj_dedup", "sess_dedup", batch2);
+
+      const res = await readAllSessionEvents("proj_dedup", "sess_dedup");
+      expect(res).toEqual([
+        { type: 4, timestamp: 1000, data: { href: "http://localhost/" } },
+        { type: 2, timestamp: 1100, data: { node: {} } },
+        { type: 3, timestamp: 1200, data: { source: 0 } },
+      ]);
+    });
   });
 });

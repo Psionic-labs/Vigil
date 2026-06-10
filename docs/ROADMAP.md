@@ -104,7 +104,7 @@ Build the issue-first developer UI.
 
 - [x] Init Next.js 14 app (App Router)
 - [ ] Set up Clerk or NextAuth for auth (will do in the end)
-- [ ] Project creation flow + display of `public_key` for SDK install
+- [x] Project creation flow + display of `public_key` for SDK install
 - [x] `/issues` — grouped issue list
   - [x] Sort by severity, affected sessions, last seen, confidence
   - [x] Filter by severity, environment, release, GitHub status

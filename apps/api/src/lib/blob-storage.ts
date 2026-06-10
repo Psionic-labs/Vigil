@@ -13,12 +13,39 @@ import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const gzip = promisify(zlib.gzip);
+const gunzip = promisify(zlib.gunzip);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Configure the root blobs directory (local directory for this architecture phase).
 const BLOBS_ROOT = process.env.BLOBS_ROOT || path.resolve(__dirname, "../../blobs/v1");
+
+// In-memory cache for parsed replay events to avoid re-reading and re-processing blob files.
+const CACHE_TTL_MS = 60_000; // 1 minute
+const MAX_CACHE_ENTRIES = 50;
+const eventCache = new Map<string, { events: unknown[]; timestamp: number }>();
+
+function getCachedEvents(key: string): unknown[] | null {
+  const entry = eventCache.get(key);
+  if (entry && Date.now() - entry.timestamp < CACHE_TTL_MS) {
+    return entry.events;
+  }
+  eventCache.delete(key);
+  return null;
+}
+
+function setCachedEvents(key: string, events: unknown[]): void {
+  if (eventCache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = eventCache.keys().next().value;
+    if (oldest !== undefined) eventCache.delete(oldest);
+  }
+  eventCache.set(key, { events, timestamp: Date.now() });
+}
+
+function invalidateSessionCache(projectId: string, sessionId: string): void {
+  eventCache.delete(`${projectId}:${sessionId}`);
+}
 
 /**
  * BlobPersistenceResult
@@ -120,6 +147,9 @@ export async function persistReplayBlob(
   await fs.rename(tempFilePath, filePath);
   const writeDurationMs = performance.now() - writeStart;
 
+  // Invalidate the in-memory cache so subsequent reads pick up the new batch
+  invalidateSessionCache(projectId, sessionId);
+
   return {
     path: filePath,
     compressedBytes: compressed.length,
@@ -133,3 +163,126 @@ export async function persistReplayBlob(
     writeDurationMs,
   };
 }
+
+/**
+ * readReplayBlob
+ * Reads and decompresses events from a gzipped file path.
+ *
+ * @param blobPath Saved relative path from sessions table (starts with blobs/v1)
+ * @returns Array of parsed rrweb events
+ */
+export async function readReplayBlob(blobPath: string): Promise<unknown[]> {
+  const resolvedBlobsRoot = path.resolve(BLOBS_ROOT);
+  // blobPath is stored as a relative path starting with blobs/v1/, so resolve
+  // from BLOBS_ROOT's parent to keep path resolution consistent with writes.
+  const fullPath = path.resolve(resolvedBlobsRoot, "../..", blobPath);
+
+  // Path traversal check
+  const relative = path.relative(resolvedBlobsRoot, fullPath);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Path traversal detected.");
+  }
+
+  const compressed = await fs.readFile(fullPath);
+  const decompressed = await gunzip(compressed);
+  return JSON.parse(decompressed.toString("utf8"));
+}
+
+/**
+ * readAllSessionEvents
+ * Finds, decompresses, and merges all event batches for a session.
+ * Enforces chronological sorting, duplicate detection, missing batch tolerance, and replay validation.
+ *
+ * @param projectId Scope project ID identifier
+ * @param sessionId Scope session ID identifier
+ * @returns Concatenated, validated, and unique rrweb events array
+ */
+export async function readAllSessionEvents(
+  projectId: string,
+  sessionId: string
+): Promise<unknown[]> {
+  const cacheKey = `${projectId}:${sessionId}`;
+  const cached = getCachedEvents(cacheKey);
+  if (cached) return cached;
+
+  const resolvedBlobsRoot = path.resolve(BLOBS_ROOT);
+  const dirPath = path.resolve(resolvedBlobsRoot, projectId, sessionId);
+
+  // Path traversal check
+  const relative = path.relative(resolvedBlobsRoot, dirPath);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Path traversal detected.");
+  }
+
+  let files: string[];
+  try {
+    files = await fs.readdir(dirPath);
+  } catch (err: any) {
+    if (err.code === "ENOENT") {
+      return [];
+    }
+    throw err;
+  }
+
+  const eventFiles = files
+    .filter((f) => f.endsWith("_events.json.gz"))
+    .sort(); // Lexicographical sort is chronological due to timestamp prefix
+
+  // Read and decompress all batch files concurrently
+  const batchResults = await Promise.allSettled(
+    eventFiles.map(async (file) => {
+      const fullPath = path.join(dirPath, file);
+      const compressed = await fs.readFile(fullPath);
+      const decompressed = await gunzip(compressed);
+      const parsed = JSON.parse(decompressed.toString("utf8"));
+      if (!Array.isArray(parsed)) {
+        console.warn(`[BlobStorage] Skipping non-array event file: ${file}`);
+        return [];
+      }
+      return parsed as unknown[];
+    })
+  );
+
+  const eventBatches: unknown[][] = [];
+  for (const result of batchResults) {
+    if (result.status === "fulfilled") {
+      eventBatches.push(result.value);
+    } else {
+      console.warn("[BlobStorage] Skipping unreadable batch:", result.reason?.message);
+    }
+  }
+
+  const mergedEvents = eventBatches.flat();
+
+  // Deduplicate by constructing a deterministic key
+  const seen = new Set<string>();
+  const uniqueEvents: any[] = [];
+  for (const event of mergedEvents) {
+    if (!event || typeof event !== "object") continue;
+    const type = (event as any).type;
+    const timestamp = (event as any).timestamp;
+    const dataStr = JSON.stringify((event as any).data || {});
+    const key = `${type}:${timestamp}:${dataStr}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueEvents.push(event);
+    }
+  }
+
+  // Sort by timestamp to guarantee deterministic replay ordering
+  uniqueEvents.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+  // Replay validation: verify it contains metadata (type 4) and full snapshot (type 2)
+  if (uniqueEvents.length > 0) {
+    const hasMeta = uniqueEvents.some((e) => e.type === 4);
+    const hasFullSnapshot = uniqueEvents.some((e) => e.type === 2);
+    if (!hasMeta || !hasFullSnapshot) {
+      throw new Error("Missing metadata or full snapshot in replay events");
+    }
+  }
+
+  setCachedEvents(cacheKey, uniqueEvents);
+  return uniqueEvents;
+}
+
+
