@@ -23,14 +23,14 @@
     "@hono/zod-validator": "^0.8.0",
     "@neondatabase/serverless": "^1.1.0",
     "dotenv": "^17.4.2",
-    "hono": "^4.12.23",
+    "hono": "^4.12.25",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.2",
     "tsup": "^8.5.1",
-    "tsx": "^4.22.3",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.8"
   }
 }
