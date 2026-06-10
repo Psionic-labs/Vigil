@@ -10,6 +10,14 @@ import app from "../app";
 import { pool } from "../db";
 import { processTriageJob } from "../workers/triage-runner";
 
+const databaseUrl = process.env.DATABASE_URL || "";
+// Skip e2e tests when there is no real database (e.g. in CI without DATABASE_URL)
+const hasRealDb = /^postgres(ql)?:\/\//i.test(databaseUrl) && !databaseUrl.endsWith("//fake");
+if (!hasRealDb) {
+  describe.skip("End-to-End Triage Flow Integration Tests", () => {
+    it("skipped — no DATABASE_URL configured", () => {});
+  });
+} else {
 describe("End-to-End Triage Flow Integration Tests", () => {
   const TEST_PROJECT_ID = "proj_e2e_test";
   const TEST_PUBLIC_KEY = "pk_e2e_test";
@@ -429,3 +437,4 @@ describe("End-to-End Triage Flow Integration Tests", () => {
     expect(runRes.rows[0].status).toBe("ignored");
   }, 15000);
 });
+}
