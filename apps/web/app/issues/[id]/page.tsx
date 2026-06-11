@@ -8,7 +8,7 @@
 import { use, useEffect, useState } from "react"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
-import { formatRelativeTime, formatTimestamp, severityColor } from "@/lib/utils"
+import { formatRelativeTime, formatTimestamp, severityColor, eventTypeLabel, eventColor } from "@/lib/utils"
 import { ArrowLeft, Users, Clock, ChevronRight } from "lucide-react"
 import { GitHubIntegrationCard } from "@/components/issues/GitHubIntegrationCard"
 import Link from "next/link"
@@ -26,24 +26,7 @@ interface IssueDetail extends IssueGroup {
   affectedSessions: AffectedSession[]
 }
 
-const eventTypeLabel: Record<string, string> = {
-  navigation:    "Navigated to",
-  click:         "Clicked",
-  rage_click:    "Rage clicked",
-  dead_click:    "Dead click on",
-  network_error: "Network error",
-  js_error:      "JS Error",
-  console_error: "Console error",
-}
-const eventColor: Record<string, string> = {
-  navigation:    "bg-accent-light border-accent/20 text-accent",
-  click:         "bg-surface-2 border-border text-text-2",
-  rage_click:    "bg-p2-bg border-yellow-200 text-p2",
-  dead_click:    "bg-surface-2 border-border text-text-3",
-  network_error: "bg-p0-bg border-red-200 text-p0",
-  js_error:      "bg-p1-bg border-orange-200 text-p1",
-  console_error: "bg-surface-2 border-border text-text-3",
-}
+
 
 export default function IssueDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)

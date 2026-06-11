@@ -40,6 +40,26 @@ const getNpmCode = (key: string) => `npm install @vigil/sdk
 import { Vigil } from "@vigil/sdk";
 Vigil.init({ projectKey: "${key}" });`
 
+function CopyBtn({ text, id, copied, onCopy }: {
+  text: string; id: string; copied: string | null; onCopy: (text: string, id: string) => void
+}) {
+  const isCopied = copied === id
+  return (
+    <button 
+      onClick={() => text && onCopy(text, id)}
+      disabled={!text}
+      className={`flex items-center gap-1.5 text-xs transition-colors ${
+        !text ? "opacity-40 cursor-not-allowed text-text-3" : "text-text-3 hover:text-accent cursor-pointer"
+      }`}
+    >
+      {isCopied
+        ? <Check className="w-3.5 h-3.5 text-ok" />
+        : <Copy className="w-3.5 h-3.5" />}
+      {isCopied ? "Copied!" : "Copy"}
+    </button>
+  )
+}
+
 import { useProjects } from "@/lib/projects-context"
 
 export function SettingsForm() {
@@ -65,21 +85,6 @@ export function SettingsForm() {
     const timer = setTimeout(() => setCopied(null), 2000)
     return () => clearTimeout(timer)
   }, [copied])
-
-  const CopyBtn = ({ text, id }: { text: string; id: string }) => (
-    <button 
-      onClick={() => text && copy(text, id)}
-      disabled={!text}
-      className={`flex items-center gap-1.5 text-xs transition-colors ${
-        !text ? "opacity-40 cursor-not-allowed text-text-3" : "text-text-3 hover:text-accent cursor-pointer"
-      }`}
-    >
-      {copied === id
-        ? <Check className="w-3.5 h-3.5 text-ok" />
-        : <Copy className="w-3.5 h-3.5" />}
-      {copied === id ? "Copied!" : "Copy"}
-    </button>
-  )
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -110,7 +115,7 @@ export function SettingsForm() {
                   className="text-text-3 hover:text-accent transition-colors cursor-pointer">
                   {keyVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
-                <CopyBtn text={activeProject.publicKey} id="key" />
+                <CopyBtn text={activeProject.publicKey} id="key" copied={copied} onCopy={copy} />
               </div>
             </div>
           </>

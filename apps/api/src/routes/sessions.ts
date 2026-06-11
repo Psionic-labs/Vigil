@@ -13,6 +13,39 @@ export const sessionsRouter = new Hono<AppEnv>();
 
 const OWNER_ID = "usr_playground";
 
+async function verifyProjectAccess(projectId: string) {
+  const projectCheck = await pool.query(
+    `SELECT id FROM projects WHERE id = $1 AND owner_id = $2 AND is_active = true`,
+    [projectId, OWNER_ID]
+  );
+  return (projectCheck.rowCount ?? 0) > 0;
+}
+
+function mapSessionRow(row: any) {
+  return {
+    id: row.id,
+    url: row.url,
+    user_agent: row.user_agent || "",
+    screen_width: row.screen_width != null ? Number(row.screen_width) : 0,
+    screen_height: row.screen_height != null ? Number(row.screen_height) : 0,
+    release: row.release || "",
+    commit_sha: row.commit_sha || "",
+    environment: row.environment || "",
+    duration_ms: row.duration_ms != null ? Number(row.duration_ms) : 0,
+    started_at: Number(row.started_at),
+    has_js_error: Boolean(row.has_js_error),
+    has_rage_click: Boolean(row.has_rage_click),
+    has_network_err: Boolean(row.has_network_err),
+    has_dead_click: Boolean(row.has_dead_click),
+    error_count: Number(row.error_count || 0),
+    issue_instance_count: Number(row.issue_instance_count || 0),
+    ai_session_summary: row.ai_session_summary || "",
+    ai_goal_completed: row.ai_goal_completed != null ? Boolean(row.ai_goal_completed) : false,
+    ai_friction_score: row.ai_friction_score != null ? Number(row.ai_friction_score) : 0,
+    ai_triage_confidence: row.ai_triage_confidence != null ? Number(row.ai_triage_confidence) : 0,
+  };
+}
+
 // GET /api/v1/sessions?projectId=...
 sessionsRouter.get("/", async (c) => {
   try {
@@ -22,12 +55,8 @@ sessionsRouter.get("/", async (c) => {
     }
 
     // 1. Verify project ownership and active status
-    const projectCheck = await pool.query(
-      `SELECT id FROM projects WHERE id = $1 AND owner_id = $2 AND is_active = true`,
-      [projectId, OWNER_ID]
-    );
-
-    if (projectCheck.rowCount === 0) {
+    const authorized = await verifyProjectAccess(projectId);
+    if (!authorized) {
       return c.json({ ok: false, success: false, error: "Project not found or unauthorized" }, 404);
     }
 
@@ -43,28 +72,7 @@ sessionsRouter.get("/", async (c) => {
       [projectId]
     );
 
-    const data = result.rows.map((row) => ({
-      id: row.id,
-      url: row.url,
-      user_agent: row.user_agent || "",
-      screen_width: row.screen_width != null ? Number(row.screen_width) : 0,
-      screen_height: row.screen_height != null ? Number(row.screen_height) : 0,
-      release: row.release || "",
-      commit_sha: row.commit_sha || "",
-      environment: row.environment || "",
-      duration_ms: row.duration_ms != null ? Number(row.duration_ms) : 0,
-      started_at: Number(row.started_at),
-      has_js_error: Boolean(row.has_js_error),
-      has_rage_click: Boolean(row.has_rage_click),
-      has_network_err: Boolean(row.has_network_err),
-      has_dead_click: Boolean(row.has_dead_click),
-      error_count: Number(row.error_count || 0),
-      issue_instance_count: Number(row.issue_instance_count || 0),
-      ai_session_summary: row.ai_session_summary || "",
-      ai_goal_completed: row.ai_goal_completed != null ? Boolean(row.ai_goal_completed) : false,
-      ai_friction_score: row.ai_friction_score != null ? Number(row.ai_friction_score) : 0,
-      ai_triage_confidence: row.ai_triage_confidence != null ? Number(row.ai_triage_confidence) : 0,
-    }));
+    const data = result.rows.map(mapSessionRow);
 
     return c.json({ ok: true, success: true, data });
   } catch (error) {
@@ -105,7 +113,7 @@ sessionsRouter.get("/:id", async (c) => {
          JOIN issue_groups ig ON ii.issue_group_id = ig.id
          WHERE ii.session_id = $1
          ORDER BY ii.created_at DESC`,
-        [sessionId]
+         [sessionId]
       ),
     ]);
 
@@ -116,27 +124,8 @@ sessionsRouter.get("/:id", async (c) => {
     const row = sessionRes.rows[0];
 
     const sessionDetail = {
-      id: row.id,
+      ...mapSessionRow(row),
       project_id: row.project_id,
-      url: row.url,
-      user_agent: row.user_agent || "",
-      screen_width: row.screen_width != null ? Number(row.screen_width) : 0,
-      screen_height: row.screen_height != null ? Number(row.screen_height) : 0,
-      release: row.release || "",
-      commit_sha: row.commit_sha || "",
-      environment: row.environment || "",
-      duration_ms: row.duration_ms != null ? Number(row.duration_ms) : 0,
-      started_at: Number(row.started_at),
-      has_js_error: Boolean(row.has_js_error),
-      has_rage_click: Boolean(row.has_rage_click),
-      has_network_err: Boolean(row.has_network_err),
-      has_dead_click: Boolean(row.has_dead_click),
-      error_count: Number(row.error_count || 0),
-      issue_instance_count: Number(row.issue_instance_count || 0),
-      ai_session_summary: row.ai_session_summary || "",
-      ai_goal_completed: row.ai_goal_completed != null ? Boolean(row.ai_goal_completed) : false,
-      ai_friction_score: row.ai_friction_score != null ? Number(row.ai_friction_score) : 0,
-      ai_triage_confidence: row.ai_triage_confidence != null ? Number(row.ai_triage_confidence) : 0,
       blob_path: row.blob_path || null,
       timeline: timelineRes.rows.map((t) => ({
         type: t.type,
