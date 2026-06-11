@@ -12,6 +12,44 @@ export const issuesRouter = new Hono<AppEnv>();
 
 const OWNER_ID = "usr_playground";
 
+function mapIssueGroupRow(row: any) {
+  let reproductionSteps: string[] = [];
+  if (row.reproduction_steps_json) {
+    try {
+      reproductionSteps = JSON.parse(row.reproduction_steps_json);
+    } catch {
+      reproductionSteps = [];
+    }
+  }
+
+  let evidence: any[] = [];
+  if (row.evidence_summary) {
+    try {
+      evidence = JSON.parse(row.evidence_summary);
+    } catch {
+      evidence = [];
+    }
+  }
+
+  return {
+    id: row.id,
+    title: row.title,
+    root_cause: row.root_cause || "",
+    suggested_fix: row.suggested_fix || "",
+    severity: row.severity,
+    status: row.status,
+    confidence: row.confidence != null ? Number(row.confidence) : 0,
+    affected_session_count: Number(row.affected_session_count || 0),
+    first_seen_at: Number(row.first_seen_at),
+    last_seen_at: Number(row.last_seen_at),
+    github_issue_url: row.github_issue_url || null,
+    github_issue_number: row.github_issue_number != null ? Number(row.github_issue_number) : null,
+    github_auto_raised: Boolean(row.github_auto_raised),
+    reproduction_steps: reproductionSteps,
+    evidence: evidence,
+  };
+}
+
 // GET /api/v1/issues?projectId=...
 issuesRouter.get("/", async (c) => {
   try {
@@ -49,43 +87,7 @@ issuesRouter.get("/", async (c) => {
       [projectId]
     );
 
-    const data = result.rows.map((row) => {
-      let reproductionSteps: string[] = [];
-      if (row.reproduction_steps_json) {
-        try {
-          reproductionSteps = JSON.parse(row.reproduction_steps_json);
-        } catch {
-          reproductionSteps = [];
-        }
-      }
-
-      let evidence: any[] = [];
-      if (row.evidence_summary) {
-        try {
-          evidence = JSON.parse(row.evidence_summary);
-        } catch {
-          evidence = [];
-        }
-      }
-
-      return {
-        id: row.id,
-        title: row.title,
-        root_cause: row.root_cause || "",
-        suggested_fix: row.suggested_fix || "",
-        severity: row.severity,
-        status: row.status,
-        confidence: row.confidence != null ? Number(row.confidence) : 0,
-        affected_session_count: Number(row.affected_session_count || 0),
-        first_seen_at: Number(row.first_seen_at),
-        last_seen_at: Number(row.last_seen_at),
-        github_issue_url: row.github_issue_url || null,
-        github_issue_number: row.github_issue_number != null ? Number(row.github_issue_number) : null,
-        github_auto_raised: Boolean(row.github_auto_raised),
-        reproduction_steps: reproductionSteps,
-        evidence: evidence,
-      };
-    });
+    const data = result.rows.map(mapIssueGroupRow);
 
     return c.json({ ok: true, success: true, data });
   } catch (error) {
@@ -128,41 +130,9 @@ issuesRouter.get("/:id", async (c) => {
       [issueId]
     );
 
-    let reproductionSteps: string[] = [];
-    if (row.reproduction_steps_json) {
-      try {
-        reproductionSteps = JSON.parse(row.reproduction_steps_json);
-      } catch {
-        reproductionSteps = [];
-      }
-    }
-
-    let evidence: any[] = [];
-    if (row.evidence_summary) {
-      try {
-        evidence = JSON.parse(row.evidence_summary);
-      } catch {
-        evidence = [];
-      }
-    }
-
     const issueDetail = {
-      id: row.id,
+      ...mapIssueGroupRow(row),
       project_id: row.project_id,
-      title: row.title,
-      root_cause: row.root_cause || "",
-      suggested_fix: row.suggested_fix || "",
-      severity: row.severity,
-      status: row.status,
-      confidence: row.confidence != null ? Number(row.confidence) : 0,
-      affected_session_count: Number(row.affected_session_count || 0),
-      first_seen_at: Number(row.first_seen_at),
-      last_seen_at: Number(row.last_seen_at),
-      github_issue_url: row.github_issue_url || null,
-      github_issue_number: row.github_issue_number != null ? Number(row.github_issue_number) : null,
-      github_auto_raised: Boolean(row.github_auto_raised),
-      reproduction_steps: reproductionSteps,
-      evidence: evidence,
       affectedSessions: sessionsResult.rows.map((s) => ({
         id: s.id,
         url: s.url,

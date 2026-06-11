@@ -13,6 +13,34 @@ import type { AppEnv } from "../lib/types";
 // Share active database lookups to prevent cache stampedes (parallel requests waiting for the same key)
 export const pendingProjectLookups = new Map<string, Promise<ProjectCacheEntry>>();
 
+function sendRateLimitResponse(
+  c: Context,
+  limit: number,
+  decision: { remaining: number; resetTimeMs: number },
+  reason: "ip" | "project" | "session",
+  logDetails: string
+) {
+  const now = Date.now();
+  const retryAfterSec = Math.max(1, Math.ceil((decision.resetTimeMs - now) / 1000));
+  const reqId = c.get("requestId") || "unknown";
+  console.warn(`[RateLimit] ${logDetails} | ReqID: ${reqId} | Retry-After: ${retryAfterSec}s`);
+
+  c.header("Retry-After", String(retryAfterSec));
+  c.header("X-RateLimit-Limit", String(limit));
+  c.header("X-RateLimit-Remaining", String(decision.remaining));
+  c.header("X-RateLimit-Reset", String(Math.ceil(decision.resetTimeMs / 1000)));
+
+  return c.json(
+    {
+      ok: false,
+      success: false,
+      error: "Too Many Requests",
+      reason,
+    },
+    429
+  );
+}
+
 /**
  * safeParseInt
  * Helper function validating environment variables to prevent NaN or negative values.
@@ -112,25 +140,7 @@ export const ipRateLimiter: MiddlewareHandler<AppEnv> = async (c: Context<AppEnv
   );
 
   if (!decision.allowed) {
-    const now = Date.now();
-    const retryAfterSec = Math.max(1, Math.ceil((decision.resetTimeMs - now) / 1000));
-    const reqId = c.get("requestId") || "unknown";
-    console.warn(`[RateLimit] IP limit exceeded | IP: ${ip} | ReqID: ${reqId} | Retry-After: ${retryAfterSec}s`);
-
-    c.header("Retry-After", String(retryAfterSec));
-    c.header("X-RateLimit-Limit", String(config.ipRpm));
-    c.header("X-RateLimit-Remaining", String(decision.remaining));
-    c.header("X-RateLimit-Reset", String(Math.ceil(decision.resetTimeMs / 1000)));
-
-    return c.json(
-      {
-        ok: false,
-        success: false,
-        error: "Too Many Requests",
-        reason: "ip",
-      },
-      429
-    );
+    return sendRateLimitResponse(c, config.ipRpm, decision, "ip", `IP limit exceeded | IP: ${ip}`);
   }
 
   await next();
@@ -171,27 +181,7 @@ export const unknownProjectLimiter: MiddlewareHandler<AppEnv> = async (c: Contex
   );
 
   if (!decision.allowed) {
-    const now = Date.now();
-    const retryAfterSec = Math.max(1, Math.ceil((decision.resetTimeMs - now) / 1000));
-    const reqId = c.get("requestId") || "unknown";
-    console.warn(
-      `[RateLimit] Unknown project limit exceeded | Key: ${projectKey} | ReqID: ${reqId} | Retry-After: ${retryAfterSec}s`
-    );
-
-    c.header("Retry-After", String(retryAfterSec));
-    c.header("X-RateLimit-Limit", String(config.unknownProjectRpm));
-    c.header("X-RateLimit-Remaining", String(decision.remaining));
-    c.header("X-RateLimit-Reset", String(Math.ceil(decision.resetTimeMs / 1000)));
-
-    return c.json(
-      {
-        ok: false,
-        success: false,
-        error: "Too Many Requests",
-        reason: "project",
-      },
-      429
-    );
+    return sendRateLimitResponse(c, config.unknownProjectRpm, decision, "project", `Unknown project limit exceeded | Key: ${projectKey}`);
   }
 
   await next();
@@ -310,27 +300,7 @@ export const projectRateLimiter: MiddlewareHandler<AppEnv> = async (c: Context<A
   );
 
   if (!decision.allowed) {
-    const now = Date.now();
-    const retryAfterSec = Math.max(1, Math.ceil((decision.resetTimeMs - now) / 1000));
-    const reqId = c.get("requestId") || "unknown";
-    console.warn(
-      `[RateLimit] Project limit exceeded | ProjectKey: ${projectKey} | ReqID: ${reqId} | Retry-After: ${retryAfterSec}s`
-    );
-
-    c.header("Retry-After", String(retryAfterSec));
-    c.header("X-RateLimit-Limit", String(config.projectRpm));
-    c.header("X-RateLimit-Remaining", String(decision.remaining));
-    c.header("X-RateLimit-Reset", String(Math.ceil(decision.resetTimeMs / 1000)));
-
-    return c.json(
-      {
-        ok: false,
-        success: false,
-        error: "Too Many Requests",
-        reason: "project",
-      },
-      429
-    );
+    return sendRateLimitResponse(c, config.projectRpm, decision, "project", `Project limit exceeded | ProjectKey: ${projectKey}`);
   }
 
   await next();
@@ -361,27 +331,7 @@ export const sessionRateLimiter: MiddlewareHandler<AppEnv> = async (c: Context<A
   );
 
   if (!decision.allowed) {
-    const now = Date.now();
-    const retryAfterSec = Math.max(1, Math.ceil((decision.resetTimeMs - now) / 1000));
-    const reqId = c.get("requestId") || "unknown";
-    console.warn(
-      `[RateLimit] Session limit exceeded | SessionID: ${sessionId} | ReqID: ${reqId} | Retry-After: ${retryAfterSec}s`
-    );
-
-    c.header("Retry-After", String(retryAfterSec));
-    c.header("X-RateLimit-Limit", String(config.sessionRpm));
-    c.header("X-RateLimit-Remaining", String(decision.remaining));
-    c.header("X-RateLimit-Reset", String(Math.ceil(decision.resetTimeMs / 1000)));
-
-    return c.json(
-      {
-        ok: false,
-        success: false,
-        error: "Too Many Requests",
-        reason: "session",
-      },
-      429
-    );
+    return sendRateLimitResponse(c, config.sessionRpm, decision, "session", `Session limit exceeded | SessionID: ${sessionId}`);
   }
 
   await next();

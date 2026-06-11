@@ -36,3 +36,23 @@ export function severityColor(s: string) {
   }
   return map[s] ?? map.P3
 }
+
+export const eventTypeLabel: Record<string, string> = {
+  navigation:    "Navigated to",
+  click:         "Clicked",
+  rage_click:    "Rage clicked",
+  dead_click:    "Dead click on",
+  network_error: "Network error",
+  js_error:      "JS Error",
+  console_error: "Console error",
+}
+
+export const eventColor: Record<string, string> = {
+  navigation:    "bg-accent-light border-accent/20 text-accent",
+  click:         "bg-surface-2 border-border text-text-2",
+  rage_click:    "bg-p2-bg border-yellow-200 text-p2",
+  dead_click:    "bg-surface-2 border-border text-text-3",
+  network_error: "bg-p0-bg border-red-200 text-p0",
+  js_error:      "bg-p1-bg border-orange-200 text-p1",
+  console_error: "bg-surface-2 border-border text-text-3",
+}

@@ -123,7 +123,7 @@ Build the issue-first developer UI.
   - [x] Session summary, friction score, goal completion
   - [x] Linked issue groups
 - [x] `/settings` — SDK install instructions, project key display
-- [ ] Test full loop: SDK → ingest → triage → issue visible in dashboard
+- [x] Test full loop: SDK → ingest → triage → issue visible in dashboard
 
 ---
 
