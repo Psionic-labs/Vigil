@@ -1,23 +1,12 @@
-/**
- * @file eslint.config.mjs
- * @description Linter settings specifying coding style guidelines for web dashboard.
- * @why Maintains unified code cleanliness and formatting constraints.
- */
-
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
+import nextConfig from "eslint-config-next";
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  ...nextConfig,
   {
+    rules: {
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/static-components": "warn",
+    },
     ignores: [
       "node_modules/**",
       ".next/**",
