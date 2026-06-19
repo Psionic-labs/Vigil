@@ -19,18 +19,18 @@
     "worker:start": "tsx src/workers/triage-worker.ts"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.4",
+    "@hono/node-server": "^2.0.5",
     "@hono/zod-validator": "^0.8.0",
     "@neondatabase/serverless": "^1.1.0",
     "dotenv": "^17.4.2",
-    "hono": "^4.12.25",
+    "hono": "^4.12.26",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^25.9.2",
+    "@types/node": "^26.0.0",
     "tsup": "^8.5.1",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.9"
   }
 }
