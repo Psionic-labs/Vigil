@@ -12,19 +12,42 @@ const pool = getPool();
 async function seedPlayground() {
   console.log("Seeding playground user and project...");
   try {
+    const { auth } = await import("../src/lib/auth.js");
     const now = Date.now();
-    const userCheck = await pool.query(
-      "SELECT id FROM users WHERE email = 'playground@vigil.run'"
-    );
     let ownerId = "usr_playground";
-    if (userCheck.rows.length > 0) {
-      ownerId = userCheck.rows[0].id;
+
+    // Check if account already exists
+    const accountCheck = await pool.query(
+      "SELECT user_id FROM accounts WHERE provider_id = 'credential' AND account_id = 'playground@vigil.run'"
+    );
+
+    if (accountCheck.rows.length > 0) {
+      ownerId = accountCheck.rows[0].user_id;
+      console.log(`Playground auth user already exists: ${ownerId}`);
     } else {
-      await pool.query(`
-        INSERT INTO users (id, email, name, created_at)
-        VALUES ('usr_playground', 'playground@vigil.run', 'Playground User', $1)
-        ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email;
-      `, [now]);
+      console.log("Creating new playground auth user...");
+      // Clean up any existing stale users with this email to avoid conflict
+      await pool.query("DELETE FROM users WHERE email = 'playground@vigil.run'");
+
+      // Sign up via better-auth API to hash password and set up accounts
+      const result = await auth.api.signUpEmail({
+        body: {
+          email: "playground@vigil.run",
+          password: "password",
+          name: "Playground User",
+        },
+      });
+
+      if (result && result.user) {
+        ownerId = result.user.id;
+        console.log(`Created playground auth user with ID: ${ownerId}`);
+
+        // Link any pre-existing projects owned by usr_playground to the new ownerId
+        await pool.query(
+          "UPDATE projects SET owner_id = $1 WHERE owner_id = 'usr_playground'",
+          [ownerId]
+        );
+      }
     }
 
     const projCheck = await pool.query(

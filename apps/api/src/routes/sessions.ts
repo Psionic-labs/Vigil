@@ -8,15 +8,17 @@ import { Hono } from "hono";
 import { pool } from "../db";
 import type { AppEnv } from "../lib/types";
 import { readAllSessionEvents } from "../lib/blob-storage";
+import { authMiddleware } from "../middleware/auth";
 
 export const sessionsRouter = new Hono<AppEnv>();
+sessionsRouter.use("*", authMiddleware);
 
-const OWNER_ID = "usr_playground";
+const getOwnerId = (c: any) => c.get("user")!.id;
 
-async function verifyProjectAccess(projectId: string) {
+async function verifyProjectAccess(projectId: string, ownerId: string) {
   const projectCheck = await pool.query(
     `SELECT id FROM projects WHERE id = $1 AND owner_id = $2 AND is_active = true`,
-    [projectId, OWNER_ID]
+    [projectId, ownerId]
   );
   return (projectCheck.rowCount ?? 0) > 0;
 }
@@ -55,7 +57,7 @@ sessionsRouter.get("/", async (c) => {
     }
 
     // 1. Verify project ownership and active status
-    const authorized = await verifyProjectAccess(projectId);
+    const authorized = await verifyProjectAccess(projectId, getOwnerId(c));
     if (!authorized) {
       return c.json({ ok: false, success: false, error: "Project not found or unauthorized" }, 404);
     }
@@ -96,7 +98,7 @@ sessionsRouter.get("/:id", async (c) => {
          FROM sessions s
          JOIN projects p ON s.project_id = p.id
          WHERE s.id = $1 AND p.owner_id = $2 AND p.is_active = true`,
-        [sessionId, OWNER_ID]
+        [sessionId, getOwnerId(c)]
       ),
       pool.query(
         `SELECT type, timestamp_ms, target, error_message, error_stack,
@@ -164,7 +166,7 @@ sessionsRouter.get("/:id/events", async (c) => {
        FROM sessions s
        JOIN projects p ON s.project_id = p.id
        WHERE s.id = $1 AND p.owner_id = $2 AND p.is_active = true`,
-      [sessionId, OWNER_ID]
+      [sessionId, getOwnerId(c)]
     );
 
     if (sessionRes.rowCount === 0) {

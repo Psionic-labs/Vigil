@@ -8,7 +8,7 @@
 import { use, useEffect, useState } from "react"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
-import { formatRelativeTime, formatTimestamp, severityColor, eventTypeLabel, eventColor } from "@/lib/utils"
+import { formatRelativeTime, formatTimestamp, severityColor, eventTypeLabel, eventColor, apiFetch } from "@/lib/utils"
 import { ArrowLeft, Users, Clock, ChevronRight } from "lucide-react"
 import { GitHubIntegrationCard } from "@/components/issues/GitHubIntegrationCard"
 import Link from "next/link"
@@ -37,8 +37,7 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     setIsDataLoading(true)
     setError(null)
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-    fetch(`${API_BASE_URL}/api/v1/issues/${id}`)
+    apiFetch(`/api/v1/issues/${id}`)
       .then((res) => {
         if (!res.ok) {
           if (res.status === 404 || res.status === 401) {

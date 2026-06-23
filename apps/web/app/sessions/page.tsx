@@ -12,7 +12,7 @@ import { SignalIcons } from "@/components/ui/SignalIcons"
 import { EnvironmentChip } from "@/components/ui/EnvironmentChip"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { EmptyState } from "@/components/ui/EmptyState"
-import { formatDuration, formatRelativeTime } from "@/lib/utils"
+import { formatDuration, formatRelativeTime, apiFetch } from "@/lib/utils"
 import Link from "next/link"
 import { useProjects } from "@/lib/projects-context"
 import { Session } from "@/lib/mock-data"
@@ -36,8 +36,7 @@ export default function SessionsPage() {
 
     setIsDataLoading(true)
     const controller = new AbortController()
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-    fetch(`${API_BASE_URL}/api/v1/sessions?projectId=${activeProject.id}`, { signal: controller.signal })
+    apiFetch(`/api/v1/sessions?projectId=${activeProject.id}`, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch sessions")
         return res.json()

@@ -103,7 +103,7 @@ Run the triage loop for every completed non-noise session.
 Build the issue-first developer UI.
 
 - [x] Init Next.js 14 app (App Router)
-- [ ] Set up Clerk or NextAuth for auth (will do in the end)
+- [x] Set up better-auth for auth
 - [x] Project creation flow + display of `public_key` for SDK install
 - [x] `/issues` — grouped issue list
   - [x] Sort by severity, affected sessions, last seen, confidence

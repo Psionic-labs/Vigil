@@ -9,12 +9,14 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { pool } from "../db";
 import { generateUniqueProjectKey } from "../lib/project-key";
+import { authMiddleware } from "../middleware/auth";
 import type { AppEnv } from "../lib/types";
 
 export const projectsRouter = new Hono<AppEnv>();
+projectsRouter.use("*", authMiddleware);
 
 // Default user for milestone: Single user / Dev model
-const OWNER_ID = "usr_playground";
+const getOwnerId = (c: any) => c.get("user")!.id;
 
 const createProjectSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -27,7 +29,7 @@ projectsRouter.get("/", async (c) => {
        FROM projects 
        WHERE owner_id = $1 AND is_active = true
        ORDER BY created_at DESC`,
-      [OWNER_ID]
+      [getOwnerId(c)]
     );
 
     const projects = result.rows.map((row) => ({
@@ -51,7 +53,7 @@ projectsRouter.get("/:id", async (c) => {
       `SELECT id, name, public_key, created_at 
        FROM projects 
        WHERE id = $1 AND owner_id = $2 AND is_active = true`,
-      [projectId, OWNER_ID]
+      [projectId, getOwnerId(c)]
     );
 
     if (result.rowCount === 0) {
@@ -85,7 +87,7 @@ projectsRouter.post("/", zValidator("json", createProjectSchema), async (c) => {
     await pool.query(
       `INSERT INTO projects (id, name, public_key, owner_id, is_active, created_at)
        VALUES ($1, $2, $3, $4, true, $5)`,
-      [projectId, name, publicKey, OWNER_ID, now]
+      [projectId, name, publicKey, getOwnerId(c), now]
     );
 
     return c.json({

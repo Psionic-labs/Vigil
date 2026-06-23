@@ -12,7 +12,7 @@ import { IssueBadge } from "@/components/ui/IssueBadge"
 import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { EmptyState } from "@/components/ui/EmptyState"
-import { formatRelativeTime } from "@/lib/utils"
+import { formatRelativeTime, apiFetch } from "@/lib/utils"
 import Link from "next/link"
 import { useProjects } from "@/lib/projects-context"
 import { IssueGroup } from "@/lib/mock-data"
@@ -37,8 +37,7 @@ export default function IssuesPage() {
 
     setIsDataLoading(true)
     const controller = new AbortController()
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-    fetch(`${API_BASE_URL}/api/v1/issues?projectId=${activeProject.id}`, { signal: controller.signal })
+    apiFetch(`/api/v1/issues?projectId=${activeProject.id}`, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch issues")
         return res.json()

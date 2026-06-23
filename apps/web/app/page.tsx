@@ -13,7 +13,7 @@ import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
 import { FrictionBar } from "@/components/ui/FrictionBar"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { EnvironmentChip } from "@/components/ui/EnvironmentChip"
-import { formatRelativeTime, formatDuration } from "@/lib/utils"
+import { formatRelativeTime, formatDuration, apiFetch } from "@/lib/utils"
 import Link from "next/link"
 import { useProjects } from "@/lib/projects-context"
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal"
@@ -44,11 +44,9 @@ export default function OverviewPage() {
 
     setIsDataLoading(true)
     const controller = new AbortController()
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-
     Promise.all([
-      fetch(`${API_BASE_URL}/api/v1/issues?projectId=${activeProject.id}`, { signal: controller.signal }).then((res) => { if (!res.ok) throw new Error("Failed to fetch issues"); return res.json() }),
-      fetch(`${API_BASE_URL}/api/v1/sessions?projectId=${activeProject.id}`, { signal: controller.signal }).then((res) => { if (!res.ok) throw new Error("Failed to fetch sessions"); return res.json() })
+      apiFetch(`/api/v1/issues?projectId=${activeProject.id}`, { signal: controller.signal }).then((res) => { if (!res.ok) throw new Error("Failed to fetch issues"); return res.json() }),
+      apiFetch(`/api/v1/sessions?projectId=${activeProject.id}`, { signal: controller.signal }).then((res) => { if (!res.ok) throw new Error("Failed to fetch sessions"); return res.json() })
     ])
       .then(([issuesRes, sessionsRes]) => {
         setIssues(issuesRes.data || [])

@@ -6,6 +6,7 @@
 
 "use client"
 import { createContext, useContext, useEffect, useState } from "react"
+import { apiFetch } from "./utils"
 
 export interface Project {
   id: string
@@ -34,7 +35,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/projects`)
+      const res = await apiFetch("/api/v1/projects")
       if (!res.ok) throw new Error("Failed to fetch projects")
       const { data } = await res.json()
       return data as Project[]
@@ -75,9 +76,8 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }
 
   const createProject = async (name: string): Promise<Project> => {
-    const res = await fetch(`${API_BASE_URL}/api/v1/projects`, {
+    const res = await apiFetch("/api/v1/projects", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     })
     

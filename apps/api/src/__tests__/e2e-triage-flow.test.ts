@@ -19,8 +19,9 @@ if (!hasRealDb) {
   });
 } else {
 describe("End-to-End Triage Flow Integration Tests", () => {
-  const TEST_PROJECT_ID = "proj_e2e_test";
-  const TEST_PUBLIC_KEY = "pk_e2e_test";
+  const runSuffix = Math.random().toString(36).substring(2, 10);
+  const TEST_PROJECT_ID = `proj_e2e_test_${runSuffix}`;
+  const TEST_PUBLIC_KEY = `pk_e2e_test_${runSuffix}`;
   const OWNER_ID = "usr_playground";
 
   beforeAll(async () => {
@@ -31,6 +32,14 @@ describe("End-to-End Triage Flow Integration Tests", () => {
     await pool.query("DELETE FROM events_summary WHERE project_id = $1", [TEST_PROJECT_ID]);
     await pool.query("DELETE FROM sessions WHERE project_id = $1", [TEST_PROJECT_ID]);
     await pool.query("DELETE FROM projects WHERE id = $1", [TEST_PROJECT_ID]);
+
+    // Insert test owner user first (required by fk_projects_owner constraint)
+    await pool.query(
+      `INSERT INTO users (id, name, email, email_verified, created_at, updated_at)
+       VALUES ($1, 'Playground User', 'usr_playground_test@vigil.run', true, $2, $2)
+       ON CONFLICT (id) DO NOTHING`,
+      [OWNER_ID, new Date()]
+    );
 
     // 2. Insert test project
     await pool.query(
@@ -209,8 +218,8 @@ describe("End-to-End Triage Flow Integration Tests", () => {
 
   it("Scenario 2: Triage worker attaches new session to existing issue group and dashboard updates count", async () => {
     // 1. Create a pre-seeded issue group
-    const existingGroupId = "igr_e2e_existing_attach";
-    const fingerprint = "checkout_js_error_fingerprint_s2";
+    const existingGroupId = "igr_e2e_existing_attach_" + runSuffix;
+    const fingerprint = "checkout_js_error_fingerprint_s2_" + runSuffix;
     await pool.query(
       `INSERT INTO issue_groups (id, project_id, fingerprint, title, root_cause, suggested_fix, severity, status, confidence, reproduction_steps_json, evidence_summary, affected_session_count, first_seen_at, last_seen_at, created_at, updated_at)
        VALUES ($1, $2, $3, 'Seeded Issue Group', 'Seeded root cause', 'Seeded suggested fix', 'P1', 'open', 0.9, '[]', '[]', 1, $4, $4, $4, $4)`,
