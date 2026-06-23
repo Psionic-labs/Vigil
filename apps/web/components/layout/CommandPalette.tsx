@@ -7,7 +7,7 @@
 "use client"
 import React, { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Search, X, CornerDownLeft, Command, Activity, AlertTriangle, Folder, Settings, Terminal } from "lucide-react"
+import { Search, X, CornerDownLeft, Command, Activity, AlertTriangle, Folder, Settings } from "lucide-react"
 import { useProjects } from "@/lib/projects-context"
 import { apiFetch } from "@/lib/utils"
 import { IssueGroup, Session } from "@/lib/mock-data"
