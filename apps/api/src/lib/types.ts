@@ -25,5 +25,7 @@ export type AppEnv = {
     ingestIdentity?: IngestIdentity;        // Extracted identity headers/body params
     projectId?: string;                     // Validated database project identifier
     projectCacheEntry?: ProjectCacheEntry | null; // Cached lookup outcome shared across middlewares
+    user?: any;                             // Authenticated Better Auth User
+    session?: any;                          // Authenticated Better Auth Session
   };
 };

@@ -7,14 +7,20 @@
 "use client"
 import { useState, useRef, useEffect } from "react"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, AlertTriangle, Monitor, Settings, ChevronDown, Activity, User } from "lucide-react"
+import { LayoutDashboard, AlertTriangle, Monitor, Settings, ChevronDown, Activity, User, LogOut } from "lucide-react"
 import { useProjects } from "@/lib/projects-context"
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal"
 import { NavItem } from "./NavItem"
 import { IssueGroup } from "@/lib/mock-data"
+import { apiFetch } from "@/lib/utils"
+import { authClient } from "@/lib/auth-client"
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { data: sessionData } = authClient.useSession()
+  const userEmail = sessionData?.user?.email || "dev@acme.io"
+  const userName = sessionData?.user?.name || "Owner"
+
   const { projects, activeProject, setActiveProjectId, createProject } = useProjects()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -36,8 +42,7 @@ export function Sidebar() {
       setOpenIssuesCount(undefined)
       return
     }
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-    fetch(`${API_BASE_URL}/api/v1/issues?projectId=${activeProject.id}`)
+    apiFetch(`/api/v1/issues?projectId=${activeProject.id}`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch open issues count")
         return res.json()
@@ -156,14 +161,26 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="px-3 pb-4 border-t border-indigo-800/60 pt-3">
-        <div className="flex items-center gap-3 px-3 py-2">
-          <div className="w-7 h-7 rounded-full bg-indigo-900/60 flex items-center justify-center shrink-0">
-            <User className="w-4 h-4 text-sidebar-text" />
+        <div className="flex items-center justify-between px-3 py-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-7 h-7 rounded-full bg-indigo-900/60 flex items-center justify-center shrink-0">
+              <User className="w-4 h-4 text-sidebar-text" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-sidebar-text truncate">{userEmail}</p>
+              <p className="text-xs text-sidebar-muted truncate">{userName}</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-sidebar-text truncate">dev@acme.io</p>
-            <p className="text-xs text-sidebar-muted">Owner</p>
-          </div>
+          <button
+            onClick={async () => {
+              await authClient.signOut()
+              window.location.href = "/sign-in"
+            }}
+            aria-label="Sign out"
+            className="w-8 h-8 rounded-lg hover:bg-indigo-900 flex items-center justify-center text-sidebar-muted hover:text-white transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </aside>

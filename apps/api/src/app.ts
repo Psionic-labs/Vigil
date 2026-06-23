@@ -15,6 +15,7 @@ import ingestRouter from "./routes/ingest";
 import { projectsRouter } from "./routes/projects";
 import { issuesRouter } from "./routes/issues";
 import { sessionsRouter } from "./routes/sessions";
+import { auth } from "./lib/auth";
 
 import type { AppEnv } from "./lib/types";
 
@@ -62,16 +63,30 @@ app.use("/api/*", async (c, next) => {
   await next();
 });
 
-// Permissive CORS to accept SDK payloads from any host application
-// (Can be tightened later per project/domain rules)
+// Dynamic CORS configuration to handle:
+// 1. Public telemetry ingestion (accepts requests from any origin, no credentials needed).
+// 2. Dashboard API and Auth requests (strictly requires credentials and maps origin to frontend URL).
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3002";
 app.use(
   "/api/*",
-  cors({
-    origin: (origin) => origin || "*",
-    allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
-    credentials: true,
-  }),
+  async (c, next) => {
+    const path = c.req.path;
+    const isIngest = path.startsWith("/api/v1/ingest");
+
+    const handler = cors({
+      origin: (origin) => {
+        if (isIngest) {
+          return origin || "*";
+        }
+        return origin === FRONTEND_URL || origin === "http://localhost:3002" ? origin : FRONTEND_URL;
+      },
+      allowMethods: isIngest ? ["POST", "OPTIONS"] : ["GET", "POST", "OPTIONS"],
+      allowHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
+      credentials: true,
+    });
+
+    return handler(c, next);
+  }
 );
 
 // 2. Global Error Handling
@@ -99,8 +114,15 @@ app.notFound((c) => {
 app.route("/health", healthRouter);
 app.route("/metrics", metricsRouter);
 
-// 4. Ingestion API V1
+// 4. Wildcard Auth route handlers (Better Auth)
+app.on(["POST", "GET"], "/api/auth/*", (c) => {
+  return auth.handler(c.req.raw);
+});
+
+// 5. Ingestion API V1 (Public telemetry)
 app.route("/api/v1/ingest", ingestRouter);
+
+// 6. Protected Dashboard APIs (Enforced at router level)
 app.route("/api/v1/projects", projectsRouter);
 app.route("/api/v1/issues", issuesRouter);
 app.route("/api/v1/sessions", sessionsRouter);

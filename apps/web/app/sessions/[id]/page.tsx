@@ -8,7 +8,7 @@
 import { use, useEffect, useState, useRef } from "react"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { FrictionBar } from "@/components/ui/FrictionBar"
-import { formatRelativeTime, formatDuration, formatTimestamp, eventTypeLabel, eventColor } from "@/lib/utils"
+import { formatRelativeTime, formatDuration, formatTimestamp, eventTypeLabel, eventColor, apiFetch } from "@/lib/utils"
 import { ArrowLeft, Pause, Play, MonitorPlay } from "lucide-react"
 import Link from "next/link"
 import { Session } from "@/lib/mock-data"
@@ -127,9 +127,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     setIsDataLoading(true)
     setIsEventsLoading(true)
     setError(null)
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
     
-    fetch(`${API_BASE_URL}/api/v1/sessions/${id}`)
+    apiFetch(`/api/v1/sessions/${id}`)
       .then((res) => {
         if (!res.ok) {
           if (res.status === 404 || res.status === 401) {
@@ -151,7 +150,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       })
 
     setEventsError(null)
-    fetch(`${API_BASE_URL}/api/v1/sessions/${id}/events`)
+    apiFetch(`/api/v1/sessions/${id}/events`)
       .then(async (res) => {
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));

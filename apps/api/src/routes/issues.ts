@@ -6,11 +6,13 @@
 
 import { Hono } from "hono";
 import { pool } from "../db";
+import { authMiddleware } from "../middleware/auth";
 import type { AppEnv } from "../lib/types";
 
 export const issuesRouter = new Hono<AppEnv>();
+issuesRouter.use("*", authMiddleware);
 
-const OWNER_ID = "usr_playground";
+const getOwnerId = (c: any) => c.get("user")!.id;
 
 function mapIssueGroupRow(row: any) {
   let reproductionSteps: string[] = [];
@@ -61,7 +63,7 @@ issuesRouter.get("/", async (c) => {
     // 1. Verify project ownership and active status
     const projectCheck = await pool.query(
       `SELECT id FROM projects WHERE id = $1 AND owner_id = $2 AND is_active = true`,
-      [projectId, OWNER_ID]
+      [projectId, getOwnerId(c)]
     );
 
     if (projectCheck.rowCount === 0) {
@@ -110,7 +112,7 @@ issuesRouter.get("/:id", async (c) => {
        FROM issue_groups ig
        JOIN projects p ON ig.project_id = p.id
        WHERE ig.id = $1 AND p.owner_id = $2 AND p.is_active = true`,
-      [issueId, OWNER_ID]
+      [issueId, getOwnerId(c)]
     );
 
     if (result.rowCount === 0) {

@@ -56,3 +56,30 @@ export const eventColor: Record<string, string> = {
   js_error:      "bg-p1-bg border-orange-200 text-p1",
   console_error: "bg-surface-2 border-border text-text-3",
 }
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+
+export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const url = path.startsWith("http") ? path : `${API_BASE_URL}${path}`
+  const headers = new Headers(options.headers)
+
+  if (options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json")
+  }
+
+  const mergedOptions: RequestInit = {
+    ...options,
+    headers,
+    credentials: "include",
+  }
+
+  const res = await fetch(url, mergedOptions)
+
+  if (res.status === 401) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/sign-in"
+    }
+  }
+
+  return res
+}
