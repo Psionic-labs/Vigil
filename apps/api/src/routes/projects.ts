@@ -50,7 +50,9 @@ projectsRouter.get("/:id", async (c) => {
   try {
     const projectId = c.req.param("id");
     const result = await pool.query(
-      `SELECT id, name, public_key, created_at 
+      `SELECT id, name, public_key, created_at,
+              github_auto_raise_enabled, github_auto_raise_severity,
+              github_auto_raise_min_confidence, github_comment_enabled
        FROM projects 
        WHERE id = $1 AND owner_id = $2 AND is_active = true`,
       [projectId, getOwnerId(c)]
@@ -66,6 +68,10 @@ projectsRouter.get("/:id", async (c) => {
       name: row.name,
       publicKey: row.public_key,
       createdAt: Number(row.created_at),
+      githubAutoRaiseEnabled: Boolean(row.github_auto_raise_enabled),
+      githubAutoRaiseSeverity: row.github_auto_raise_severity,
+      githubAutoRaiseMinConfidence: Number(row.github_auto_raise_min_confidence),
+      githubCommentEnabled: Boolean(row.github_comment_enabled),
     };
 
     return c.json({ ok: true, success: true, data: project });

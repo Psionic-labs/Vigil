@@ -189,6 +189,8 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
         {/* Right — action panel */}
         <div className="space-y-4">
           <GitHubIntegrationCard
+            projectId={issue.project_id}
+            issueGroupId={issue.id}
             initialIssueUrl={issue.github_issue_url}
             initialIssueNumber={issue.github_issue_number}
           />

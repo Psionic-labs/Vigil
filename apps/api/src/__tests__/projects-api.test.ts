@@ -56,7 +56,7 @@ describe("Projects API", () => {
       expect(res.status).toBe(200);
       const json = await res.json();
       expect(json.data).toEqual(
-        { id: "proj_2", name: "App 2", publicKey: "pk_2", createdAt: 17001 }
+        expect.objectContaining({ id: "proj_2", name: "App 2", publicKey: "pk_2", createdAt: 17001 })
       );
       expect(pool.query).toHaveBeenCalledWith(
         expect.stringContaining("WHERE id = $1 AND owner_id = $2"),

@@ -15,11 +15,13 @@ import ingestRouter from "./routes/ingest";
 import { projectsRouter } from "./routes/projects";
 import { issuesRouter } from "./routes/issues";
 import { sessionsRouter } from "./routes/sessions";
+import { githubRouter } from "./routes/github";
 import { auth } from "./lib/auth";
 
 import type { AppEnv } from "./lib/types";
 
 const app = new Hono<AppEnv>();
+
 
 // 1. Foundational Middleware
 // Log all requests (can be swapped for Pino/custom logger in production later)
@@ -126,5 +128,6 @@ app.route("/api/v1/ingest", ingestRouter);
 app.route("/api/v1/projects", projectsRouter);
 app.route("/api/v1/issues", issuesRouter);
 app.route("/api/v1/sessions", sessionsRouter);
+app.route("/api/v1/github", githubRouter);
 
 export default app;
