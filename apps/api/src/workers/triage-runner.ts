@@ -13,6 +13,7 @@ import { buildSessionTimeline } from "./triage/timeline";
 import { findCandidateIssueGroups } from "./triage/candidate-groups";
 import { buildRepairPrompt } from "./triage/repair-prompt";
 import { createIssueGroup, attachIssueGroup } from "./triage/issue-group-actions";
+import { raiseGitHubIssue } from "../lib/github-issue-service";
 
 /**
  * RunnerOptions
@@ -199,6 +200,8 @@ export async function processTriageJob(
     let triageData: any;
     let repairCount = 0;
     let attemptNumber = 1;
+    let autoRaiseCandidate = false;
+    let autoRaiseGroupId = "";
 
     try {
       triageData = extractAndValidateJSON(llmResult.rawContent);
@@ -418,6 +421,10 @@ export async function processTriageJob(
           const primaryFp = timeline.fingerprints[0] || null;
           const createResult = await createIssueGroup(client, projectId, primaryFp, triageData, updateTime, sessionId);
           targetGroupId = createResult.id;
+          if (createResult.action === "create") {
+            autoRaiseCandidate = true;
+            autoRaiseGroupId = targetGroupId;
+          }
           console.info(
             JSON.stringify({
               level: "info",
@@ -636,6 +643,59 @@ export async function processTriageJob(
         throw new Error("triage_lease_lost");
       }
     });
+
+    // Auto-raise check — non-blocking, outside transaction
+    if (autoRaiseCandidate && autoRaiseGroupId) {
+      try {
+        const projectRes = await pool.query(
+          `SELECT github_auto_raise_enabled, github_auto_raise_severity,
+                  github_auto_raise_min_confidence
+           FROM projects WHERE id = $1`,
+          [projectId]
+        );
+        const config = projectRes.rows[0];
+
+        if (config?.github_auto_raise_enabled) {
+          const issueDetail = triageData.issues?.[0] || { severity: "P2", confidence: 0 };
+          const severity = issueDetail.severity || "P2";
+          const confidence = triageData.confidence ?? 0;
+
+          let severityMeetsThreshold = false;
+          if (config.github_auto_raise_severity === "P0") {
+            severityMeetsThreshold = severity === "P0";
+          } else if (config.github_auto_raise_severity === "P0+P1") {
+            severityMeetsThreshold = severity === "P0" || severity === "P1";
+          }
+
+          const confidenceMeetsThreshold = confidence >= config.github_auto_raise_min_confidence;
+
+          if (severityMeetsThreshold && confidenceMeetsThreshold) {
+            const conn = await pool.query(
+              `SELECT id, connection_status FROM github_connections WHERE project_id = $1`,
+              [projectId]
+            );
+            if (conn.rows[0]?.connection_status === "active") {
+              await raiseGitHubIssue({
+                projectId,
+                issueGroupId: autoRaiseGroupId,
+                actor: { actorType: "system" },
+                isAutoRaised: true,
+              });
+            }
+          }
+        }
+      } catch (err: any) {
+        // Auto-raise failure must NEVER fail the triage job
+        console.error(JSON.stringify({
+          level: "error",
+          action: "auto_raise_failed",
+          sessionId,
+          projectId,
+          issueGroupId: autoRaiseGroupId,
+          error: err.message,
+        }));
+      }
+    }
 
     // Output success logs including model tokens telemetry
     console.info(

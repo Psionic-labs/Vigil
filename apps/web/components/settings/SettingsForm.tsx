@@ -5,6 +5,8 @@ import { Github } from "@/components/ui/GithubIcon"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { Toggle } from "@/components/ui/Toggle"
 import { CodeBlock } from "@/components/ui/CodeBlock"
+import { apiFetch } from "@/lib/utils"
+import { useProjects } from "@/lib/projects-context"
 
 function Section({ icon: Icon, title, description, children }: {
   icon: React.ElementType; title: string; description: string; children: React.ReactNode
@@ -60,16 +62,39 @@ function CopyBtn({ text, id, copied, onCopy }: {
   )
 }
 
-import { useProjects } from "@/lib/projects-context"
+interface GitHubStatus {
+  connected: boolean;
+  connectionStatus?: "active" | "expired" | "revoked" | "rate_limited" | "error";
+  githubUsername?: string;
+  lastError?: string;
+  repoSelected?: boolean;
+  defaultRepo?: string | null;
+  hasGithubLogin: boolean;
+}
+
+interface GitHubRepo {
+  owner: string;
+  name: string;
+  fullName: string;
+  isPrivate: boolean;
+  defaultBranch: string;
+}
 
 export function SettingsForm() {
   const { activeProject } = useProjects()
   const [keyVisible, setKeyVisible] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
-  const [autoRaise, setAutoRaise] = useState(true)
-  const [followUp,  setFollowUp]  = useState(true)
-  const [severity,  setSeverity]  = useState<"P0" | "P0+P1">("P0+P1")
-  const [conf,      setConf]      = useState(90)
+  
+  // GitHub Integration States
+  const [integrationStatus, setIntegrationStatus] = useState<GitHubStatus | null>(null)
+  const [repos, setRepos] = useState<GitHubRepo[]>([])
+  const [reposLoading, setReposLoading] = useState(false)
+  
+  // Settings States
+  const [autoRaise, setAutoRaise] = useState(false)
+  const [followUp, setFollowUp] = useState(false)
+  const [severity, setSeverity] = useState<"P0" | "P0+P1">("P0")
+  const [conf, setConf] = useState(90)
 
   const copy = async (text: string, id: string) => {
     try {
@@ -77,6 +102,158 @@ export function SettingsForm() {
       setCopied(id)
     } catch (err) {
       console.error("Failed to copy text: ", err)
+    }
+  }
+
+  // Load configuration and connection status on mount or when active project changes
+  useEffect(() => {
+    if (!activeProject) return
+
+    async function loadGitHubStatus() {
+      try {
+        const res = await apiFetch(`/api/v1/github/status?projectId=${activeProject!.id}`)
+        if (res.ok) {
+          const { data } = await res.json()
+          setIntegrationStatus(data)
+          
+          if (data.connected && !data.repoSelected) {
+            loadRepos()
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch GitHub integration status:", err)
+      }
+    }
+
+    async function loadRepos() {
+      setReposLoading(true)
+      try {
+        const res = await apiFetch(`/api/v1/github/repos?projectId=${activeProject!.id}`)
+        if (res.ok) {
+          const { data } = await res.json()
+          setRepos(data)
+        }
+      } catch (err) {
+        console.error("Failed to load GitHub repositories:", err)
+      } finally {
+        setReposLoading(false)
+      }
+    }
+
+    async function loadProjectSettings() {
+      try {
+        const res = await apiFetch(`/api/v1/projects/${activeProject!.id}`)
+        if (res.ok) {
+          const { data } = await res.json()
+          setAutoRaise(data.githubAutoRaiseEnabled)
+          setSeverity(data.githubAutoRaiseSeverity as "P0" | "P0+P1")
+          setConf(Math.round((data.githubAutoRaiseMinConfidence ?? 0.9) * 100))
+          setFollowUp(data.githubCommentEnabled)
+        }
+      } catch (err) {
+        console.error("Failed to load project details:", err)
+      }
+    }
+
+    setIntegrationStatus(null)
+    setRepos([])
+    loadGitHubStatus()
+    loadProjectSettings()
+  }, [activeProject])
+
+  const loadRepos = async () => {
+    if (!activeProject) return
+    setReposLoading(true)
+    try {
+      const res = await apiFetch(`/api/v1/github/repos?projectId=${activeProject.id}`)
+      if (res.ok) {
+        const { data } = await res.json()
+        setRepos(data)
+      }
+    } catch (err) {
+      console.error("Failed to load repositories:", err)
+    } finally {
+      setReposLoading(false)
+    }
+  }
+
+  const handleConnect = async () => {
+    if (!activeProject) return
+    try {
+      const res = await apiFetch(`/api/v1/github/connect?projectId=${activeProject.id}`)
+      if (res.ok) {
+        const { data } = await res.json()
+        window.location.href = data.authorizeUrl
+      }
+    } catch (err) {
+      console.error("Failed to initiate connect:", err)
+    }
+  }
+
+  const handleDisconnect = async () => {
+    if (!activeProject) return
+    if (!confirm("Are you sure you want to disconnect GitHub? This will delete all repository settings.")) return
+    try {
+      const res = await apiFetch(`/api/v1/github/disconnect?projectId=${activeProject.id}`, {
+        method: "POST",
+      })
+      if (res.ok) {
+        setIntegrationStatus(prev => prev ? { ...prev, connected: false, repoSelected: false, defaultRepo: null } : null)
+      }
+    } catch (err) {
+      console.error("Failed to disconnect:", err)
+    }
+  }
+
+  const handleSelectRepo = async (repoFullName: string) => {
+    if (!activeProject) return
+    const repo = repos.find(r => r.fullName === repoFullName)
+    if (!repo) return
+
+    try {
+      const res = await apiFetch("/api/v1/github/select-repo", {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: activeProject.id,
+          repoOwner: repo.owner,
+          repoName: repo.name,
+          fullName: repo.fullName,
+          isPrivate: repo.isPrivate,
+          defaultBranch: repo.defaultBranch,
+        }),
+      })
+
+      if (res.ok) {
+        setIntegrationStatus(prev => prev ? { ...prev, repoSelected: true, defaultRepo: repo.fullName } : null)
+      }
+    } catch (err) {
+      console.error("Failed to select repository:", err)
+    }
+  }
+
+  const saveSettings = async (updates: {
+    autoRaiseEnabled?: boolean;
+    autoRaiseSeverity?: string;
+    autoRaiseMinConfidence?: number;
+    commentEnabled?: boolean;
+  }) => {
+    if (!activeProject) return
+
+    const payload = {
+      projectId: activeProject.id,
+      autoRaiseEnabled: updates.autoRaiseEnabled !== undefined ? updates.autoRaiseEnabled : autoRaise,
+      autoRaiseSeverity: updates.autoRaiseSeverity !== undefined ? updates.autoRaiseSeverity : severity,
+      autoRaiseMinConfidence: (updates.autoRaiseMinConfidence !== undefined ? updates.autoRaiseMinConfidence : conf) / 100,
+      commentEnabled: updates.commentEnabled !== undefined ? updates.commentEnabled : followUp,
+    }
+
+    try {
+      await apiFetch("/api/v1/github/settings", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      })
+    } catch (err) {
+      console.error("Failed to save settings:", err)
     }
   }
 
@@ -123,83 +300,170 @@ export function SettingsForm() {
       </Section>
 
       <Section icon={Github} title="GitHub Integration" description="Connect a repository to auto-raise issues from Vigil's dashboard.">
-        <div className="flex items-center justify-between p-4 bg-surface-2 border border-border rounded-xl mb-5">
-          <div className="flex items-center gap-3">
-            <Github className="w-4 h-4 text-text-2" />
-            <div>
-              <p className="text-sm font-semibold text-text-1">acme/checkout-app</p>
-              <span className="text-xs font-semibold text-ok bg-ok-bg border border-green-200 px-2 py-0.5 rounded-full">
-                Connected
-              </span>
-            </div>
-          </div>
-          <button className="text-xs text-p0 hover:text-red-800 font-medium transition-colors
-                             px-3 py-1.5 rounded-lg hover:bg-red-50 cursor-pointer">
-            Disconnect
-          </button>
-        </div>
-
-        <div className="space-y-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-text-1">Auto-raise Issues</p>
-              <p className="text-xs text-text-3 mt-0.5">Automatically raise GitHub issues for high-severity bugs</p>
-            </div>
-            <Toggle checked={autoRaise} onChange={() => setAutoRaise(v => !v)} />
-          </div>
-
-          {autoRaise && (
-            <div className="space-y-4 pt-4 border-t border-border">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2.5">Severity Threshold</p>
-                <div className="flex gap-3">
-                  {(["P0", "P0+P1"] as const).map(s => (
-                    <button key={s} onClick={() => setSeverity(s)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all cursor-pointer
-                        ${severity === s
-                          ? "bg-accent-light border-accent text-accent"
-                          : "bg-surface border-border text-text-2 hover:border-accent/40"}`}>
-                      <span className={`w-2 h-2 rounded-full ${severity === s ? "bg-accent" : "bg-border"}`} />
-                      {s} only
+        {!activeProject ? (
+          <div className="text-center py-4 text-xs text-text-3">Please select a project to manage integrations.</div>
+        ) : !integrationStatus ? (
+          <div className="text-xs text-text-3 py-2 animate-pulse">Loading GitHub integration status...</div>
+        ) : (
+          <>
+            {integrationStatus.connected ? (
+              integrationStatus.repoSelected ? (
+                <div className="flex flex-col gap-2.5 mb-5">
+                  <div className="flex items-center justify-between p-4 bg-surface-2 border border-border rounded-xl shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <Github className="w-5 h-5 text-accent" />
+                      <div>
+                        <p className="text-sm font-semibold text-text-1">{integrationStatus.defaultRepo}</p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            integrationStatus.connectionStatus === "active" ? "bg-ok" :
+                            integrationStatus.connectionStatus === "rate_limited" ? "bg-p2" : "bg-p0"
+                          }`} />
+                          <span className="text-xxs font-semibold text-text-2 uppercase tracking-wider">
+                            {integrationStatus.connectionStatus === "active" ? "Connected" :
+                             integrationStatus.connectionStatus === "rate_limited" ? "Rate Limited" :
+                             integrationStatus.connectionStatus === "expired" ? "Connection Expired" : "Error"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <button onClick={handleDisconnect}
+                      className="text-xs text-p0 hover:text-red-800 font-medium transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50 cursor-pointer">
+                      Disconnect
                     </button>
-                  ))}
+                  </div>
+                  {integrationStatus.lastError && (
+                    <div className="p-3 bg-p0-bg border border-red-200 text-p0 text-xs font-mono rounded-xl break-all">
+                      <strong>Connection Error:</strong> {integrationStatus.lastError}
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <div className="p-4 bg-surface-2 border border-border rounded-xl mb-5 flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-text-2 font-medium">GitHub Account: <strong>{integrationStatus.githubUsername}</strong></span>
+                    <button onClick={handleDisconnect}
+                      className="text-xs text-text-3 hover:text-p0 font-medium transition-colors px-2 py-1 rounded-md hover:bg-red-50 cursor-pointer">
+                      Disconnect
+                    </button>
+                  </div>
+                  {reposLoading ? (
+                    <div className="text-xs text-text-3 py-2 animate-pulse">Loading repositories...</div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs font-semibold text-text-3 uppercase tracking-wider">Select Target Repository</label>
+                      <div className="flex gap-2">
+                        <select onChange={(e) => handleSelectRepo(e.target.value)} defaultValue=""
+                          className="flex-1 px-4 py-2.5 text-sm bg-surface border border-border rounded-xl text-text-1 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent">
+                          <option value="" disabled>-- Select a repository --</option>
+                          {repos.map(r => (
+                            <option key={r.fullName} value={r.fullName}>{r.fullName}</option>
+                          ))}
+                        </select>
+                        <button onClick={loadRepos}
+                          className="px-3 text-xs bg-surface-2 border border-border hover:bg-surface hover:text-accent rounded-xl font-medium transition-colors cursor-pointer">
+                          Reload
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            ) : (
+              <div className="flex flex-col gap-3 py-2 mb-5">
+                <p className="text-sm text-text-3">
+                  {integrationStatus.hasGithubLogin
+                    ? "You are signed in to Vigil with GitHub. Link a repository to start tracking and raising issues."
+                    : "Link your GitHub account to automatically raise and track issues from Vigil's dashboard."}
+                </p>
+                <button onClick={handleConnect}
+                  className="flex items-center gap-2 self-start bg-accent hover:bg-accent-hover text-white text-sm font-semibold px-4 py-2.5 rounded-xl cursor-pointer transition-colors shadow-sm">
+                  <Github className="w-4 h-4 text-white" />
+                  {integrationStatus.hasGithubLogin ? "Connect Repository" : "Connect GitHub"}
+                </button>
               </div>
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-text-3">Micro-Triage Confidence</p>
-                  <span className="text-sm font-bold font-mono text-accent">{conf}%</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input type="range" min={50} max={100} value={conf}
-                    onChange={e => {
-                      const val = parseInt(e.target.value, 10)
-                      if (!isNaN(val)) setConf(val)
-                    }}
-                    className="flex-1 accent-accent cursor-pointer" />
-                  <input type="number" min={50} max={100} value={conf}
-                    onChange={e => {
-                      const val = parseInt(e.target.value, 10)
-                      if (!isNaN(val)) setConf(val)
-                    }}
-                    onBlur={() => setConf(Math.min(100, Math.max(50, conf)))}
-                    className="w-16 text-center text-sm font-mono border border-border rounded-lg
-                               py-1.5 bg-surface text-text-1 focus:outline-none focus:ring-2
-                               focus:ring-accent/30 focus:border-accent" />
-                  <span className="text-sm text-text-2">%</span>
-                </div>
-              </div>
-            </div>
-          )}
+            )}
 
-          <div className="flex items-center justify-between pt-4 border-t border-border">
-            <div>
-              <p className="text-sm font-semibold text-text-1">AI Follow-up Comments</p>
-              <p className="text-xs text-text-3 mt-0.5">Post batched comments when more sessions hit the same issue</p>
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-text-1">Auto-raise Issues</p>
+                  <p className="text-xs text-text-3 mt-0.5">Automatically raise GitHub issues for high-severity bugs</p>
+                </div>
+                <Toggle checked={autoRaise} onChange={() => {
+                  const val = !autoRaise
+                  setAutoRaise(val)
+                  saveSettings({ autoRaiseEnabled: val })
+                }} />
+              </div>
+
+              {autoRaise && (
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2.5">Severity Threshold</p>
+                    <div className="flex gap-3">
+                      {(["P0", "P0+P1"] as const).map(s => (
+                        <button key={s} onClick={() => {
+                          setSeverity(s)
+                          saveSettings({ autoRaiseSeverity: s })
+                        }}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all cursor-pointer
+                            ${severity === s
+                              ? "bg-accent-light border-accent text-accent"
+                              : "bg-surface border-border text-text-2 hover:border-accent/40"}`}>
+                          <span className={`w-2 h-2 rounded-full ${severity === s ? "bg-accent" : "bg-border"}`} />
+                          {s} only
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-text-3">Micro-Triage Confidence</p>
+                      <span className="text-sm font-bold font-mono text-accent">{conf}%</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input type="range" min={50} max={100} value={conf}
+                        onChange={e => {
+                          const val = parseInt(e.target.value, 10)
+                          if (!isNaN(val)) setConf(val)
+                        }}
+                        onMouseUp={() => saveSettings({ autoRaiseMinConfidence: conf })}
+                        onTouchEnd={() => saveSettings({ autoRaiseMinConfidence: conf })}
+                        className="flex-1 accent-accent cursor-pointer" />
+                      <input type="number" min={50} max={100} value={conf}
+                        onChange={e => {
+                          const val = parseInt(e.target.value, 10)
+                          if (!isNaN(val)) setConf(val)
+                        }}
+                        onBlur={() => {
+                          const val = Math.min(100, Math.max(50, conf))
+                          setConf(val)
+                          saveSettings({ autoRaiseMinConfidence: val })
+                        }}
+                        className="w-16 text-center text-sm font-mono border border-border rounded-lg
+                                   py-1.5 bg-surface text-text-1 focus:outline-none focus:ring-2
+                                   focus:ring-accent/30 focus:border-accent" />
+                      <span className="text-sm text-text-2">%</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-4 border-t border-border">
+                <div>
+                  <p className="text-sm font-semibold text-text-1">AI Follow-up Comments</p>
+                  <p className="text-xs text-text-3 mt-0.5">Post batched comments when more sessions hit the same issue</p>
+                </div>
+                <Toggle checked={followUp} onChange={() => {
+                  const val = !followUp
+                  setFollowUp(val)
+                  saveSettings({ commentEnabled: val })
+                }} />
+              </div>
             </div>
-            <Toggle checked={followUp} onChange={() => setFollowUp(v => !v)} />
-          </div>
-        </div>
+          </>
+        )}
       </Section>
 
       <Section icon={FolderOpen} title="Project Details" description="General project attributes and naming config.">
