@@ -131,22 +131,22 @@ Build the issue-first developer UI.
 
 Wire Octokit to the issue queue.
 
-- [ ] GitHub OAuth flow: connect account, select target repo, encrypt and store token
-- [ ] `/settings`: GitHub connection status and repo selector
-- [ ] "Raise GitHub Issue" button on `/issues/[id]`
-- [ ] Generate GitHub issue body from AI report (title, severity, sessions, replay links, steps, root cause, fix, stack, manual comment)
-- [ ] Apply labels: `bug`, `vigil-detected`, `vigil-p{severity}`
-- [ ] Store `github_issue_url` and `github_issue_number` on `issue_groups`, set status to `linked`
-- [ ] Guard against creating duplicate GitHub issues for the same group
-- [ ] Manual comment field before raising or updating
-- [ ] Auto-raise mode
-  - [ ] Add toggle + threshold config to `/settings`
-  - [ ] Fire auto-raise on `create` action when severity and confidence thresholds are met
-  - [ ] Tag auto-raised issues with `vigil-auto-raised`, set `github_auto_raised = 1`
-- [ ] AI follow-up comments
-  - [ ] Add toggle to `/settings`
-  - [ ] Post batched comment when `affected_session_count` crosses threshold since last comment
-  - [ ] Update `github_last_comment_at` and `github_last_comment_session_count`
+- [x] GitHub OAuth flow: connect account, select target repo, encrypt and store token
+- [x] `/settings`: GitHub connection status and repo selector
+- [x] "Raise GitHub Issue" button on `/issues/[id]`
+- [x] Generate GitHub issue body from AI report (title, severity, sessions, replay links, steps, root cause, fix, stack, manual comment)
+- [x] Apply labels: `bug`, `vigil-detected`, `vigil-p{severity}`
+- [x] Store `github_issue_url` and `github_issue_number` on `issue_groups`, set status to `linked`
+- [x] Guard against creating duplicate GitHub issues for the same group
+- [x] Manual comment field before raising or updating
+- [x] Auto-raise mode
+  - [x] Add toggle + threshold config to `/settings`
+  - [x] Fire auto-raise on `create` action when severity and confidence thresholds are met
+  - [x] Tag auto-raised issues with `vigil-auto-raised`, set `github_auto_raised = 1`
+- [x] AI follow-up comments
+  - [x] Add toggle to `/settings`
+  - [x] Post batched comment when `affected_session_count` crosses threshold since last comment
+  - [x] Update `github_last_comment_at` and `github_last_comment_session_count`
 
 ---
 
