@@ -137,7 +137,7 @@ export default function OverviewPage() {
     return (
       <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
         <PageHeader title="Overview Dashboard" />
-        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-red-50 border border-red-200 rounded-2xl text-center max-w-xl mx-auto shadow-sm">
+        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-p0/10 border border-p0/20 rounded-2xl text-center max-w-xl mx-auto shadow-sm">
           <AlertTriangle className="w-10 h-10 text-p0 mb-3" />
           <h3 className="text-sm font-semibold text-text-1 mb-1">Failed to Load Dashboard Data</h3>
           <p className="text-xs text-text-2 mb-6 max-w-sm">
@@ -145,7 +145,7 @@ export default function OverviewPage() {
           </p>
           <button
             onClick={() => setRefreshKey(k => k + 1)}
-            className="px-4 py-2 bg-p0 text-white font-medium text-xs rounded-xl hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
+            className="px-4 py-2 bg-p0 text-white font-medium text-xs rounded-xl hover:bg-p0/80 transition-colors shadow-sm cursor-pointer"
           >
             Retry Connection
           </button>
@@ -162,41 +162,7 @@ export default function OverviewPage() {
     )
   }
 
-  if (sessions.length === 0) {
-    return (
-      <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
-        <PageHeader
-          title="Overview Dashboard"
-          subtitle="Here's a summary of your app's health and recent AI triage results."
-        />
-        
-        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-surface border border-border rounded-2xl text-center max-w-2xl mx-auto shadow-sm">
-          <div className="w-12 h-12 rounded-2xl bg-accent-light flex items-center justify-center text-accent mb-4 shadow-sm">
-            <Code2 className="w-6 h-6" />
-          </div>
-          <h3 className="text-base font-semibold text-text-1 mb-2">Awaiting SDK Integration</h3>
-          <p className="text-xs text-text-2 mb-6 max-w-md">
-            No session telemetry has been received for **{activeProject.name}** yet. Follow the guide below to integrate the Vigil SDK and start tracking user sessions.
-          </p>
-          
-          <div className="w-full text-left mb-6">
-            <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2">Quick Integration</p>
-            <CodeBlock
-              label="html"
-              code={`<script src="https://cdn.usevigilhq.com/sdk/v1/vigil.min.js"></script>\n<script>\n  Vigil.init({ projectKey: "${activeProject.publicKey}" });\n</script>`}
-            />
-          </div>
 
-          <Link
-            href="/setup"
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-accent hover:bg-accent-light text-white text-xs font-medium rounded-xl transition-colors shadow-sm"
-          >
-            View Complete Setup Guide <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </div>
-    )
-  }
 
   const openIssuesCount = issues.filter(i => i.status === "open").length
   const avgFrictionScore = sessions.length > 0 ? Math.round(sessions.reduce((sum, s) => sum + s.ai_friction_score, 0) / sessions.length) : 0
@@ -215,6 +181,29 @@ export default function OverviewPage() {
         title="Overview Dashboard"
         subtitle="Here's a summary of your app's health and recent AI triage results."
       />
+
+      {/* Onboarding Setup Card (if no sessions exist yet) */}
+      {sessions.length === 0 && (
+        <div className="mb-6 p-5 bg-accent-light/10 border border-accent/20 rounded-2xl flex flex-col md:flex-row gap-5 items-start md:items-center shadow-sm">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Code2 className="w-5 h-5 text-accent" />
+              <h3 className="text-sm font-semibold text-text-1">Awaiting SDK Integration</h3>
+            </div>
+            <p className="text-xs text-text-2 max-w-xl">
+              No session telemetry has been received for **{activeProject.name}** yet. Follow the integration instructions to start tracking errors.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <Link
+              href="/setup"
+              className="px-4 py-2 bg-accent hover:bg-accent-light text-white text-xs font-medium rounded-xl transition-colors shadow-sm"
+            >
+              Get Integration Key & Setup Guide
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-7">

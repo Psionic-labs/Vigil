@@ -107,7 +107,7 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
         <Link href="/issues" className="inline-flex items-center gap-1.5 text-sm text-text-3 hover:text-accent transition-colors mb-5">
           <ArrowLeft className="w-4 h-4" /> Back to Issues
         </Link>
-        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-red-50 border border-red-200 rounded-2xl text-center max-w-xl mx-auto shadow-sm">
+        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-p0/10 border border-p0/20 rounded-2xl text-center max-w-xl mx-auto shadow-sm">
           <AlertTriangle className="w-10 h-10 text-p0 mb-3" />
           <h3 className="text-sm font-semibold text-text-1 mb-1">Failed to Load Issue Details</h3>
           <p className="text-xs text-text-2 mb-6 max-w-sm">
@@ -115,7 +115,7 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
           </p>
           <button
             onClick={() => setRefreshKey(k => k + 1)}
-            className="px-4 py-2 bg-p0 text-white font-medium text-xs rounded-xl hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
+            className="px-4 py-2 bg-p0 text-white font-medium text-xs rounded-xl hover:bg-p0/80 transition-colors shadow-sm cursor-pointer"
           >
             Retry Connection
           </button>
@@ -145,7 +145,7 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
                 <IssueBadge severity={issue.severity} />
                 <ConfidenceBadge value={issue.confidence} />
                 {issue.github_auto_raised && (
-                  <span className="text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+                  <span className="text-xs font-medium bg-p2/10 text-p2 border border-p2/20 px-2 py-0.5 rounded-full">
                     auto-raised
                   </span>
                 )}

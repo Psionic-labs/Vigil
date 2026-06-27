@@ -10,31 +10,61 @@
 }
 
 :root {
-  --sidebar:        30 27 75;
-  --sidebar-active: 79 70 229;
-  --sidebar-hover:  49 46 129;
-  --sidebar-text:   199 210 254;
-  --sidebar-muted:  129 140 248;
-
-  --bg:        248 250 252;
+  /* Light Theme Variables */
+  --bg:        250 250 250;     /* Slate-50 */
   --surface:   255 255 255;
-  --surface-2: 241 245 249;
-  --border:    226 232 240;
+  --surface-2: 244 244 245;     /* Zinc-100 */
+  --border:    228 228 231;     /* Zinc-200 */
 
-  --text-1: 15  23  42;
-  --text-2: 71  85  105;
-  --text-3: 148 163 184;
+  --text-1: 9 9 11;             /* Zinc-950 */
+  --text-2: 82 82 91;           /* Zinc-600 */
+  --text-3: 161 161 170;        /* Zinc-400 */
 
-  --accent:       99  102 241;
-  --accent-light: 238 242 255;
-  --accent-dark:  67  56  202;
+  --accent:       79 70 229;     /* Indigo-600 */
+  --accent-light: 245 243 255;   /* Indigo-50 */
+  --accent-dark:  67 56 202;     /* Indigo-700 */
 
-  --p0: 220 38  38;   --p0-bg: 254 226 226;
-  --p1: 234 88  12;   --p1-bg: 255 237 213;
-  --p2: 202 138 4;    --p2-bg: 254 249 195;
-  --p3: 100 116 139;  --p3-bg: 241 245 249;
+  --sidebar:        244 244 245; /* Light Sidebar (Zinc-100) */
+  --sidebar-active: 79 70 229;
+  --sidebar-hover:  228 228 231;
+  --sidebar-text:   24 24 27;
+  --sidebar-muted:  113 113 122;
 
-  --ok: 22 163 74;    --ok-bg: 220 252 231;
+  --p0: 225 29 72;     --p0-bg: 255 241 242; /* Rose-600 / Rose-50 */
+  --p1: 217 119 6;     --p1-bg: 254 243 199; /* Amber-600 / Amber-50 */
+  --p2: 202 138 4;     --p2-bg: 254 249 195; /* Yellow-600 / Yellow-50 */
+  --p3: 113 113 122;   --p3-bg: 244 244 245; /* Zinc-600 / Zinc-100 */
+
+  --ok: 22 163 74;     --ok-bg: 240 253 244;
+}
+
+.dark {
+  /* Dark Theme Variables */
+  --sidebar:        10 10 12;      /* Deep black */
+  --sidebar-active: 99 102 241;
+  --sidebar-hover:  24 24 27;
+  --sidebar-text:   244 244 246;
+  --sidebar-muted:  156 163 175;
+
+  --bg:        9 9 11;         /* Zinc-950 */
+  --surface:   18 18 20;       /* Zinc-900 */
+  --surface-2: 24 24 27;       /* Zinc-800 */
+  --border:    39 39 42;       /* Zinc-800 (very fine) */
+
+  --text-1: 250 250 250;       /* Zinc-50 */
+  --text-2: 161 161 170;       /* Zinc-400 */
+  --text-3: 113 113 122;       /* Zinc-500 */
+
+  --accent:       99 102 241;    /* Indigo-500 */
+  --accent-light: 30 35 60;
+  --accent-dark:  79 70 229;
+
+  --p0: 239 68 68;     --p0-bg: 69 26 26;
+  --p1: 249 115 22;    --p1-bg: 67 33 16;
+  --p2: 234 179 8;     --p2-bg: 54 43 14;
+  --p3: 100 116 139;   --p3-bg: 30 37 48;
+
+  --ok: 34 197 94;     --ok-bg: 20 49 29;
 }
 
 @theme {

@@ -6,7 +6,7 @@
 
 "use client"
 import { useState, useEffect } from "react"
-import { Search, ArrowRight, ArrowUpDown, AlertTriangle, Code2 } from "lucide-react"
+import { Search, ArrowRight, ArrowUpDown, AlertTriangle, Code2, Monitor } from "lucide-react"
 import { FrictionBar } from "@/components/ui/FrictionBar"
 import { SignalIcons } from "@/components/ui/SignalIcons"
 import { EnvironmentChip } from "@/components/ui/EnvironmentChip"
@@ -100,7 +100,7 @@ export default function SessionsPage() {
     return (
       <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
         <PageHeader title="Sessions" count={0} countLabel="total" />
-        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-red-50 border border-red-200 rounded-2xl text-center max-w-xl mx-auto shadow-sm">
+        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-p0/10 border border-p0/20 rounded-2xl text-center max-w-xl mx-auto shadow-sm">
           <AlertTriangle className="w-10 h-10 text-p0 mb-3" />
           <h3 className="text-sm font-semibold text-text-1 mb-1">Failed to Load Sessions</h3>
           <p className="text-xs text-text-2 mb-6 max-w-sm">
@@ -108,7 +108,7 @@ export default function SessionsPage() {
           </p>
           <button
             onClick={() => setRefreshKey(k => k + 1)}
-            className="px-4 py-2 bg-p0 text-white font-medium text-xs rounded-xl hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
+            className="px-4 py-2 bg-p0 text-white font-medium text-xs rounded-xl hover:bg-p0/80 transition-colors shadow-sm cursor-pointer"
           >
             Retry Connection
           </button>
@@ -117,38 +117,7 @@ export default function SessionsPage() {
     )
   }
 
-  if (sessions.length === 0) {
-    return (
-      <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
-        <PageHeader title="Sessions" count={0} countLabel="total" />
-        
-        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-surface border border-border rounded-2xl text-center max-w-2xl mx-auto shadow-sm">
-          <div className="w-12 h-12 rounded-2xl bg-accent-light flex items-center justify-center text-accent mb-4 shadow-sm">
-            <Code2 className="w-6 h-6" />
-          </div>
-          <h3 className="text-base font-semibold text-text-1 mb-2">Awaiting SDK Integration</h3>
-          <p className="text-xs text-text-2 mb-6 max-w-md">
-            No sessions have been recorded for **{activeProject.name}** yet. Install the Vigil SDK in your client application to start tracking sessions and triaging errors.
-          </p>
-          
-          <div className="w-full text-left mb-6">
-            <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2">Quick Integration</p>
-            <CodeBlock
-              label="html"
-              code={`<script src="https://cdn.usevigilhq.com/sdk/v1/vigil.min.js"></script>\n<script>\n  Vigil.init({ projectKey: "${activeProject.publicKey}" });\n</script>`}
-            />
-          </div>
 
-          <Link
-            href="/setup"
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-accent hover:bg-accent-light text-white text-xs font-medium rounded-xl transition-colors shadow-sm"
-          >
-            View Complete Setup Guide <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </div>
-    )
-  }
 
   const visible = sessions.filter(s => {
     const q = search.toLowerCase()
@@ -215,7 +184,13 @@ export default function SessionsPage() {
       </div>
 
       {visible.length === 0 ? (
-        <EmptyState icon={Search} title="No sessions found" description="Try adjusting your search or filter." />
+        <EmptyState
+          icon={Monitor}
+          title="No sessions found"
+          description={search || filter !== "All"
+            ? "Try adjusting your search or filter criteria."
+            : "No sessions have been recorded for this project yet."}
+        />
       ) : (
         <div className="space-y-1.5">
           {visible.map((session, i) => (
