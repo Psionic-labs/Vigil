@@ -82,7 +82,7 @@ app.use(
         }
         return origin === FRONTEND_URL || origin === "http://localhost:3002" ? origin : FRONTEND_URL;
       },
-      allowMethods: isIngest ? ["POST", "OPTIONS"] : ["GET", "POST", "OPTIONS"],
+      allowMethods: isIngest ? ["POST", "OPTIONS"] : ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
       allowHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
       credentials: true,
     });
