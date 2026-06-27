@@ -147,6 +147,21 @@ export function NotificationsPopover() {
     return visibleNotifications.filter(n => !readIds.includes(n.id)).length
   }, [visibleNotifications, readIds])
 
+  // Automatically pop open the notification popover if there are new unread notifications
+  const lastOpenedIds = useRef<string[]>([])
+  useEffect(() => {
+    if (loading) return
+    
+    const unread = visibleNotifications.filter(n => !readIds.includes(n.id))
+    if (unread.length === 0) return
+
+    const hasNewUnread = unread.some(n => !lastOpenedIds.current.includes(n.id))
+    if (hasNewUnread) {
+      setIsOpen(true)
+      lastOpenedIds.current = visibleNotifications.map(n => n.id)
+    }
+  }, [loading, visibleNotifications, readIds])
+
   const handleMarkAsRead = (id: string) => {
     if (readIds.includes(id)) return
     const updated = [...readIds, id]

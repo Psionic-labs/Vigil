@@ -9,7 +9,7 @@ import { use, useEffect, useState, useRef } from "react"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { FrictionBar } from "@/components/ui/FrictionBar"
 import { formatRelativeTime, formatDuration, formatTimestamp, eventTypeLabel, eventColor, apiFetch } from "@/lib/utils"
-import { ArrowLeft, Pause, Play, MonitorPlay } from "lucide-react"
+import { ArrowLeft, Pause, Play, MonitorPlay, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { Session } from "@/lib/mock-data"
 
@@ -99,6 +99,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [session, setSession] = useState<SessionDetail | null>(null)
   const [isDataLoading, setIsDataLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<RrwebReplayerInstance | null>(null)
@@ -171,7 +172,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       .finally(() => {
         setIsEventsLoading(false)
       })
-  }, [id])
+  }, [id, refreshKey])
 
   useEffect(() => {
     if (typeof window === "undefined" || events.length === 0 || !playerContainerRef.current) {
@@ -307,19 +308,60 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   if (isDataLoading) {
     return (
-      <div className="p-6 max-w-[1400px] mx-auto flex items-center justify-center min-h-[50vh]">
-        <p className="text-text-3 font-mono text-sm animate-pulse">Loading session details...</p>
+      <div className="p-6 max-w-[1400px] mx-auto animate-pulse">
+        <div className="h-4 bg-surface-2 rounded w-28 mb-5" />
+
+        {/* Replay player skeleton */}
+        <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden mb-6">
+          <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-2 border-b border-border">
+            <div className="flex gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-surface-2" />
+              <span className="w-3 h-3 rounded-full bg-surface-2" />
+              <span className="w-3 h-3 rounded-full bg-surface-2" />
+            </div>
+            <div className="flex-1 h-5 bg-surface-2 rounded-md" />
+          </div>
+          <div className="aspect-video bg-surface-2 min-h-[300px] md:min-h-[500px]" />
+        </div>
+
+        {/* Bottom grid skeleton */}
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+          <div className="bg-surface rounded-2xl border border-border p-6 space-y-4">
+            <div className="h-4 bg-surface-2 rounded w-1/4" />
+            <div className="h-16 bg-surface-2 rounded w-full" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="h-16 bg-surface-2 rounded" />
+              <div className="h-16 bg-surface-2 rounded" />
+            </div>
+          </div>
+          <div className="bg-surface rounded-2xl border border-border p-6 space-y-4">
+            <div className="h-4 bg-surface-2 rounded w-1/2" />
+            <div className="h-24 bg-surface-2 rounded w-full" />
+          </div>
+        </div>
       </div>
     )
   }
 
   if (error || !session) {
     return (
-      <div className="p-6 max-w-[1400px] mx-auto flex flex-col items-center justify-center min-h-[50vh]">
-        <p className="text-p0 font-mono text-sm mb-4">{error || "Session not found."}</p>
-        <Link href="/sessions" className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline">
+      <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
+        <Link href="/sessions" className="inline-flex items-center gap-1.5 text-sm text-text-3 hover:text-accent transition-colors mb-5">
           <ArrowLeft className="w-4 h-4" /> Back to Sessions
         </Link>
+        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-red-50 border border-red-200 rounded-2xl text-center max-w-xl mx-auto shadow-sm">
+          <AlertTriangle className="w-10 h-10 text-p0 mb-3" />
+          <h3 className="text-sm font-semibold text-text-1 mb-1">Failed to Load Session Details</h3>
+          <p className="text-xs text-text-2 mb-6 max-w-sm">
+            {error || "Session not found."}
+          </p>
+          <button
+            onClick={() => setRefreshKey(k => k + 1)}
+            className="px-4 py-2 bg-p0 text-white font-medium text-xs rounded-xl hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
+          >
+            Retry Connection
+          </button>
+        </div>
       </div>
     )
   }

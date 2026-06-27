@@ -6,13 +6,14 @@
 
 "use client"
 import { useState, useEffect } from "react"
-import { AlertTriangle, Activity, Monitor, CheckCircle, ArrowRight, FolderPlus } from "lucide-react"
+import { AlertTriangle, Activity, Monitor, CheckCircle, ArrowRight, FolderPlus, Code2 } from "lucide-react"
 import { StatCard } from "@/components/ui/StatCard"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
 import { FrictionBar } from "@/components/ui/FrictionBar"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { EnvironmentChip } from "@/components/ui/EnvironmentChip"
+import { CodeBlock } from "@/components/ui/CodeBlock"
 import { formatRelativeTime, formatDuration, apiFetch } from "@/lib/utils"
 import Link from "next/link"
 import { useProjects } from "@/lib/projects-context"
@@ -33,16 +34,20 @@ export default function OverviewPage() {
   const [issues, setIssues] = useState<IssueGroup[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
   const [isDataLoading, setIsDataLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     if (!activeProject) {
       setIssues([])
       setSessions([])
+      setError(null)
       setIsDataLoading(false)
       return
     }
 
     setIsDataLoading(true)
+    setError(null)
     const controller = new AbortController()
     Promise.all([
       apiFetch(`/api/v1/issues?projectId=${activeProject.id}`, { signal: controller.signal }).then((res) => { if (!res.ok) throw new Error("Failed to fetch issues"); return res.json() }),
@@ -55,6 +60,7 @@ export default function OverviewPage() {
       .catch((err) => {
         if (err.name !== "AbortError") {
           console.error("Failed to fetch dashboard overview data:", err)
+          setError(err.message || "Failed to load dashboard data. Please check your backend connection.")
         }
       })
       .finally(() => {
@@ -62,7 +68,7 @@ export default function OverviewPage() {
       })
 
     return () => controller.abort()
-  }, [activeProject])
+  }, [activeProject, refreshKey])
 
   if (isLoading) {
     return (
@@ -100,8 +106,94 @@ export default function OverviewPage() {
 
   if (isDataLoading) {
     return (
+      <div className="p-6 max-w-[1400px] mx-auto animate-pulse">
+        {/* Header skeleton */}
+        <div className="h-7 bg-surface-2 rounded w-1/4 mb-2" />
+        <div className="h-4 bg-surface-2 rounded w-1/3 mb-7" />
+
+        {/* Stat cards skeleton */}
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-7">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-28 bg-surface border border-border rounded-2xl p-5" />
+          ))}
+        </div>
+
+        {/* Main grid skeleton */}
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+          <div className="xl:col-span-2 space-y-5">
+            <div className="bg-surface border border-border rounded-2xl p-5 h-60" />
+            <div className="bg-surface border border-border rounded-2xl p-5 h-40" />
+          </div>
+          <div className="xl:col-span-3 space-y-5">
+            <div className="bg-surface border border-border rounded-2xl p-5 h-72" />
+            <div className="bg-surface border border-border rounded-2xl p-5 h-60" />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
+        <PageHeader title="Overview Dashboard" />
+        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-red-50 border border-red-200 rounded-2xl text-center max-w-xl mx-auto shadow-sm">
+          <AlertTriangle className="w-10 h-10 text-p0 mb-3" />
+          <h3 className="text-sm font-semibold text-text-1 mb-1">Failed to Load Dashboard Data</h3>
+          <p className="text-xs text-text-2 mb-6 max-w-sm">
+            {error}
+          </p>
+          <button
+            onClick={() => setRefreshKey(k => k + 1)}
+            className="px-4 py-2 bg-p0 text-white font-medium text-xs rounded-xl hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
+          >
+            Retry Connection
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!activeProject) {
+    return (
       <div className="p-6 max-w-[1400px] mx-auto flex items-center justify-center min-h-[50vh]">
-        <p className="text-text-3 font-mono text-sm animate-pulse">Loading project data...</p>
+        <p className="text-text-3 font-mono text-sm">Please select or create a project to view the dashboard.</p>
+      </div>
+    )
+  }
+
+  if (sessions.length === 0) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
+        <PageHeader
+          title="Overview Dashboard"
+          subtitle="Here's a summary of your app's health and recent AI triage results."
+        />
+        
+        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-surface border border-border rounded-2xl text-center max-w-2xl mx-auto shadow-sm">
+          <div className="w-12 h-12 rounded-2xl bg-accent-light flex items-center justify-center text-accent mb-4 shadow-sm">
+            <Code2 className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-semibold text-text-1 mb-2">Awaiting SDK Integration</h3>
+          <p className="text-xs text-text-2 mb-6 max-w-md">
+            No session telemetry has been received for **{activeProject.name}** yet. Follow the guide below to integrate the Vigil SDK and start tracking user sessions.
+          </p>
+          
+          <div className="w-full text-left mb-6">
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-3 mb-2">Quick Integration</p>
+            <CodeBlock
+              label="html"
+              code={`<script src="https://cdn.usevigilhq.com/sdk/v1/vigil.min.js"></script>\n<script>\n  Vigil.init({ projectKey: "${activeProject.publicKey}" });\n</script>`}
+            />
+          </div>
+
+          <Link
+            href="/setup"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-accent hover:bg-accent-light text-white text-xs font-medium rounded-xl transition-colors shadow-sm"
+          >
+            View Complete Setup Guide <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
       </div>
     )
   }

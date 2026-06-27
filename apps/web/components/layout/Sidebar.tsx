@@ -7,7 +7,7 @@
 "use client"
 import { useState, useRef, useEffect } from "react"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, AlertTriangle, Monitor, Settings, ChevronDown, Activity, User, LogOut } from "lucide-react"
+import { LayoutDashboard, AlertTriangle, Monitor, Settings, ChevronDown, Activity, User, LogOut, Code2 } from "lucide-react"
 import { useProjects } from "@/lib/projects-context"
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal"
 import { NavItem } from "./NavItem"
@@ -60,10 +60,11 @@ export function Sidebar() {
   }, [activeProject])
 
   const navItems = [
-    { href: "/",         label: "Overview",  icon: LayoutDashboard },
-    { href: "/issues",   label: "Issues",    icon: AlertTriangle,   badge: openIssuesCount },
-    { href: "/sessions", label: "Sessions",  icon: Monitor },
-    { href: "/settings", label: "Settings",  icon: Settings },
+    { href: "/",         label: "Overview",    icon: LayoutDashboard },
+    { href: "/issues",   label: "Issues",      icon: AlertTriangle,   badge: openIssuesCount },
+    { href: "/sessions", label: "Sessions",    icon: Monitor },
+    { href: "/setup",    label: "Setup Guide", icon: Code2 },
+    { href: "/settings", label: "Settings",    icon: Settings },
   ]
 
   return (

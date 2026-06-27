@@ -154,10 +154,10 @@ Wire Octokit to the issue queue.
 
 Get the demo loop clean enough to show.
 
-- [ ] Error states and loading skeletons on all dashboard pages
-- [ ] Empty states for new projects with no sessions yet
-- [ ] SDK install instructions page with copy-pasteable snippet
-- [ ] Basic rate limiting on ingest endpoint
+- [x] Error states and loading skeletons on all dashboard pages
+- [x] Empty states for new projects with no sessions yet
+- [x] SDK install instructions page with copy-pasteable snippet
+- [x] Basic rate limiting on ingest endpoint
 - [ ] Blob storage: move from local disk to Cloudflare R2 or S3
 - [ ] Environment variable validation at startup (fail fast if keys are missing)
 - [ ] Deploy `apps/api` and `apps/web` to Railway or Fly.io

@@ -9,7 +9,7 @@ import { use, useEffect, useState } from "react"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
 import { formatRelativeTime, formatTimestamp, severityColor, eventTypeLabel, eventColor, apiFetch } from "@/lib/utils"
-import { ArrowLeft, Users, Clock, ChevronRight } from "lucide-react"
+import { ArrowLeft, Users, Clock, ChevronRight, AlertTriangle } from "lucide-react"
 import { GitHubIntegrationCard } from "@/components/issues/GitHubIntegrationCard"
 import Link from "next/link"
 import { IssueGroup } from "@/lib/mock-data"
@@ -33,6 +33,7 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
   const [issue, setIssue] = useState<IssueDetail | null>(null)
   const [isDataLoading, setIsDataLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     setIsDataLoading(true)
@@ -57,23 +58,68 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
       .finally(() => {
         setIsDataLoading(false)
       })
-  }, [id])
+  }, [id, refreshKey])
 
   if (isDataLoading) {
     return (
-      <div className="p-6 max-w-[1400px] mx-auto flex items-center justify-center min-h-[50vh]">
-        <p className="text-text-3 font-mono text-sm animate-pulse">Loading issue details...</p>
+      <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
+        <div className="inline-flex items-center gap-1.5 text-sm text-text-3 mb-5">
+          <ArrowLeft className="w-4 h-4" /> Back to Issues
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
+          {/* Left panel skeleton */}
+          <div className="space-y-5">
+            <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm">
+              <div className="flex gap-3 mb-4">
+                <div className="h-6 bg-surface-2 rounded-full w-12 animate-pulse" />
+                <div className="h-6 bg-surface-2 rounded-full w-20 animate-pulse" />
+              </div>
+              <div className="h-7 bg-surface-2 rounded w-2/3 mb-4 animate-pulse" />
+              <div className="h-4 bg-surface-2 rounded w-1/3 mb-6 animate-pulse" />
+              <div className="space-y-3 pt-6 border-t border-border">
+                <div className="h-4 bg-surface-2 rounded w-1/4 animate-pulse" />
+                <div className="h-20 bg-surface-2 rounded w-full animate-pulse" />
+              </div>
+              <div className="space-y-3 pt-6">
+                <div className="h-4 bg-surface-2 rounded w-1/4 animate-pulse" />
+                <div className="h-28 bg-surface-2 rounded w-full animate-pulse" />
+              </div>
+            </div>
+          </div>
+          
+          {/* Right panel skeleton */}
+          <div className="space-y-5">
+            <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm">
+              <div className="h-4 bg-surface-2 rounded w-1/2 mb-4 animate-pulse" />
+              <div className="h-20 bg-surface-2 rounded w-full mb-4 animate-pulse" />
+              <div className="h-10 bg-surface-2 rounded w-full animate-pulse" />
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
 
   if (error || !issue) {
     return (
-      <div className="p-6 max-w-[1400px] mx-auto flex flex-col items-center justify-center min-h-[50vh]">
-        <p className="text-p0 font-mono text-sm mb-4">{error || "Issue not found."}</p>
-        <Link href="/issues" className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline">
+      <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
+        <Link href="/issues" className="inline-flex items-center gap-1.5 text-sm text-text-3 hover:text-accent transition-colors mb-5">
           <ArrowLeft className="w-4 h-4" /> Back to Issues
         </Link>
+        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-red-50 border border-red-200 rounded-2xl text-center max-w-xl mx-auto shadow-sm">
+          <AlertTriangle className="w-10 h-10 text-p0 mb-3" />
+          <h3 className="text-sm font-semibold text-text-1 mb-1">Failed to Load Issue Details</h3>
+          <p className="text-xs text-text-2 mb-6 max-w-sm">
+            {error || "Issue not found."}
+          </p>
+          <button
+            onClick={() => setRefreshKey(k => k + 1)}
+            className="px-4 py-2 bg-p0 text-white font-medium text-xs rounded-xl hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
+          >
+            Retry Connection
+          </button>
+        </div>
       </div>
     )
   }
