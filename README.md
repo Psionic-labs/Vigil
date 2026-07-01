@@ -20,6 +20,12 @@ Vigil is not a session replay tool. Replay is evidence. The product is the triag
 3. **Triage** — the AI makes a verdict on every session: normal behavior, a new bug, or a duplicate of a known failure. Repeated failures cluster into a single issue group — not one report per affected user.
 4. **Act** — developers work from a prioritized issue queue, not a list of sessions. Each issue comes with AI-written root cause, reproduction steps, a suggested fix, and a one-click path to a pre-filled GitHub issue.
 
+## Demo
+
+<video src="demo/demo.mp4" controls width="100%"></video>
+
+![Test Issue](demo/test_issue.png)
+
 ## Stack
 
 | Layer | Choice |
@@ -29,8 +35,24 @@ Vigil is not a session replay tool. Replay is evidence. The product is the triag
 | Frontend | Next.js |
 | Database | Neon (Postgres) |
 | Blob storage | Local disk (dev) → R2/S3 (prod) |
-| AI | Claude API |
+| AI | Openrouter (current) --> OpenAI/Anthropic (future) |
 | GitHub | Octokit |
+
+## License
+
+Source-available under the [Business Source License 1.1](LICENSE).
+Non-production use, small-business use, and contributions are free.
+Commercial hosting as a service requires a license.
+
+After four years from first publication, the code automatically converts to MIT.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, code style, and the PR workflow.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for our vulnerability disclosure process.
 
 ## Docs
 
@@ -38,3 +60,4 @@ Vigil is not a session replay tool. Replay is evidence. The product is the triag
 - [System Architecture](docs/vigil-architecture.md)
 - [Data Schema](docs/vigil-data-schema.md)
 - [SDK Contract](docs/vigil-sdk-contract.md)
+- [Testing Guide](TEST.md)

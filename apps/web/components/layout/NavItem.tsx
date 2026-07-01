@@ -30,7 +30,7 @@ export function NavItem({ href, label, icon: Icon, isActive, badge }: NavItemPro
       <span className="flex-1">{label}</span>
       {badge !== undefined && (
         <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold
-          ${isActive ? "bg-white/20 text-white" : "bg-indigo-800 text-sidebar-muted"}`}>
+          ${isActive ? "bg-white/20 text-white" : "bg-surface-2 text-text-2"}`}>
           {badge}
         </span>
       )}

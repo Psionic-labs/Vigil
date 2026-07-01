@@ -3,7 +3,7 @@
  * @description OpenRouter API provider implementing the AIProvider interface.
  *              Uses the OpenAI-compatible chat completions format.
  * @why OpenRouter provides access to multiple LLM models through a unified API.
- *      This provider targets `openrouter/owl-alpha` by default but works with any
+ *      This provider targets `openai/gpt-4o-mini` by default but works with any
  *      model available on the OpenRouter platform.
  *
  * Provider Contract:
@@ -21,10 +21,10 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
  * Configuration for constructing an OpenRouterProvider instance.
  */
 export interface OpenRouterConfig {
-  apiKey: string;        // OpenRouter API key (Bearer token)
-  model: string;         // Model identifier (e.g. "openrouter/owl-alpha")
-  maxTokens?: number;    // Max completion tokens (default: 2000)
-  timeoutMs?: number;    // Request timeout in milliseconds (default: 60000)
+  apiKey: string; // OpenRouter API key (Bearer token)
+  model: string; // Model identifier (e.g. "openai/gpt-4o-mini")
+  maxTokens?: number; // Max completion tokens (default: 2000)
+  timeoutMs?: number; // Request timeout in milliseconds (default: 60000)
 }
 
 /**
@@ -84,7 +84,7 @@ export class OpenRouterProvider implements AIProvider {
       const response = await fetch(OPENROUTER_API_URL, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -98,13 +98,15 @@ export class OpenRouterProvider implements AIProvider {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "unknown");
-        console.error(`OpenRouter error details (status ${response.status}): ${errorText}`);
+        console.error(
+          `OpenRouter error details (status ${response.status}): ${errorText}`,
+        );
         throw new Error(
-          `OpenRouter API request failed with status ${response.status}`
+          `OpenRouter API request failed with status ${response.status}`,
         );
       }
 
-      const result = await response.json() as Record<string, unknown>;
+      const result = (await response.json()) as Record<string, unknown>;
 
       // Validate response structure before accessing nested fields.
       // OpenRouter returns an OpenAI-compatible format with choices[].message.content.
@@ -118,8 +120,7 @@ export class OpenRouterProvider implements AIProvider {
       const rawContent = firstChoice.message.content;
 
       const usage = result.usage as
-        | { prompt_tokens?: number; completion_tokens?: number }
-        | undefined;
+        { prompt_tokens?: number; completion_tokens?: number } | undefined;
 
       return {
         rawContent,
@@ -143,32 +144,34 @@ export class OpenRouterProvider implements AIProvider {
    */
   private validateResponseStructure(result: Record<string, unknown>): void {
     if (!result || typeof result !== "object") {
-      throw new Error("OpenRouter returned an invalid response: expected a JSON object.");
+      throw new Error(
+        "OpenRouter returned an invalid response: expected a JSON object.",
+      );
     }
 
     if (!Array.isArray(result.choices) || result.choices.length === 0) {
       throw new Error(
-        "OpenRouter returned an invalid response: missing or empty 'choices' array."
+        "OpenRouter returned an invalid response: missing or empty 'choices' array.",
       );
     }
 
     const firstChoice = (result.choices as any[])[0];
     if (!firstChoice || typeof firstChoice !== "object") {
       throw new Error(
-        "OpenRouter returned an invalid response: 'choices[0]' is not an object."
+        "OpenRouter returned an invalid response: 'choices[0]' is not an object.",
       );
     }
 
     if (!firstChoice.message || typeof firstChoice.message !== "object") {
       throw new Error(
-        "OpenRouter returned an invalid response: 'choices[0].message' is missing."
+        "OpenRouter returned an invalid response: 'choices[0].message' is missing.",
       );
     }
 
     const content = firstChoice.message.content;
     if (typeof content !== "string" || content.trim().length === 0) {
       throw new Error(
-        "OpenRouter returned an invalid response: 'choices[0].message.content' is empty or not a string."
+        "OpenRouter returned an invalid response: 'choices[0].message.content' is empty or not a string.",
       );
     }
   }

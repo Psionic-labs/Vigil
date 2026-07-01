@@ -5,13 +5,15 @@
  */
 
 "use client"
-import { useState, useEffect } from "react"
-import { Search, ArrowUpDown } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Search, ArrowUpDown, ChevronDown, AlertTriangle } from "lucide-react"
 import { Github } from "@/components/ui/GithubIcon"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { EmptyState } from "@/components/ui/EmptyState"
+import { SkeletonRow } from "@/components/ui/SkeletonRow"
+
 import { formatRelativeTime, apiFetch } from "@/lib/utils"
 import Link from "next/link"
 import { useProjects } from "@/lib/projects-context"
@@ -24,22 +26,38 @@ export default function IssuesPage() {
   const { activeProject } = useProjects()
   const [issues, setIssues] = useState<IssueGroup[]>([])
   const [isDataLoading, setIsDataLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
   const [filter, setFilter] = useState<Filter>("All")
   const [search, setSearch] = useState("")
   const [sortBy, setSortBy] = useState<"severity" | "sessions" | "newest">("severity")
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false)
+  const sortDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
+        setIsSortDropdownOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   useEffect(() => {
     if (!activeProject) {
       setIssues([])
+      setError(null)
       setIsDataLoading(false)
       return
     }
 
     setIsDataLoading(true)
+    setError(null)
     const controller = new AbortController()
     apiFetch(`/api/v1/issues?projectId=${activeProject.id}`, { signal: controller.signal })
       .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch issues")
+        if (!res.ok) throw new Error("Failed to fetch issues from API")
         return res.json()
       })
       .then((json) => {
@@ -48,6 +66,7 @@ export default function IssuesPage() {
       .catch((err) => {
         if (err.name !== "AbortError") {
           console.error("Failed to load issues:", err)
+          setError(err.message || "Failed to load issues. Please check your backend connection.")
         }
       })
       .finally(() => {
@@ -55,12 +74,29 @@ export default function IssuesPage() {
       })
 
     return () => controller.abort()
-  }, [activeProject])
+  }, [activeProject, refreshKey])
 
   if (isDataLoading) {
     return (
-      <div className="p-6 max-w-[1400px] mx-auto flex items-center justify-center min-h-[50vh]">
-        <p className="text-text-3 font-mono text-sm animate-pulse">Loading issues...</p>
+      <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
+        <PageHeader title="Issues" count={0} />
+        {/* Controls row placeholder */}
+        <div className="flex items-center gap-3 mb-5">
+          <div className="h-10 bg-surface border border-border rounded-xl w-64 animate-pulse" />
+          <div className="ml-auto h-10 bg-surface border border-border rounded-xl w-36 animate-pulse" />
+        </div>
+        {/* Filter chips placeholder */}
+        <div className="flex items-center gap-2 mb-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-7 bg-surface border border-border rounded-full w-16 animate-pulse" />
+          ))}
+        </div>
+        {/* Skeleton list */}
+        <div className="space-y-2">
+          {[1, 2, 3, 4].map(i => (
+            <SkeletonRow key={i} />
+          ))}
+        </div>
       </div>
     )
   }
@@ -72,6 +108,29 @@ export default function IssuesPage() {
       </div>
     )
   }
+
+  if (error) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
+        <PageHeader title="Issues" count={0} />
+        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-p0/10 border border-p0/20 rounded-2xl text-center max-w-xl mx-auto shadow-sm">
+          <AlertTriangle className="w-10 h-10 text-p0 mb-3" />
+          <h3 className="text-sm font-semibold text-text-1 mb-1">Failed to Load Issues</h3>
+          <p className="text-xs text-text-2 mb-6 max-w-sm">
+            {error}
+          </p>
+          <button
+            onClick={() => setRefreshKey(k => k + 1)}
+            className="px-4 py-2 bg-p0 text-white font-medium text-xs rounded-xl hover:bg-p0/80 transition-colors shadow-sm cursor-pointer"
+          >
+            Retry Connection
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+
 
   const visible = issues.filter(issue => {
     const q = search.toLowerCase()
@@ -98,17 +157,9 @@ export default function IssuesPage() {
     return 0
   })
 
-  const cycleSort = () => {
-    setSortBy(prev => {
-      if (prev === "severity") return "sessions"
-      if (prev === "sessions") return "newest"
-      return "severity"
-    })
-  }
-
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
-      <PageHeader title="Issues" count={issues.filter(i => i.status === "open").length} />
+      <PageHeader title="Issues" count={issues.filter(i => i.status === "open" || i.status === "linked").length} />
 
       {/* Controls row */}
       <div className="flex items-center gap-3 mb-5">
@@ -122,11 +173,56 @@ export default function IssuesPage() {
                        focus:ring-accent/30 focus:border-accent transition-all"
           />
         </div>
-        <button onClick={cycleSort} className="ml-auto flex items-center gap-2 px-3.5 py-2 text-sm text-text-2
-                           bg-surface border border-border rounded-xl hover:border-accent/40 transition-all cursor-pointer">
-          <ArrowUpDown className="w-3.5 h-3.5" />
-          Sort: {sortBy === "severity" ? "Severity" : sortBy === "sessions" ? "Sessions" : "Newest"}
-        </button>
+        <div className="ml-auto relative" ref={sortDropdownRef}>
+          <button
+            onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
+            className="flex items-center gap-2 px-3.5 py-2 text-sm text-text-2
+                       bg-surface border border-border rounded-xl hover:border-accent/40
+                       transition-all cursor-pointer select-none"
+          >
+            <ArrowUpDown className="w-3.5 h-3.5 text-text-3" />
+            <span>Sort: {sortBy === "severity" ? "Severity" : sortBy === "sessions" ? "Sessions" : "Newest"}</span>
+            <ChevronDown className={`w-3.5 h-3.5 text-text-3 transition-transform duration-200 ${isSortDropdownOpen ? "rotate-180" : ""}`} />
+          </button>
+          
+          {isSortDropdownOpen && (
+            <div className="absolute right-0 top-full mt-1.5 py-1 bg-surface border border-border rounded-xl shadow-xl z-50 min-w-[140px] overflow-hidden animate-fade-up">
+              <button
+                onClick={() => {
+                  setSortBy("severity")
+                  setIsSortDropdownOpen(false)
+                }}
+                className={`w-full text-left px-3.5 py-2 text-sm transition-colors cursor-pointer ${
+                  sortBy === "severity" ? "bg-accent/10 text-accent font-medium" : "text-text-2 hover:bg-surface-2 hover:text-text-1"
+                }`}
+              >
+                Severity
+              </button>
+              <button
+                onClick={() => {
+                  setSortBy("sessions")
+                  setIsSortDropdownOpen(false)
+                }}
+                className={`w-full text-left px-3.5 py-2 text-sm transition-colors cursor-pointer ${
+                  sortBy === "sessions" ? "bg-accent/10 text-accent font-medium" : "text-text-2 hover:bg-surface-2 hover:text-text-1"
+                }`}
+              >
+                Sessions
+              </button>
+              <button
+                onClick={() => {
+                  setSortBy("newest")
+                  setIsSortDropdownOpen(false)
+                }}
+                className={`w-full text-left px-3.5 py-2 text-sm transition-colors cursor-pointer ${
+                  sortBy === "newest" ? "bg-accent/10 text-accent font-medium" : "text-text-2 hover:bg-surface-2 hover:text-text-1"
+                }`}
+              >
+                Newest
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Filter chips */}
@@ -142,9 +238,14 @@ export default function IssuesPage() {
         ))}
       </div>
 
-      {/* Issue rows */}
       {sorted.length === 0 ? (
-        <EmptyState icon={Search} title="No issues found" description="Try adjusting your search or filter criteria." />
+        <EmptyState
+          icon={AlertTriangle}
+          title="No issues found"
+          description={search || filter !== "All"
+            ? "Try adjusting your search or filter criteria."
+            : "No issues have been reported for this project yet."}
+        />
       ) : (
         <div className="space-y-2">
           {sorted.map((issue, i) => (

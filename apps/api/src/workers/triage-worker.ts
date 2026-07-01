@@ -7,6 +7,7 @@
  */
 
 import "dotenv/config";
+console.log("DEBUG: process.env.MOCK_AI is:", JSON.stringify(process.env.MOCK_AI));
 import os from "node:os";
 import crypto from "node:crypto";
 import { pool, withTransaction } from "../db";
@@ -38,7 +39,9 @@ function readPositiveInteger(name: string, fallback: number): number {
     return parsed;
   }
 
-  console.warn(`[TriageConfig] Invalid ${name} environment variable "${value}". Falling back to ${fallback}.`);
+  console.warn(
+    `[TriageConfig] Invalid ${name} environment variable "${value}". Falling back to ${fallback}.`,
+  );
   return fallback;
 }
 
@@ -49,7 +52,7 @@ const leaseTimeoutMs = readPositiveInteger("TRIAGE_LEASE_TIMEOUT_MS", 300000); /
 const llmTimeoutMs = readPositiveInteger("TRIAGE_LLM_TIMEOUT_MS", 60000); // 60 seconds
 const maxAttempts = readPositiveInteger("TRIAGE_MAX_ATTEMPTS", 3);
 const maxTokens = readPositiveInteger("TRIAGE_MAX_TOKENS", 2000);
-const model = process.env.TRIAGE_MODEL || "openrouter/owl-alpha";
+const model = process.env.TRIAGE_MODEL || "nvidia/nemotron-3-ultra-550b-a55b:free";
 
 let running = true;
 let isPolling = false;
@@ -62,24 +65,39 @@ let isPolling = false;
  * @param leaseTimeoutMs Configured lease duration in milliseconds.
  * @param llmTimeoutMs Configured maximum LLM timeout limit in milliseconds.
  */
-export function validateTimeoutBounds(leaseTimeoutMs: number, llmTimeoutMs: number) {
+export function validateTimeoutBounds(
+  leaseTimeoutMs: number,
+  llmTimeoutMs: number,
+) {
   if (leaseTimeoutMs <= llmTimeoutMs) {
-    throw new Error("TRIAGE_LEASE_TIMEOUT_MS must be greater than TRIAGE_LLM_TIMEOUT_MS");
+    throw new Error(
+      "TRIAGE_LEASE_TIMEOUT_MS must be greater than TRIAGE_LLM_TIMEOUT_MS",
+    );
   }
 }
 
 validateTimeoutBounds(leaseTimeoutMs, llmTimeoutMs);
 
+const isMockAiEnabled = () => {
+  const val = process.env.MOCK_AI;
+  return val === "true" || val === '"true"';
+};
+
 // Fail-fast boot block: OPENROUTER_API_KEY is required in non-testing environments unless MOCK_AI is enabled.
 const useMockAi =
-  process.env.MOCK_AI === "true" &&
-  process.env.NODE_ENV !== "production";
+  isMockAiEnabled() && process.env.NODE_ENV !== "production";
 
-if (process.env.MOCK_AI === "true" && process.env.NODE_ENV === "production") {
-  console.warn("[TriageConfig] MOCK_AI=true is ignored in production. Unset it or use a real provider.");
+if (isMockAiEnabled() && process.env.NODE_ENV === "production") {
+  console.warn(
+    "[TriageConfig] MOCK_AI=true is ignored in production. Unset it or use a real provider.",
+  );
 }
 
-if (!useMockAi && !process.env.OPENROUTER_API_KEY && process.env.NODE_ENV !== "test") {
+if (
+  !useMockAi &&
+  !process.env.OPENROUTER_API_KEY &&
+  process.env.NODE_ENV !== "test"
+) {
   console.error("❌ OPENROUTER_API_KEY environment variable is required.");
   process.exit(1);
 }
@@ -88,35 +106,41 @@ if (!useMockAi && !process.env.OPENROUTER_API_KEY && process.env.NODE_ENV !== "t
 const provider = useMockAi
   ? {
       invoke: async () => {
-        console.info("[MockAI] Intercepted prompt call, simulating LLM response.");
+        console.info(
+          "[MockAI] Intercepted prompt call, simulating LLM response.",
+        );
         const mockData = {
-          session_summary: "Mock AI Triage: User session simulated from playground, containing simulated JS errors and user clicks.",
+          session_summary:
+            "Mock AI Triage: User session simulated from playground, containing simulated JS errors and user clicks.",
           goal_completed: false,
           friction_score: 75,
           confidence: 0.9,
-          reasoning: "Telemetry logs show 1 unhandled JS error and 4 rage clicks. The user did not reach a success/confirmation state.",
+          reasoning:
+            "Telemetry logs show 1 unhandled JS error and 4 rage clicks. The user did not reach a success/confirmation state.",
           issue_detected: true,
           issue_group_action: "create",
           issues: [
             {
               title: "Test JS Error from Playground",
-              root_cause: "Client-side scripting exception thrown when clicking the JS Error trigger button.",
-              suggested_fix: "Validate playground button trigger behavior and check error boundary configurations.",
+              root_cause:
+                "Client-side scripting exception thrown when clicking the JS Error trigger button.",
+              suggested_fix:
+                "Validate playground button trigger behavior and check error boundary configurations.",
               severity: "P1",
               confidence: 0.95,
               reproduction_steps: [
                 "Open Vigil SDK playground UI",
-                "Click on 'Throw JS Error' trigger button"
+                "Click on 'Throw JS Error' trigger button",
               ],
               evidence: [
                 {
                   type: "js_error",
                   timestamp_ms: Date.now(),
-                  detail: "Error: Test JS Error from Playground"
-                }
-              ]
-            }
-          ]
+                  detail: "Error: Test JS Error from Playground",
+                },
+              ],
+            },
+          ],
         };
         return {
           rawContent: `\`\`\`json\n${JSON.stringify(mockData, null, 2)}\n\`\`\``,
@@ -124,16 +148,16 @@ const provider = useMockAi
           input_tokens: 150,
           output_tokens: 280,
         };
-      }
+      },
     }
   : process.env.NODE_ENV !== "test"
-  ? new OpenRouterProvider({
-      apiKey: process.env.OPENROUTER_API_KEY!,
-      model,
-      maxTokens,
-      timeoutMs: llmTimeoutMs,
-    })
-  : (null as any); // In test environments, the provider is injected via RunnerOptions
+    ? new OpenRouterProvider({
+        apiKey: process.env.OPENROUTER_API_KEY!,
+        model,
+        maxTokens,
+        timeoutMs: llmTimeoutMs,
+      })
+    : (null as any); // In test environments, the provider is injected via RunnerOptions
 
 /**
  * pollCycle
@@ -169,8 +193,8 @@ async function pollCycle() {
           SELECT session_id
           FROM triage_jobs
           WHERE (
-                  (status = 'pending' OR status = 'failed') 
-                  AND attempts < $1 
+                  (status = 'pending' OR status = 'failed')
+                  AND attempts < $1
                   AND next_attempt_at <= $2
                 )
              OR (status = 'leased' AND locked_at < $3)
@@ -188,7 +212,7 @@ async function pollCycle() {
         WHERE triage_jobs.session_id = claimable.session_id
         RETURNING triage_jobs.session_id, triage_jobs.project_id, triage_jobs.attempts;
         `,
-        [maxAttempts, now, now - leaseTimeoutMs, batchSize, workerId]
+        [maxAttempts, now, now - leaseTimeoutMs, batchSize, workerId],
       );
       return claimRes.rows;
     });
@@ -201,7 +225,7 @@ async function pollCycle() {
           action: "lease_acquired",
           count: claimedJobs.length,
           message: `Leased ${claimedJobs.length} jobs to process.`,
-        })
+        }),
       );
 
       // Process batch concurrently outside the claiming transaction
@@ -212,9 +236,12 @@ async function pollCycle() {
             provider,
             maxAttempts,
           }).catch((err) => {
-            console.error(`[Worker] Uncaught exception processing job ${job.session_id}:`, err);
-          })
-        )
+            console.error(
+              `[Worker] Uncaught exception processing job ${job.session_id}:`,
+              err,
+            );
+          }),
+        ),
       );
     }
   } catch (err) {
@@ -237,11 +264,15 @@ async function pollCycle() {
 async function startWorker() {
   // Apply startup jitter up to 5 seconds to reduce lock contention across instances
   const startupJitterMs = Math.floor(Math.random() * 5000);
-  console.info(`[Worker] Initialized as ${workerId}. Startup jitter: ${startupJitterMs}ms...`);
+  console.info(
+    `[Worker] Initialized as ${workerId}. Startup jitter: ${startupJitterMs}ms...`,
+  );
 
   await new Promise((resolve) => setTimeout(resolve, startupJitterMs));
 
-  console.info(`[Worker] Starting claim loop (batch: ${batchSize}, interval: ${pollIntervalMs}ms, model: ${model})`);
+  console.info(
+    `[Worker] Starting claim loop (batch: ${batchSize}, interval: ${pollIntervalMs}ms, model: ${model})`,
+  );
 
   // Run initial poll cycle
   await pollCycle();
@@ -267,13 +298,17 @@ async function startWorker() {
 function handleShutdown(signal: string) {
   if (!running) return;
   running = false;
-  console.info(`[Worker] Received ${signal}. Shutting down worker loop gracefully...`);
+  console.info(
+    `[Worker] Received ${signal}. Shutting down worker loop gracefully...`,
+  );
 
   // Wait for currently running poll cycle to finish, then close database pool
   const checkInterval = setInterval(async () => {
     if (!isPolling) {
       clearInterval(checkInterval);
-      console.info("[Worker] Claim loop stopped. Closing database connection pool...");
+      console.info(
+        "[Worker] Claim loop stopped. Closing database connection pool...",
+      );
       await pool.end();
       console.info("[Worker] Shutdown complete.");
       process.exit(0);
@@ -286,7 +321,10 @@ process.on("SIGINT", () => handleShutdown("SIGINT"));
 process.on("SIGTERM", () => handleShutdown("SIGTERM"));
 
 // Execute only if run directly
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("triage-worker.ts")) {
+if (
+  import.meta.url === `file://${process.argv[1]}` ||
+  process.argv[1]?.endsWith("triage-worker.ts")
+) {
   startWorker().catch((err) => {
     console.error("❌ Fatal error starting worker:", err);
     process.exit(1);

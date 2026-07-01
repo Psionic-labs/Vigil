@@ -82,10 +82,13 @@ Runs without requiring an external AI API key or network request:
 * **Bash/Linux/macOS**: `MOCK_AI=true pnpm --filter @vigil/api worker:dev`
 
 #### Option B: Real AI Mode
-Queries the live OpenRouter LLM (`openrouter/owl-alpha`) using the `OPENROUTER_API_KEY` defined in `.env`:
+Queries the live OpenRouter LLM (`openai/gpt-4o-mini`) using the `OPENROUTER_API_KEY` defined in `.env`:
 ```bash
 pnpm --filter @vigil/api worker:dev
 ```
+
+> You can override the model by setting `TRIAGE_MODEL` environment variable.
+> Check [OpenRouter models](https://openrouter.ai/models) for available options.
 
 ---
 

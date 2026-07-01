@@ -9,7 +9,7 @@ import { use, useEffect, useState, useRef } from "react"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { FrictionBar } from "@/components/ui/FrictionBar"
 import { formatRelativeTime, formatDuration, formatTimestamp, eventTypeLabel, eventColor, apiFetch } from "@/lib/utils"
-import { ArrowLeft, Pause, Play, MonitorPlay } from "lucide-react"
+import { ArrowLeft, Pause, Play, MonitorPlay, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { Session } from "@/lib/mock-data"
 
@@ -99,6 +99,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [session, setSession] = useState<SessionDetail | null>(null)
   const [isDataLoading, setIsDataLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const playerContainerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<RrwebReplayerInstance | null>(null)
@@ -108,6 +109,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isReplayPlaying, setIsReplayPlaying] = useState(false)
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const [currentTime, setCurrentTime] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
 
   useEffect(() => {
     if (!isReplayPlaying) return
@@ -171,7 +173,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       .finally(() => {
         setIsEventsLoading(false)
       })
-  }, [id])
+  }, [id, refreshKey])
 
   useEffect(() => {
     if (typeof window === "undefined" || events.length === 0 || !playerContainerRef.current) {
@@ -218,7 +220,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           skipInactive: true,
           showWarning: true,
           showDebug: false,
-          mouseTail: false,
+          mouseTail: true,
           triggerFocus: false,
           UNSAFE_replayCanvas: true,
         })
@@ -307,19 +309,60 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   if (isDataLoading) {
     return (
-      <div className="p-6 max-w-[1400px] mx-auto flex items-center justify-center min-h-[50vh]">
-        <p className="text-text-3 font-mono text-sm animate-pulse">Loading session details...</p>
+      <div className="p-6 max-w-[1400px] mx-auto animate-pulse">
+        <div className="h-4 bg-surface-2 rounded w-28 mb-5" />
+
+        {/* Replay player skeleton */}
+        <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden mb-6">
+          <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-2 border-b border-border">
+            <div className="flex gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-surface-2" />
+              <span className="w-3 h-3 rounded-full bg-surface-2" />
+              <span className="w-3 h-3 rounded-full bg-surface-2" />
+            </div>
+            <div className="flex-1 h-5 bg-surface-2 rounded-md" />
+          </div>
+          <div className="aspect-video bg-surface-2 min-h-[300px] md:min-h-[500px]" />
+        </div>
+
+        {/* Bottom grid skeleton */}
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+          <div className="bg-surface rounded-2xl border border-border p-6 space-y-4">
+            <div className="h-4 bg-surface-2 rounded w-1/4" />
+            <div className="h-16 bg-surface-2 rounded w-full" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="h-16 bg-surface-2 rounded" />
+              <div className="h-16 bg-surface-2 rounded" />
+            </div>
+          </div>
+          <div className="bg-surface rounded-2xl border border-border p-6 space-y-4">
+            <div className="h-4 bg-surface-2 rounded w-1/2" />
+            <div className="h-24 bg-surface-2 rounded w-full" />
+          </div>
+        </div>
       </div>
     )
   }
 
   if (error || !session) {
     return (
-      <div className="p-6 max-w-[1400px] mx-auto flex flex-col items-center justify-center min-h-[50vh]">
-        <p className="text-p0 font-mono text-sm mb-4">{error || "Session not found."}</p>
-        <Link href="/sessions" className="inline-flex items-center gap-1.5 text-sm text-accent hover:underline">
+      <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
+        <Link href="/sessions" className="inline-flex items-center gap-1.5 text-sm text-text-3 hover:text-accent transition-colors mb-5">
           <ArrowLeft className="w-4 h-4" /> Back to Sessions
         </Link>
+        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-p0/10 border border-p0/20 rounded-2xl text-center max-w-xl mx-auto shadow-sm">
+          <AlertTriangle className="w-10 h-10 text-p0 mb-3" />
+          <h3 className="text-sm font-semibold text-text-1 mb-1">Failed to Load Session Details</h3>
+          <p className="text-xs text-text-2 mb-6 max-w-sm">
+            {error || "Session not found."}
+          </p>
+          <button
+            onClick={() => setRefreshKey(k => k + 1)}
+            className="px-4 py-2 bg-p0 text-white font-medium text-xs rounded-xl hover:bg-p0/80 transition-colors shadow-sm cursor-pointer"
+          >
+            Retry Connection
+          </button>
+        </div>
       </div>
     )
   }
@@ -400,29 +443,55 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             </div>
             {/* Scrubber */}
             <div
-              className="relative h-2 bg-surface-2 rounded-full border border-border overflow-hidden cursor-pointer group"
-              onClick={(e) => {
+              className="relative h-2.5 bg-surface-2 rounded-full border border-border overflow-hidden cursor-ew-resize group select-none"
+              onPointerDown={(e) => {
+                e.currentTarget.setPointerCapture(e.pointerId)
+                setIsDragging(true)
                 const player = playerRef.current
                 if (!player || !player.play || !session) return
                 const rect = e.currentTarget.getBoundingClientRect()
                 const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
                 const targetTime = ratio * session.duration_ms
                 player.play(targetTime)
+                setCurrentTime(targetTime)
                 setIsReplayPlaying(true)
+              }}
+              onPointerMove={(e) => {
+                if (!isDragging) return
+                const player = playerRef.current
+                if (!player || !player.play || !session) return
+                const rect = e.currentTarget.getBoundingClientRect()
+                const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+                const targetTime = ratio * session.duration_ms
+                player.play(targetTime)
+                setCurrentTime(targetTime)
+                setIsReplayPlaying(true)
+              }}
+              onPointerUp={(e) => {
+                e.currentTarget.releasePointerCapture(e.pointerId)
+                setIsDragging(false)
               }}
             >
               <div
-                className="absolute left-0 top-0 h-full bg-accent rounded-full transition-[width] duration-75"
+                className="absolute left-0 top-0 h-full bg-accent rounded-full"
                 style={{ width: `${session.duration_ms > 0 ? Math.min((currentTime / session.duration_ms) * 100, 100) : 0}%` }}
               />
               {(session.timeline || [])
                 .filter((e: TimelineEvent) => e.type === "network_error" || e.type === "js_error" || e.type === "rage_click")
                 .map((ev: TimelineEvent, i: number) => (
                   <div key={i}
-                    className={`absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm
+                    className={`absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border border-white shadow-sm cursor-pointer hover:scale-125 transition-transform
                       ${ev.type === "network_error" || ev.type === "js_error" ? "bg-p0" : "bg-p2"}`}
                     style={{ left: `${session.duration_ms > 0 ? Math.min((ev.timestamp_ms / session.duration_ms) * 100, 95) : 0}%` }}
                     title={ev.type}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const player = playerRef.current
+                      if (!player || !player.play) return
+                      player.play(ev.timestamp_ms)
+                      setCurrentTime(ev.timestamp_ms)
+                      setIsReplayPlaying(true)
+                    }}
                   />
                 ))}
             </div>
@@ -497,7 +566,17 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           </div>
           <div className="divide-y divide-border overflow-y-auto max-h-[480px]">
             {(session.timeline || []).map((ev: TimelineEvent, i: number) => (
-              <div key={i} className="flex items-start gap-3 px-5 py-3">
+              <div
+                key={i}
+                onClick={() => {
+                  const player = playerRef.current
+                  if (!player || !player.play) return
+                  player.play(ev.timestamp_ms)
+                  setCurrentTime(ev.timestamp_ms)
+                  setIsReplayPlaying(true)
+                }}
+                className="flex items-start gap-3 px-5 py-3 cursor-pointer hover:bg-surface-2 transition-colors group"
+              >
                 <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium border
                                   shrink-0 ${eventColor[ev.type] ?? eventColor.click}`}>
                   {eventTypeLabel[ev.type] ?? ev.type}

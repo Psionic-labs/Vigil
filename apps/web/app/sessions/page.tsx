@@ -6,12 +6,14 @@
 
 "use client"
 import { useState, useEffect } from "react"
-import { Search, ArrowRight, ArrowUpDown } from "lucide-react"
+import { Search, ArrowRight, ArrowUpDown, AlertTriangle, Monitor } from "lucide-react"
 import { FrictionBar } from "@/components/ui/FrictionBar"
 import { SignalIcons } from "@/components/ui/SignalIcons"
 import { EnvironmentChip } from "@/components/ui/EnvironmentChip"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { EmptyState } from "@/components/ui/EmptyState"
+import { SkeletonRow } from "@/components/ui/SkeletonRow"
+
 import { formatDuration, formatRelativeTime, apiFetch } from "@/lib/utils"
 import Link from "next/link"
 import { useProjects } from "@/lib/projects-context"
@@ -24,21 +26,25 @@ export default function SessionsPage() {
   const { activeProject } = useProjects()
   const [sessions, setSessions] = useState<Session[]>([])
   const [isDataLoading, setIsDataLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
   const [filter, setFilter] = useState<Filter>("All")
   const [search, setSearch] = useState("")
 
   useEffect(() => {
     if (!activeProject) {
       setSessions([])
+      setError(null)
       setIsDataLoading(false)
       return
     }
 
     setIsDataLoading(true)
+    setError(null)
     const controller = new AbortController()
     apiFetch(`/api/v1/sessions?projectId=${activeProject.id}`, { signal: controller.signal })
       .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch sessions")
+        if (!res.ok) throw new Error("Failed to fetch sessions from API")
         return res.json()
       })
       .then((json) => {
@@ -47,6 +53,7 @@ export default function SessionsPage() {
       .catch((err) => {
         if (err.name !== "AbortError") {
           console.error("Failed to load sessions:", err)
+          setError(err.message || "Failed to load sessions. Please check your backend connection.")
         }
       })
       .finally(() => {
@@ -54,12 +61,29 @@ export default function SessionsPage() {
       })
 
     return () => controller.abort()
-  }, [activeProject])
+  }, [activeProject, refreshKey])
 
   if (isDataLoading) {
     return (
-      <div className="p-6 max-w-[1400px] mx-auto flex items-center justify-center min-h-[50vh]">
-        <p className="text-text-3 font-mono text-sm animate-pulse">Loading sessions...</p>
+      <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
+        <PageHeader title="Sessions" count={0} countLabel="total" />
+        {/* Controls row placeholder */}
+        <div className="flex items-center gap-3 mb-5">
+          <div className="h-10 bg-surface border border-border rounded-xl w-64 animate-pulse" />
+          <div className="ml-auto h-10 bg-surface border border-border rounded-xl w-28 animate-pulse" />
+        </div>
+        {/* Filter chips placeholder */}
+        <div className="flex items-center gap-2 mb-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-7 bg-surface border border-border rounded-full w-20 animate-pulse" />
+          ))}
+        </div>
+        {/* Skeleton list */}
+        <div className="space-y-2">
+          {[1, 2, 3, 4].map(i => (
+            <SkeletonRow key={i} />
+          ))}
+        </div>
       </div>
     )
   }
@@ -71,6 +95,29 @@ export default function SessionsPage() {
       </div>
     )
   }
+
+  if (error) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto animate-fade-up">
+        <PageHeader title="Sessions" count={0} countLabel="total" />
+        <div className="mt-8 flex flex-col items-center justify-center p-8 bg-p0/10 border border-p0/20 rounded-2xl text-center max-w-xl mx-auto shadow-sm">
+          <AlertTriangle className="w-10 h-10 text-p0 mb-3" />
+          <h3 className="text-sm font-semibold text-text-1 mb-1">Failed to Load Sessions</h3>
+          <p className="text-xs text-text-2 mb-6 max-w-sm">
+            {error}
+          </p>
+          <button
+            onClick={() => setRefreshKey(k => k + 1)}
+            className="px-4 py-2 bg-p0 text-white font-medium text-xs rounded-xl hover:bg-p0/80 transition-colors shadow-sm cursor-pointer"
+          >
+            Retry Connection
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+
 
   const visible = sessions.filter(s => {
     const q = search.toLowerCase()
@@ -137,7 +184,13 @@ export default function SessionsPage() {
       </div>
 
       {visible.length === 0 ? (
-        <EmptyState icon={Search} title="No sessions found" description="Try adjusting your search or filter." />
+        <EmptyState
+          icon={Monitor}
+          title="No sessions found"
+          description={search || filter !== "All"
+            ? "Try adjusting your search or filter criteria."
+            : "No sessions have been recorded for this project yet."}
+        />
       ) : (
         <div className="space-y-1.5">
           {visible.map((session, i) => (

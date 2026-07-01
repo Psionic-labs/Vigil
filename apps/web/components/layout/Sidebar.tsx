@@ -7,7 +7,7 @@
 "use client"
 import { useState, useRef, useEffect } from "react"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, AlertTriangle, Monitor, Settings, ChevronDown, Activity, User, LogOut } from "lucide-react"
+import { LayoutDashboard, AlertTriangle, Monitor, Settings, ChevronDown, Activity, User, LogOut, Code2, Sun, Moon } from "lucide-react"
 import { useProjects } from "@/lib/projects-context"
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal"
 import { NavItem } from "./NavItem"
@@ -26,6 +26,23 @@ export function Sidebar() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [openIssuesCount, setOpenIssuesCount] = useState<number | undefined>(undefined)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const [theme, setTheme] = useState<"light" | "dark">("dark")
+
+  useEffect(() => {
+    const isDark = document.documentElement.classList.contains("dark")
+    setTheme(isDark ? "dark" : "light")
+  }, [])
+
+  const selectTheme = (next: "light" | "dark") => {
+    setTheme(next)
+    localStorage.setItem("theme", next)
+    if (next === "dark") {
+      document.documentElement.classList.add("dark")
+    } else {
+      document.documentElement.classList.remove("dark")
+    }
+  }
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -49,7 +66,9 @@ export function Sidebar() {
       })
       .then((json) => {
         const count = json.data?.filter(
-          (i: IssueGroup) => i.status === "open" && ["P0", "P1", "P2", "P3"].includes(i.severity)
+          (i: IssueGroup) =>
+            (i.status === "open" || i.status === "linked") &&
+            ["P0", "P1", "P2", "P3"].includes(i.severity)
         ).length ?? 0
         setOpenIssuesCount(count)
       })
@@ -60,35 +79,36 @@ export function Sidebar() {
   }, [activeProject])
 
   const navItems = [
-    { href: "/",         label: "Overview",  icon: LayoutDashboard },
-    { href: "/issues",   label: "Issues",    icon: AlertTriangle,   badge: openIssuesCount },
-    { href: "/sessions", label: "Sessions",  icon: Monitor },
-    { href: "/settings", label: "Settings",  icon: Settings },
+    { href: "/",         label: "Overview",    icon: LayoutDashboard },
+    { href: "/issues",   label: "Issues",      icon: AlertTriangle,   badge: openIssuesCount },
+    { href: "/sessions", label: "Sessions",    icon: Monitor },
+    { href: "/setup",    label: "Setup Guide", icon: Code2 },
+    { href: "/settings", label: "Settings",    icon: Settings },
   ]
 
   return (
-    <aside className="w-60 bg-sidebar flex flex-col shrink-0 h-full z-10">
+    <aside className="w-60 bg-sidebar flex flex-col shrink-0 h-full z-10 border-r border-border">
       {/* Logo */}
-      <div className="px-5 pt-5 pb-4 border-b border-indigo-800/60">
+      <div className="px-5 pt-5 pb-4 border-b border-border">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center shadow-lg">
             <Activity className="w-4 h-4 text-white" />
           </div>
           <span className="font-semibold text-white text-base tracking-tight">Vigil</span>
-          <span className="ml-auto text-xs font-mono text-sidebar-muted bg-indigo-900/60 px-1.5 py-0.5 rounded">
+          <span className="ml-auto text-xs font-mono text-sidebar-muted bg-surface-2 px-1.5 py-0.5 rounded">
             v0.1
           </span>
         </div>
       </div>
 
       {/* Project switcher */}
-      <div className="px-3 py-3 border-b border-indigo-800/60 relative" ref={dropdownRef}>
+      <div className="px-3 py-3 border-b border-border relative" ref={dropdownRef}>
         <button
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
           suppressHydrationWarning
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg
-                     bg-indigo-900/50 border border-indigo-700/50
-                     hover:bg-indigo-900 transition-colors"
+                     bg-surface-2/50 border border-border
+                     hover:bg-surface-2 transition-colors"
         >
           <span className={`w-2 h-2 rounded-full shrink-0 ${activeProject ? "bg-green-400 animate-pulse" : "bg-gray-500"}`} />
           <span className="text-sm text-sidebar-text font-medium flex-1 text-left truncate">
@@ -160,10 +180,10 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-3 pb-4 border-t border-indigo-800/60 pt-3">
+      <div className="px-3 pb-4 border-t border-border pt-3">
         <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-7 h-7 rounded-full bg-indigo-900/60 flex items-center justify-center shrink-0">
+            <div className="w-7 h-7 rounded-full bg-surface-2 flex items-center justify-center shrink-0">
               <User className="w-4 h-4 text-sidebar-text" />
             </div>
             <div className="flex-1 min-w-0">
@@ -177,9 +197,35 @@ export function Sidebar() {
               window.location.href = "/sign-in"
             }}
             aria-label="Sign out"
-            className="w-8 h-8 rounded-lg hover:bg-indigo-900 flex items-center justify-center text-sidebar-muted hover:text-white transition-colors"
+            className="w-8 h-8 rounded-lg hover:bg-surface-2 flex items-center justify-center text-sidebar-muted hover:text-white transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Segmented Light/Dark control */}
+        <div className="flex bg-surface-2/60 border border-border/60 rounded-xl p-0.5 mt-2">
+          <button
+            onClick={() => selectTheme("light")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium transition-all cursor-pointer
+              ${theme === "light"
+                ? "bg-surface text-text-1 shadow-sm border border-border"
+                : "text-sidebar-muted hover:text-sidebar-text"
+              }`}
+          >
+            <Sun className="w-3.5 h-3.5" />
+            <span>Light</span>
+          </button>
+          <button
+            onClick={() => selectTheme("dark")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium transition-all cursor-pointer
+              ${theme === "dark"
+                ? "bg-surface text-text-1 shadow-sm border border-border"
+                : "text-sidebar-muted hover:text-sidebar-text"
+              }`}
+          >
+            <Moon className="w-3.5 h-3.5" />
+            <span>Dark</span>
           </button>
         </div>
       </div>
