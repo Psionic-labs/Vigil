@@ -109,7 +109,7 @@ export default function SignInPage() {
         </div>
 
         <div className="text-xs text-slate-500 font-mono">
-          © {new Date().getFullYear()} Vigil Labs, Inc. All rights reserved.
+          © {new Date().getFullYear()} Psionics, Inc. All rights reserved.
         </div>
       </div>
 

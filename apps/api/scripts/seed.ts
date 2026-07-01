@@ -12,6 +12,19 @@ const pool = getPool();
 async function seedPlayground() {
   console.log("Seeding playground user and project...");
   try {
+    // Clean up any existing sessions, issues, summaries, and triage jobs/runs
+    console.log("Clearing all sessions and issues from database...");
+    await pool.query(`
+      TRUNCATE TABLE 
+        issue_instances, 
+        issue_groups, 
+        sessions, 
+        events_summary, 
+        ai_triage_runs, 
+        triage_jobs 
+      CASCADE;
+    `);
+
     const { auth } = await import("../src/lib/auth.js");
     const now = Date.now();
     let ownerId = "usr_playground";

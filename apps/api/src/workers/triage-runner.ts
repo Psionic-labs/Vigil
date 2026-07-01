@@ -7,12 +7,20 @@
 
 import crypto from "node:crypto";
 import { pool, withTransaction } from "../db";
-import { type AIProvider, AIValidationError, getRawOutput, extractAndValidateJSON } from "../lib/ai";
+import {
+  type AIProvider,
+  AIValidationError,
+  getRawOutput,
+  extractAndValidateJSON,
+} from "../lib/ai";
 import { buildTriagePrompt } from "./triage-prompts";
 import { buildSessionTimeline } from "./triage/timeline";
 import { findCandidateIssueGroups } from "./triage/candidate-groups";
 import { buildRepairPrompt } from "./triage/repair-prompt";
-import { createIssueGroup, attachIssueGroup } from "./triage/issue-group-actions";
+import {
+  createIssueGroup,
+  attachIssueGroup,
+} from "./triage/issue-group-actions";
 import { raiseGitHubIssue } from "../lib/github-issue-service";
 
 /**
@@ -20,7 +28,7 @@ import { raiseGitHubIssue } from "../lib/github-issue-service";
  * Configuration options passed by the master worker loop for job run boundaries.
  */
 export interface RunnerOptions {
-  workerId: string;    // Identity of the worker executing the job
+  workerId: string; // Identity of the worker executing the job
   provider: AIProvider; // Provider-agnostic LLM client (configured with model, timeout, etc.)
   maxAttempts: number; // Maximum attempts threshold before dead-lettering
 }
@@ -71,7 +79,7 @@ async function handleJobSkip(
   projectId: string,
   reason: string,
   workerId: string,
-  startMonotonic: number
+  startMonotonic: number,
 ): Promise<void> {
   const now = Date.now();
   const durationMs = Math.round(performance.now() - startMonotonic);
@@ -86,7 +94,7 @@ async function handleJobSkip(
           updated_at = $1
         WHERE session_id = $2 AND status = 'leased' AND locked_by = $3
         `,
-        [now, sessionId, workerId]
+        [now, sessionId, workerId],
       );
 
       if (res && (res.rowCount ?? 0) === 0) {
@@ -109,7 +117,7 @@ async function handleJobSkip(
           duration_ms = EXCLUDED.duration_ms,
           updated_at = EXCLUDED.updated_at
         `,
-        [runId, sessionId, projectId, reason, now, durationMs]
+        [runId, sessionId, projectId, reason, now, durationMs],
       );
     });
 
@@ -119,23 +127,41 @@ async function handleJobSkip(
         action: "triage_completed",
         sessionId,
         status: "skipped",
-      })
+      }),
     );
   } catch (err: any) {
     if (err.message === "triage_lease_lost") {
-      console.warn(`[TriageRunner] Failed to transition job ${sessionId} to completed (skip) because lease was lost.`);
+      console.warn(
+        `[TriageRunner] Failed to transition job ${sessionId} to completed (skip) because lease was lost.`,
+      );
       return;
     }
-    console.error("Critical failure updating triage_jobs skip state in database", err);
+    console.error(
+      "Critical failure updating triage_jobs skip state in database",
+      err,
+    );
     throw err;
   }
+}
+
+/**
+ * resolveProjectProvider
+ * Fetches the project-specific triage model setting and creates a provider if a custom model is configured.
+ * Falls back to the default provider passed from the worker.
+ */
+async function resolveProjectProvider(
+  projectId: string,
+  defaultProvider: AIProvider,
+): Promise<AIProvider> {
+  // Model switching is currently in development/disabled. Always use the worker's default provider.
+  return defaultProvider;
 }
 
 export async function processTriageJob(
   sessionId: string,
   projectId: string,
   attempts: number,
-  options: RunnerOptions
+  options: RunnerOptions,
 ): Promise<void> {
   const { workerId, provider, maxAttempts } = options;
   const startMonotonic = performance.now();
@@ -149,25 +175,49 @@ export async function processTriageJob(
       FROM sessions
       WHERE id = $1
       `,
-      [sessionId]
+      [sessionId],
     );
 
     const sessionRow = sessionRes.rows[0];
     if (!sessionRow) {
       // Session row does not exist -> terminal dead_letter
-      await handleJobFailure(sessionId, projectId, attempts, new Error("Session row not found"), maxAttempts, workerId, "missing_session", startMonotonic);
+      await handleJobFailure(
+        sessionId,
+        projectId,
+        attempts,
+        new Error("Session row not found"),
+        maxAttempts,
+        workerId,
+        "missing_session",
+        startMonotonic,
+      );
       return;
     }
 
     if (sessionRow.ended_at === null || sessionRow.ended_at === undefined) {
       // Session is not yet finalized -> record skipped run
-      await handleJobSkip(sessionId, projectId, "session_not_finalized", workerId, startMonotonic);
+      await handleJobSkip(
+        sessionId,
+        projectId,
+        "session_not_finalized",
+        workerId,
+        startMonotonic,
+      );
       return;
     }
 
-    if (sessionRow.ai_analyzed_at !== null && sessionRow.ai_analyzed_at !== undefined) {
+    if (
+      sessionRow.ai_analyzed_at !== null &&
+      sessionRow.ai_analyzed_at !== undefined
+    ) {
       // Session already analyzed in a previous execution -> record skipped run
-      await handleJobSkip(sessionId, projectId, "session_already_analyzed", workerId, startMonotonic);
+      await handleJobSkip(
+        sessionId,
+        projectId,
+        "session_already_analyzed",
+        workerId,
+        startMonotonic,
+      );
       return;
     }
 
@@ -175,9 +225,15 @@ export async function processTriageJob(
     const timeline = await buildSessionTimeline(sessionId);
 
     // 3. Find Candidate Issue Groups using fingerprints collected during the timeline query
-    const allCandidates = await findCandidateIssueGroups(projectId, timeline.rawFingerprints);
+    const allCandidates = await findCandidateIssueGroups(
+      projectId,
+      timeline.rawFingerprints,
+    );
     // Cap to 10 candidates to ensure prompt context and duplicate validation boundaries match exactly
     const candidates = allCandidates.slice(0, 10);
+
+    // Resolve per-project model before calling LLM
+    const resolvedProvider = await resolveProjectProvider(projectId, provider);
 
     // 4. Assemble Prompt
     const context = {
@@ -196,7 +252,7 @@ export async function processTriageJob(
     const prompt = buildTriagePrompt(context);
 
     // 5. Call LLM Service (Outside of DB Transaction to prevent connection pool block)
-    let llmResult = await provider.invoke(prompt);
+    let llmResult = await resolvedProvider.invoke(prompt);
     let triageData: any;
     let repairCount = 0;
     let attemptNumber = 1;
@@ -216,7 +272,7 @@ export async function processTriageJob(
             action: "triage_repair_attempt",
             message: `Initial LLM response failed validation (${err.code}). Attempting repair.`,
             error: err.message,
-          })
+          }),
         );
 
         // Record initial failure run status as 'repairing' inside database
@@ -251,7 +307,7 @@ export async function processTriageJob(
             err.code,
             Date.now(),
             jobId,
-          ]
+          ],
         );
 
         // Get raw output from WeakMap
@@ -270,8 +326,12 @@ export async function processTriageJob(
           // Accumulate tokens
           llmResult = {
             ...repairLlmResult,
-            input_tokens: (llmResult.input_tokens ?? 0) + (repairLlmResult.input_tokens ?? 0),
-            output_tokens: (llmResult.output_tokens ?? 0) + (repairLlmResult.output_tokens ?? 0),
+            input_tokens:
+              (llmResult.input_tokens ?? 0) +
+              (repairLlmResult.input_tokens ?? 0),
+            output_tokens:
+              (llmResult.output_tokens ?? 0) +
+              (repairLlmResult.output_tokens ?? 0),
           };
 
           console.info(
@@ -282,11 +342,16 @@ export async function processTriageJob(
               projectId,
               action: "triage_validation_success",
               message: "LLM output repaired successfully.",
-            })
+            }),
           );
         } catch (repairErr: any) {
-          const actualRepairErr = repairErr instanceof AIValidationError ? repairErr : new AIValidationError(repairErr.message, "json_parse_failed", { cause: repairErr });
-          
+          const actualRepairErr =
+            repairErr instanceof AIValidationError
+              ? repairErr
+              : new AIValidationError(repairErr.message, "json_parse_failed", {
+                  cause: repairErr,
+                });
+
           console.error(
             JSON.stringify({
               level: "error",
@@ -296,7 +361,7 @@ export async function processTriageJob(
               action: "triage_repair_failed",
               message: `LLM repair attempt failed validation (${actualRepairErr.code}).`,
               error: actualRepairErr.message,
-            })
+            }),
           );
 
           // Update run record in DB to status = 'failed'
@@ -326,14 +391,16 @@ export async function processTriageJob(
               sessionId,
               projectId,
               repairLlmResult.model,
-              (llmResult.input_tokens ?? 0) + (repairLlmResult.input_tokens ?? 0),
-              (llmResult.output_tokens ?? 0) + (repairLlmResult.output_tokens ?? 0),
+              (llmResult.input_tokens ?? 0) +
+                (repairLlmResult.input_tokens ?? 0),
+              (llmResult.output_tokens ?? 0) +
+                (repairLlmResult.output_tokens ?? 0),
               actualRepairErr.message,
               actualRepairErr.code,
               Date.now(),
               jobId,
               Math.round(performance.now() - startMonotonic),
-            ]
+            ],
           );
 
           throw actualRepairErr;
@@ -349,12 +416,12 @@ export async function processTriageJob(
       // FOR UPDATE locks the queue row to prevent concurrent worker reclamation during persistence writes.
       const leaseRes = await client.query(
         `
-        SELECT status, locked_by 
-        FROM triage_jobs 
-        WHERE session_id = $1 AND status = 'leased' AND locked_by = $2 
+        SELECT status, locked_by
+        FROM triage_jobs
+        WHERE session_id = $1 AND status = 'leased' AND locked_by = $2
         FOR UPDATE
         `,
-        [sessionId, workerId]
+        [sessionId, workerId],
       );
 
       if (leaseRes.rows.length === 0) {
@@ -366,8 +433,9 @@ export async function processTriageJob(
             sessionId,
             projectId,
             action: "lease_lost",
-            message: "Aborted persistence because lease expired or was taken by another worker.",
-          })
+            message:
+              "Aborted persistence because lease expired or was taken by another worker.",
+          }),
         );
         throw new Error("triage_lease_lost");
       }
@@ -404,14 +472,14 @@ export async function processTriageJob(
             triageData.confidence,
             triageData.reasoning,
             sessionId,
-          ]
+          ],
         );
         console.info(
           JSON.stringify({
             level: "info",
             action: "issue_group_ignored",
             sessionId,
-          })
+          }),
         );
       } else {
         // Step B: Issue detected. Determine action: Attach or Create
@@ -419,7 +487,14 @@ export async function processTriageJob(
 
         if (triageData.issue_group_action === "create") {
           const primaryFp = timeline.fingerprints[0] || null;
-          const createResult = await createIssueGroup(client, projectId, primaryFp, triageData, updateTime, sessionId);
+          const createResult = await createIssueGroup(
+            client,
+            projectId,
+            primaryFp,
+            triageData,
+            updateTime,
+            sessionId,
+          );
           targetGroupId = createResult.id;
           if (createResult.action === "create") {
             autoRaiseCandidate = true;
@@ -428,11 +503,14 @@ export async function processTriageJob(
           console.info(
             JSON.stringify({
               level: "info",
-              action: createResult.action === "create" ? "issue_group_created" : "issue_group_attached",
+              action:
+                createResult.action === "create"
+                  ? "issue_group_created"
+                  : "issue_group_attached",
               sessionId,
               issueGroupId: targetGroupId,
               fingerprint: primaryFp,
-            })
+            }),
           );
         } else if (triageData.issue_group_action === "attach") {
           targetGroupId = triageData.issue_group_id!;
@@ -440,20 +518,28 @@ export async function processTriageJob(
           if (!isCandidate) {
             throw new AIValidationError(
               `Attached issue group ${targetGroupId} is not a valid candidate for this session.`,
-              "schema_validation_failed"
+              "schema_validation_failed",
             );
           }
-          await attachIssueGroup(client, projectId, targetGroupId, updateTime, sessionId);
+          await attachIssueGroup(
+            client,
+            projectId,
+            targetGroupId,
+            updateTime,
+            sessionId,
+          );
           console.info(
             JSON.stringify({
               level: "info",
               action: "issue_group_attached",
               sessionId,
               issueGroupId: targetGroupId,
-            })
+            }),
           );
         } else {
-          throw new Error(`Unsupported issue group action: ${triageData.issue_group_action}`);
+          throw new Error(
+            `Unsupported issue group action: ${triageData.issue_group_action}`,
+          );
         }
 
         // Create issue instance record linked to the target group
@@ -461,25 +547,28 @@ export async function processTriageJob(
 
         // For "attach" actions the LLM returns no issues[] — pull metadata from the matched candidate
         const matchedCandidate = candidates.find((c) => c.id === targetGroupId);
-        const issueDetail = triageData.issues?.[0] || (matchedCandidate
-          ? {
-              title: matchedCandidate.title,
-              root_cause: matchedCandidate.root_cause ?? null,
-              suggested_fix: matchedCandidate.suggested_fix ?? null,
-              severity: matchedCandidate.severity ?? "P2",
-              confidence: triageData.confidence ?? matchedCandidate.confidence ?? 0.5,
-              evidence: [],
-              reproduction_steps: matchedCandidate.reproduction_steps ?? [],
-            }
-          : {
-              title: triageData.session_summary || "Session Issue Instance",
-              root_cause: null,
-              suggested_fix: null,
-              severity: "P2" as const,
-              confidence: 0.5,
-              evidence: [],
-              reproduction_steps: [],
-            });
+        const issueDetail =
+          triageData.issues?.[0] ||
+          (matchedCandidate
+            ? {
+                title: matchedCandidate.title,
+                root_cause: matchedCandidate.root_cause ?? null,
+                suggested_fix: matchedCandidate.suggested_fix ?? null,
+                severity: matchedCandidate.severity ?? "P2",
+                confidence:
+                  triageData.confidence ?? matchedCandidate.confidence ?? 0.5,
+                evidence: [],
+                reproduction_steps: matchedCandidate.reproduction_steps ?? [],
+              }
+            : {
+                title: triageData.session_summary || "Session Issue Instance",
+                root_cause: null,
+                suggested_fix: null,
+                severity: "P2" as const,
+                confidence: 0.5,
+                evidence: [],
+                reproduction_steps: [],
+              });
 
         const primaryFp = timeline.fingerprints[0] || null;
 
@@ -510,8 +599,8 @@ export async function processTriageJob(
             primaryFp,
             issueDetail.confidence,
             Number(sessionRow.started_at),
-            updateTime
-          ]
+            updateTime,
+          ],
         );
 
         if (insertRes.rowCount && insertRes.rowCount > 0) {
@@ -524,12 +613,12 @@ export async function processTriageJob(
               updated_at = $1
             WHERE id = $2 AND project_id = $3
             `,
-            [updateTime, targetGroupId, projectId]
+            [updateTime, targetGroupId, projectId],
           );
           if (updateRes.rowCount === 0) {
             throw new AIValidationError(
               `Issue group ${targetGroupId} not found in project ${projectId}.`,
-              "schema_validation_failed"
+              "schema_validation_failed",
             );
           }
 
@@ -539,7 +628,7 @@ export async function processTriageJob(
               action: "issue_instance_created",
               sessionId,
               issueGroupId: targetGroupId,
-            })
+            }),
           );
         }
 
@@ -573,12 +662,13 @@ export async function processTriageJob(
             triageData.confidence,
             triageData.reasoning,
             sessionId,
-          ]
+          ],
         );
       }
 
       // Step C: Log successful AI triage run
-      const runStatus = triageData.issue_group_action === "ignore" ? "ignored" : "completed";
+      const runStatus =
+        triageData.issue_group_action === "ignore" ? "ignored" : "completed";
       const triageDurationMs = Math.round(performance.now() - startMonotonic);
 
       await client.query(
@@ -616,7 +706,7 @@ export async function processTriageJob(
           jobId,
           runStatus,
           triageDurationMs,
-        ]
+        ],
       );
 
       console.info(
@@ -625,7 +715,7 @@ export async function processTriageJob(
           action: "triage_completed",
           sessionId,
           status: runStatus,
-        })
+        }),
       );
 
       // Step D: Update queue job row status to completed
@@ -637,7 +727,7 @@ export async function processTriageJob(
           updated_at = $1
         WHERE session_id = $2 AND status = 'leased' AND locked_by = $3
         `,
-        [updateTime, sessionId, workerId]
+        [updateTime, sessionId, workerId],
       );
       if (compRes.rowCount === 0) {
         throw new Error("triage_lease_lost");
@@ -651,12 +741,15 @@ export async function processTriageJob(
           `SELECT github_auto_raise_enabled, github_auto_raise_severity,
                   github_auto_raise_min_confidence
            FROM projects WHERE id = $1`,
-          [projectId]
+          [projectId],
         );
         const config = projectRes.rows[0];
 
         if (config?.github_auto_raise_enabled) {
-          const issueDetail = triageData.issues?.[0] || { severity: "P2", confidence: 0 };
+          const issueDetail = triageData.issues?.[0] || {
+            severity: "P2",
+            confidence: 0,
+          };
           const severity = issueDetail.severity || "P2";
           const confidence = triageData.confidence ?? 0;
 
@@ -667,12 +760,13 @@ export async function processTriageJob(
             severityMeetsThreshold = severity === "P0" || severity === "P1";
           }
 
-          const confidenceMeetsThreshold = confidence >= config.github_auto_raise_min_confidence;
+          const confidenceMeetsThreshold =
+            confidence >= config.github_auto_raise_min_confidence;
 
           if (severityMeetsThreshold && confidenceMeetsThreshold) {
             const conn = await pool.query(
               `SELECT id, connection_status FROM github_connections WHERE project_id = $1`,
-              [projectId]
+              [projectId],
             );
             if (conn.rows[0]?.connection_status === "active") {
               await raiseGitHubIssue({
@@ -686,14 +780,16 @@ export async function processTriageJob(
         }
       } catch (err: any) {
         // Auto-raise failure must NEVER fail the triage job
-        console.error(JSON.stringify({
-          level: "error",
-          action: "auto_raise_failed",
-          sessionId,
-          projectId,
-          issueGroupId: autoRaiseGroupId,
-          error: err.message,
-        }));
+        console.error(
+          JSON.stringify({
+            level: "error",
+            action: "auto_raise_failed",
+            sessionId,
+            projectId,
+            issueGroupId: autoRaiseGroupId,
+            error: err.message,
+          }),
+        );
       }
     }
 
@@ -711,14 +807,23 @@ export async function processTriageJob(
           input: llmResult.input_tokens ?? 0,
           output: llmResult.output_tokens ?? 0,
         },
-      })
+      }),
     );
   } catch (err: any) {
     if (err.message === "triage_lease_lost") {
       return; // Already handled/logged
     }
     // Handle processing/network failures and coordinate retries
-    await handleJobFailure(sessionId, projectId, attempts, err, maxAttempts, workerId, undefined, startMonotonic);
+    await handleJobFailure(
+      sessionId,
+      projectId,
+      attempts,
+      err,
+      maxAttempts,
+      workerId,
+      undefined,
+      startMonotonic,
+    );
   }
 }
 
@@ -748,13 +853,17 @@ async function handleJobFailure(
   maxAttempts: number,
   workerId: string,
   overrideReason?: string,
-  startMonotonic?: number
+  startMonotonic?: number,
 ): Promise<void> {
   const now = Date.now();
   const isDeadLetter = overrideReason !== undefined || attempts >= maxAttempts;
-  const reason = overrideReason || (attempts >= maxAttempts ? "max_attempts_reached" : "triage_failed");
+  const reason =
+    overrideReason ||
+    (attempts >= maxAttempts ? "max_attempts_reached" : "triage_failed");
   const jobId = sessionId;
-  const durationMs = startMonotonic ? Math.round(performance.now() - startMonotonic) : 0;
+  const durationMs = startMonotonic
+    ? Math.round(performance.now() - startMonotonic)
+    : 0;
 
   try {
     await withTransaction(async (client) => {
@@ -771,7 +880,7 @@ async function handleJobFailure(
             updated_at = $1
           WHERE session_id = $3 AND status = 'leased' AND locked_by = $4
           `,
-          [now, error.message, sessionId, workerId]
+          [now, error.message, sessionId, workerId],
         );
         if (res && (res.rowCount ?? 0) === 0) {
           leaseValid = false;
@@ -790,7 +899,7 @@ async function handleJobFailure(
             updated_at = $3
           WHERE session_id = $4 AND status = 'leased' AND locked_by = $5
           `,
-          [nextAttemptAt, error.message, now, sessionId, workerId]
+          [nextAttemptAt, error.message, now, sessionId, workerId],
         );
         if (res && (res.rowCount ?? 0) === 0) {
           leaseValid = false;
@@ -798,15 +907,20 @@ async function handleJobFailure(
       }
 
       if (!leaseValid) {
-        console.warn(`[TriageRunner] Failed to transition job ${sessionId} to failed/dead_letter because lease was lost.`);
+        console.warn(
+          `[TriageRunner] Failed to transition job ${sessionId} to failed/dead_letter because lease was lost.`,
+        );
         return;
       }
 
       // Record failed run inside ai_triage_runs (upsert)
       const runId = crypto.randomUUID();
-      const errType = error instanceof AIValidationError ? error.code : "job_failure";
-      const failureStage = error instanceof AIValidationError ? "validation" : "execution";
-      const attemptNum = error instanceof AIValidationError ? (attempts === 1 ? 1 : 2) : 1;
+      const errType =
+        error instanceof AIValidationError ? error.code : "job_failure";
+      const failureStage =
+        error instanceof AIValidationError ? "validation" : "execution";
+      const attemptNum =
+        error instanceof AIValidationError ? (attempts === 1 ? 1 : 2) : 1;
 
       await client.query(
         `
@@ -827,7 +941,18 @@ async function handleJobFailure(
           duration_ms = EXCLUDED.duration_ms,
           updated_at = EXCLUDED.updated_at
         `,
-        [runId, sessionId, projectId, error.message, errType, attemptNum, failureStage, now, jobId, durationMs]
+        [
+          runId,
+          sessionId,
+          projectId,
+          error.message,
+          errType,
+          attemptNum,
+          failureStage,
+          now,
+          jobId,
+          durationMs,
+        ],
       );
     });
 
@@ -842,7 +967,7 @@ async function handleJobFailure(
           attempts,
           reason,
           message: error.message,
-        })
+        }),
       );
     } else {
       console.warn(
@@ -854,10 +979,13 @@ async function handleJobFailure(
           attempts,
           message: error.message,
           nextAttemptAt: now + getBackoffMs(attempts),
-        })
+        }),
       );
     }
   } catch (dbErr) {
-    console.error("Critical failure updating triage_jobs failure state in database", dbErr);
+    console.error(
+      "Critical failure updating triage_jobs failure state in database",
+      dbErr,
+    );
   }
 }

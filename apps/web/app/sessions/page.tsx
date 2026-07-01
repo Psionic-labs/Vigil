@@ -6,14 +6,14 @@
 
 "use client"
 import { useState, useEffect } from "react"
-import { Search, ArrowRight, ArrowUpDown, AlertTriangle, Code2, Monitor } from "lucide-react"
+import { Search, ArrowRight, ArrowUpDown, AlertTriangle, Monitor } from "lucide-react"
 import { FrictionBar } from "@/components/ui/FrictionBar"
 import { SignalIcons } from "@/components/ui/SignalIcons"
 import { EnvironmentChip } from "@/components/ui/EnvironmentChip"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { EmptyState } from "@/components/ui/EmptyState"
 import { SkeletonRow } from "@/components/ui/SkeletonRow"
-import { CodeBlock } from "@/components/ui/CodeBlock"
+
 import { formatDuration, formatRelativeTime, apiFetch } from "@/lib/utils"
 import Link from "next/link"
 import { useProjects } from "@/lib/projects-context"

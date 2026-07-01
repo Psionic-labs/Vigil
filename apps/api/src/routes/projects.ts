@@ -25,11 +25,11 @@ const createProjectSchema = z.object({
 projectsRouter.get("/", async (c) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, public_key, created_at 
-       FROM projects 
+      `SELECT id, name, public_key, created_at
+       FROM projects
        WHERE owner_id = $1 AND is_active = true
        ORDER BY created_at DESC`,
-      [getOwnerId(c)]
+      [getOwnerId(c)],
     );
 
     const projects = result.rows.map((row) => ({
@@ -42,7 +42,10 @@ projectsRouter.get("/", async (c) => {
     return c.json({ ok: true, success: true, data: projects });
   } catch (error) {
     console.error("Failed to list projects:", error);
-    return c.json({ ok: false, success: false, error: "Internal Server Error" }, 500);
+    return c.json(
+      { ok: false, success: false, error: "Internal Server Error" },
+      500,
+    );
   }
 });
 
@@ -52,10 +55,11 @@ projectsRouter.get("/:id", async (c) => {
     const result = await pool.query(
       `SELECT id, name, public_key, created_at,
               github_auto_raise_enabled, github_auto_raise_severity,
-              github_auto_raise_min_confidence, github_comment_enabled
-       FROM projects 
+              github_auto_raise_min_confidence, github_comment_enabled,
+              triage_model
+       FROM projects
        WHERE id = $1 AND owner_id = $2 AND is_active = true`,
-      [projectId, getOwnerId(c)]
+      [projectId, getOwnerId(c)],
     );
 
     if (result.rowCount === 0) {
@@ -70,14 +74,20 @@ projectsRouter.get("/:id", async (c) => {
       createdAt: Number(row.created_at),
       githubAutoRaiseEnabled: Boolean(row.github_auto_raise_enabled),
       githubAutoRaiseSeverity: row.github_auto_raise_severity,
-      githubAutoRaiseMinConfidence: Number(row.github_auto_raise_min_confidence),
+      githubAutoRaiseMinConfidence: Number(
+        row.github_auto_raise_min_confidence,
+      ),
       githubCommentEnabled: Boolean(row.github_comment_enabled),
+      triageModel: row.triage_model,
     };
 
     return c.json({ ok: true, success: true, data: project });
   } catch (error) {
     console.error("Failed to get project:", error);
-    return c.json({ ok: false, success: false, error: "Internal Server Error" }, 500);
+    return c.json(
+      { ok: false, success: false, error: "Internal Server Error" },
+      500,
+    );
   }
 });
 
@@ -93,7 +103,7 @@ projectsRouter.post("/", zValidator("json", createProjectSchema), async (c) => {
     await pool.query(
       `INSERT INTO projects (id, name, public_key, owner_id, is_active, created_at)
        VALUES ($1, $2, $3, $4, true, $5)`,
-      [projectId, name, publicKey, getOwnerId(c), now]
+      [projectId, name, publicKey, getOwnerId(c), now],
     );
 
     return c.json({
@@ -108,6 +118,9 @@ projectsRouter.post("/", zValidator("json", createProjectSchema), async (c) => {
     });
   } catch (error) {
     console.error("Failed to create project:", error);
-    return c.json({ ok: false, success: false, error: "Internal Server Error" }, 500);
+    return c.json(
+      { ok: false, success: false, error: "Internal Server Error" },
+      500,
+    );
   }
 });

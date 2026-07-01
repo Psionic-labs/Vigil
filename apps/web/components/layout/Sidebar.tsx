@@ -66,7 +66,9 @@ export function Sidebar() {
       })
       .then((json) => {
         const count = json.data?.filter(
-          (i: IssueGroup) => i.status === "open" && ["P0", "P1", "P2", "P3"].includes(i.severity)
+          (i: IssueGroup) =>
+            (i.status === "open" || i.status === "linked") &&
+            ["P0", "P1", "P2", "P3"].includes(i.severity)
         ).length ?? 0
         setOpenIssuesCount(count)
       })

@@ -109,6 +109,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [isReplayPlaying, setIsReplayPlaying] = useState(false)
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const [currentTime, setCurrentTime] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
 
   useEffect(() => {
     if (!isReplayPlaying) return
@@ -219,7 +220,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           skipInactive: true,
           showWarning: true,
           showDebug: false,
-          mouseTail: false,
+          mouseTail: true,
           triggerFocus: false,
           UNSAFE_replayCanvas: true,
         })
@@ -442,29 +443,55 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             </div>
             {/* Scrubber */}
             <div
-              className="relative h-2 bg-surface-2 rounded-full border border-border overflow-hidden cursor-pointer group"
-              onClick={(e) => {
+              className="relative h-2.5 bg-surface-2 rounded-full border border-border overflow-hidden cursor-ew-resize group select-none"
+              onPointerDown={(e) => {
+                e.currentTarget.setPointerCapture(e.pointerId)
+                setIsDragging(true)
                 const player = playerRef.current
                 if (!player || !player.play || !session) return
                 const rect = e.currentTarget.getBoundingClientRect()
                 const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
                 const targetTime = ratio * session.duration_ms
                 player.play(targetTime)
+                setCurrentTime(targetTime)
                 setIsReplayPlaying(true)
+              }}
+              onPointerMove={(e) => {
+                if (!isDragging) return
+                const player = playerRef.current
+                if (!player || !player.play || !session) return
+                const rect = e.currentTarget.getBoundingClientRect()
+                const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+                const targetTime = ratio * session.duration_ms
+                player.play(targetTime)
+                setCurrentTime(targetTime)
+                setIsReplayPlaying(true)
+              }}
+              onPointerUp={(e) => {
+                e.currentTarget.releasePointerCapture(e.pointerId)
+                setIsDragging(false)
               }}
             >
               <div
-                className="absolute left-0 top-0 h-full bg-accent rounded-full transition-[width] duration-75"
+                className="absolute left-0 top-0 h-full bg-accent rounded-full"
                 style={{ width: `${session.duration_ms > 0 ? Math.min((currentTime / session.duration_ms) * 100, 100) : 0}%` }}
               />
               {(session.timeline || [])
                 .filter((e: TimelineEvent) => e.type === "network_error" || e.type === "js_error" || e.type === "rage_click")
                 .map((ev: TimelineEvent, i: number) => (
                   <div key={i}
-                    className={`absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm
+                    className={`absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border border-white shadow-sm cursor-pointer hover:scale-125 transition-transform
                       ${ev.type === "network_error" || ev.type === "js_error" ? "bg-p0" : "bg-p2"}`}
                     style={{ left: `${session.duration_ms > 0 ? Math.min((ev.timestamp_ms / session.duration_ms) * 100, 95) : 0}%` }}
                     title={ev.type}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const player = playerRef.current
+                      if (!player || !player.play) return
+                      player.play(ev.timestamp_ms)
+                      setCurrentTime(ev.timestamp_ms)
+                      setIsReplayPlaying(true)
+                    }}
                   />
                 ))}
             </div>
@@ -539,7 +566,17 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           </div>
           <div className="divide-y divide-border overflow-y-auto max-h-[480px]">
             {(session.timeline || []).map((ev: TimelineEvent, i: number) => (
-              <div key={i} className="flex items-start gap-3 px-5 py-3">
+              <div
+                key={i}
+                onClick={() => {
+                  const player = playerRef.current
+                  if (!player || !player.play) return
+                  player.play(ev.timestamp_ms)
+                  setCurrentTime(ev.timestamp_ms)
+                  setIsReplayPlaying(true)
+                }}
+                className="flex items-start gap-3 px-5 py-3 cursor-pointer hover:bg-surface-2 transition-colors group"
+              >
                 <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium border
                                   shrink-0 ${eventColor[ev.type] ?? eventColor.click}`}>
                   {eventTypeLabel[ev.type] ?? ev.type}

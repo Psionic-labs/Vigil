@@ -41,3 +41,8 @@ pnpm-debug.log*
 # stuff
 *.txt
 *blobs
+docs/github.md
+docs/review.md
+docs/High Priority Future Improvements.md
+docs/performance review (gzipped bundle).md
+nul

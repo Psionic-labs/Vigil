@@ -164,7 +164,7 @@ export default function SetupPage() {
                 <tr>
                   <td className="py-3 px-2 font-mono font-medium text-accent">environment</td>
                   <td className="py-3 px-2">string</td>
-                  <td className="py-3 px-2">"production"</td>
+                  <td className="py-3 px-2">&quot;production&quot;</td>
                   <td className="py-3 px-2">Tag sessions with environment (e.g. development, production).</td>
                 </tr>
                 <tr>

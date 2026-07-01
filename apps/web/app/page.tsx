@@ -13,7 +13,7 @@ import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
 import { FrictionBar } from "@/components/ui/FrictionBar"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { EnvironmentChip } from "@/components/ui/EnvironmentChip"
-import { CodeBlock } from "@/components/ui/CodeBlock"
+
 import { formatRelativeTime, formatDuration, apiFetch } from "@/lib/utils"
 import Link from "next/link"
 import { useProjects } from "@/lib/projects-context"
@@ -164,7 +164,7 @@ export default function OverviewPage() {
 
 
 
-  const openIssuesCount = issues.filter(i => i.status === "open").length
+  const openIssuesCount = issues.filter(i => i.status === "open" || i.status === "linked").length
   const avgFrictionScore = sessions.length > 0 ? Math.round(sessions.reduce((sum, s) => sum + s.ai_friction_score, 0) / sessions.length) : 0
   const totalSessionsCount = sessions.length
   const completedGoalsCount = sessions.filter(s => s.ai_goal_completed).length

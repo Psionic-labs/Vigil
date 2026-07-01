@@ -6,14 +6,14 @@
 
 "use client"
 import { useState, useEffect, useRef } from "react"
-import { Search, ArrowUpDown, ChevronDown, AlertTriangle, ArrowRight, Code2 } from "lucide-react"
+import { Search, ArrowUpDown, ChevronDown, AlertTriangle } from "lucide-react"
 import { Github } from "@/components/ui/GithubIcon"
 import { IssueBadge } from "@/components/ui/IssueBadge"
 import { ConfidenceBadge } from "@/components/ui/ConfidenceBadge"
 import { PageHeader } from "@/components/ui/PageHeader"
 import { EmptyState } from "@/components/ui/EmptyState"
 import { SkeletonRow } from "@/components/ui/SkeletonRow"
-import { CodeBlock } from "@/components/ui/CodeBlock"
+
 import { formatRelativeTime, apiFetch } from "@/lib/utils"
 import Link from "next/link"
 import { useProjects } from "@/lib/projects-context"
@@ -159,7 +159,7 @@ export default function IssuesPage() {
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
-      <PageHeader title="Issues" count={issues.filter(i => i.status === "open").length} />
+      <PageHeader title="Issues" count={issues.filter(i => i.status === "open" || i.status === "linked").length} />
 
       {/* Controls row */}
       <div className="flex items-center gap-3 mb-5">
