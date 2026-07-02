@@ -22,7 +22,9 @@ Vigil is not a session replay tool. Replay is evidence. The product is the triag
 
 ## Demo
 
-<video src="demo/demo.mp4" controls width="100%"></video>
+[![Watch the Demo](demo/thumbnail.png)](https://github.com/Psionic-labs/Vigil/raw/main/demo/demo.mp4)
+
+Example Issue created by Github Integration: 
 
 ![Test Issue](demo/test_issue.png)
 
