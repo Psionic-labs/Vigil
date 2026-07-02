@@ -61,6 +61,16 @@ if (process.env.NODE_ENV !== "test") {
   startReconciliationWorker(intervalMs, timeoutMs);
   startLimiterCleanup(bucketTtlMs, 60000);
 
+  // If configured, run the triage worker in-process to support single-instance free hosting
+  if (process.env.RUN_WORKER_IN_PROCESS === "true") {
+    console.log("Starting triage worker in-process...");
+    import("./workers/triage-worker").then(({ startWorker }) => {
+      startWorker().catch((err) => {
+        console.error("Failed to start in-process triage worker:", err);
+      });
+    });
+  }
+
   const handleShutdown = (signal: string) => {
     console.log(`Received ${signal}. Shutting down workers gracefully...`);
     stopReconciliationWorker();
