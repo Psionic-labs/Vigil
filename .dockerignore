@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+**/node_modules
+
+# Build artifacts
+**/dist
+**/.next
+**/.turbo
+**/coverage
+
+# Environment files — never bake secrets into the image
+**/.env
+**/.env.local
+**/.env.*.local
+# Keep .env.example
+!**/.env.example
+
+# Dev tools
+.agents/
+scratch/
+docs/
+demo/
+apps/playground/
+apps/web/
+
+# Blobs (local dev replay storage)
+apps/api/blobs/
+
+# Logs
+**/*.log
+
+# OS
+.DS_Store
+Thumbs.db
