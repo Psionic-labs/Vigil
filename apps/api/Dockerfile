@@ -35,16 +35,17 @@ COPY apps/api ./apps/api
 RUN pnpm --filter @vigil/sdk build
 RUN pnpm --filter @vigil/api build
 
+# Use pnpm deploy to isolate the production bundle and dependencies to a single directory
+RUN pnpm --filter=@vigil/api --prod deploy /app/deployed
+
 # ── Stage 3: production image ─────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Only copy what's needed to run
-COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/node_modules ./node_modules
-COPY --from=builder /app/apps/api/package.json ./package.json
+# Copy the self-contained deployed application
+COPY --from=builder /app/deployed ./
 
 # Non-root user for security
 RUN addgroup -S vigil && adduser -S vigil -G vigil
@@ -53,5 +54,4 @@ USER vigil
 EXPOSE 3001
 
 # Default: start the API server
-# The triage worker is started as a separate Fly.io process group (see fly.toml)
 CMD ["node", "dist/index.js"]
