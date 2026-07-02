@@ -17,7 +17,8 @@ export const auth =
         baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3001/api/auth",
         trustedOrigins: [
           "http://localhost:3002",
-        ],
+          process.env.FRONTEND_URL,
+        ].filter(Boolean) as string[],
         emailAndPassword: {
           enabled: true,
         },
