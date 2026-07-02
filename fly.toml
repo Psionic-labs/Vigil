@@ -1,0 +1,64 @@
+# fly.toml — Vigil API
+# https://fly.io/docs/reference/configuration/
+
+app = "vigil-api"
+primary_region = "sin"        # Singapore — closest to India
+
+[build]
+  # Dockerfile is in apps/api/ but we need the build context to be the monorepo
+  # root so pnpm can resolve workspace packages. Set dockerfile and context below.
+  dockerfile = "apps/api/Dockerfile"
+
+[[vm]]
+  size = "shared-cpu-1x"      # Free tier eligible
+  memory = "256mb"
+
+# ── Services ──────────────────────────────────────────────────────────────────
+# Two process groups sharing the same image:
+#   api     → serves HTTP traffic
+#   worker  → polls triage_jobs, never receives HTTP
+
+[processes]
+  api    = "node dist/index.js"
+  worker = "node dist/workers/triage-worker.js"
+
+# HTTP service — only the api process handles traffic
+[[services]]
+  protocol    = "tcp"
+  internal_port = 3001
+  processes   = ["api"]
+
+  [[services.ports]]
+    port     = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port     = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type       = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+  [[services.http_checks]]
+    interval       = 30000
+    timeout        = 5000
+    grace_period   = "10s"
+    method         = "GET"
+    path           = "/health"
+    protocol       = "http"
+
+# ── Scaling ───────────────────────────────────────────────────────────────────
+# Start with 1 API machine and 1 worker machine (both free tier).
+# Scale API up later when you need more throughput.
+
+[[vm]]
+  size    = "shared-cpu-1x"
+  memory  = "256mb"
+  processes = ["api"]
+
+[[vm]]
+  size    = "shared-cpu-1x"
+  memory  = "256mb"
+  processes = ["worker"]
