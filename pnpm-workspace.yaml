@@ -6,3 +6,7 @@ allowBuilds:
   msw: true
   sharp: true
   unrs-resolver: true
+
+overrides:
+  js-yaml: "^4.2.0"
+  esbuild: "^0.28.1"
