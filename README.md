@@ -288,15 +288,7 @@ pnpm --filter @vigil/sdk track-size   # Bundle size audit (<25KB gzipped)
 
 ## License
 
-Source-available under the [Business Source License 1.1](LICENSE).
-
-- Non-production use, development, testing, and contributions are always permitted.
-- Internal use by any organization is permitted.
-- Small businesses (<25 employees, <$1M revenue) may use Vigil for any purpose.
-- Hosting Vigil as a managed service for third parties requires a commercial license.
-- On **2030-07-02**, the code automatically converts to **MIT**.
-
-BSL is not an OSI-approved open-source license. For commercial licensing, contact [Psionics](https://github.com/Psionic-labs).
+Open-source under the [GNU Affero General Public License v3 (AGPLv3)](LICENSE).
 
 ## Contributing
 

@@ -1,15 +1,13 @@
 # Contributing to Vigil
 
-Thanks for your interest. Vigil is source-available under the
-[Business Source License 1.1](LICENSE). Here's how to get involved.
+Thanks for your interest. Vigil is open-source under the
+[GNU Affero General Public License v3 (AGPLv3)](LICENSE). Here's how to get involved.
 
 ## License Terms
 
-Any code you contribute is made under the same BSL 1.1 license
+Any code you contribute is made under the same AGPLv3 license
 that covers the rest of the project. By submitting a pull request,
 you agree that your contribution may be used under those terms.
-
-If you need a commercial license, contact Psionics directly.
 
 ## Getting Started
 

@@ -7,7 +7,7 @@ We do not backport fixes to older releases.
 
 ## Reporting a Vulnerability
 
-Vigil is source-available under the Business Source License 1.1.
+Vigil is open-source under the GNU Affero General Public License v3.
 If you discover a security vulnerability, please report it privately.
 
 **Do not open a public GitHub issue.**
