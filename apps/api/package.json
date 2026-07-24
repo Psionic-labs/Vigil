@@ -26,7 +26,7 @@
     "@neondatabase/serverless": "^1.1.0",
     "better-auth": "^1.6.20",
     "dotenv": "^17.4.2",
-    "hono": "^4.12.25",
+    "hono": "^4.12.27",
     "jsonwebtoken": "^9.0.3",
     "octokit": "^5.0.5",
     "zod": "^4.4.3"
