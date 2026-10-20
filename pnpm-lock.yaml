@@ -32,10 +32,10 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^2.0.4
-        version: 2.0.4(hono@4.12.25)
+        version: 2.0.4(hono@4.13.11)
       '@hono/zod-validator':
         specifier: ^0.8.0
-        version: 0.8.0(hono@4.12.25)(zod@4.4.3)
+        version: 0.8.0(hono@4.13.11)(zod@4.4.3)
       '@neondatabase/serverless':
         specifier: ^1.1.0
         version: 1.1.0
@@ -46,8 +46,8 @@ importers:
         specifier: ^17.4.2
         version: 17.4.2
       hono:
-        specifier: ^4.12.25
-        version: 4.12.25
+        specifier: ^4.13.11
+        version: 4.13.11
       jsonwebtoken:
         specifier: ^9.0.3
         version: 9.0.3
@@ -2108,6 +2108,7 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -2317,8 +2318,8 @@ packages:
   hermes-parser@0.25.1:
     resolution: {integrity: sha512-6pEjquH3rqaI6cYAXYPcz9MS4rY6R4ngRgrgfDshRptUZIc3lw0MCIJIGDj9++mfySOuPTHB4nrSW99BCvOPIA==}
 
-  hono@4.12.25:
-    resolution: {integrity: sha512-2NFaIyNVgJmBs/ecmtGzlmluTFs5cHEWGTdu0t1HBwYzoGXOL5nUQBRMXsXWla5i4KkG//QMzVP88m1+I3fdAQ==}
+  hono@4.13.11:
+    resolution: {integrity: sha512-/SMX/RQNJn7oNmFwH6DtwDqcrzZU2otm1FD6OJe2cWF6cfy/F8hq0XVBv7xW3FTJshRQwuBnXHDq2kNsdZnshg==}
     engines: {node: '>=16.9.0'}
 
   ignore@5.3.2:
@@ -3715,13 +3716,13 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@hono/node-server@2.0.4(hono@4.12.25)':
+  '@hono/node-server@2.0.4(hono@4.13.11)':
     dependencies:
-      hono: 4.12.25
+      hono: 4.13.11
 
-  '@hono/zod-validator@0.8.0(hono@4.12.25)(zod@4.4.3)':
+  '@hono/zod-validator@0.8.0(hono@4.13.11)(zod@4.4.3)':
     dependencies:
-      hono: 4.12.25
+      hono: 4.13.11
       zod: 4.4.3
 
   '@humanfs/core@0.19.2':
@@ -5524,7 +5525,7 @@ snapshots:
     dependencies:
       hermes-estree: 0.25.1
 
-  hono@4.12.25: {}
+  hono@4.13.11: {}
 
   ignore@5.3.2: {}
 
