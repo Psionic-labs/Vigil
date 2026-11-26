@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="mascot.png" alt="The Vigil owl inspecting a bug through a magnifying glass" width="240" />
+</p>
+
+<p align="center">
   <strong>Vigil</strong><br/>
   AI-first bug triage from real user sessions
 </p>
@@ -15,14 +19,14 @@
 
 ## What is Vigil?
 
-Vigil is an AI-native bug triage platform that watches real user sessions, detects broken UX automatically, and turns failures into developer-ready GitHub issues.
+Vigil is an AI-first bug triage platform. It watches real user sessions, detects broken UX, and turns failures into developer-ready GitHub issues.
 
-**It is not a session replay tool.** Replay is evidence. The product is the AI triage loop:
+Session replay is only evidence. The product is the triage loop:
 
-1. **Captures** broken UX signals — JS errors, network failures, rage clicks, dead clicks — as they happen in production browser sessions.
-2. **Groups** repeated failures across sessions into a single issue. 500 users hitting the same bug → 1 issue, not 500 reports.
-3. **Writes** developer-ready bug reports: root cause analysis, reproduction steps, suggested fix, severity, confidence, and supporting evidence.
-4. **Raises** GitHub issues pre-filled by AI, one per issue group, with optional auto-raise for high-confidence P0/P1s.
+1. **Capture** broken UX signals (JS errors, network failures, rage clicks, dead clicks) as they happen in production browser sessions.
+2. **Group** repeated failures across sessions into a single issue. 500 users hitting the same bug produce 1 issue instead of 500 reports.
+3. **Write** developer-ready bug reports with root cause analysis, reproduction steps, a suggested fix, severity, confidence, and supporting evidence.
+4. **Raise** GitHub issues pre-filled by AI, one per issue group. High-confidence P0/P1 issues can be raised automatically.
 
 ### Demo
 
@@ -36,24 +40,24 @@ Example issue created by the GitHub integration:
 
 ## Why does Vigil exist?
 
-Users encounter bugs they never report. Traditional error monitoring tools like Sentry give you stack traces without context. Session replay tools like LogRocket give you recordings without triage. Developers are left manually watching replays, classifying bugs, grouping duplicates, and writing reports.
+Users hit bugs they never report. Error monitoring tools like Sentry give stack traces without context. Session replay tools like LogRocket give recordings without triage. Developers end up watching replays, classifying bugs, grouping duplicates, and writing reports by hand.
 
-Vigil closes this gap by making the AI own the triage decision:
+Vigil makes the AI own the triage decision:
 
-- **Is this session normal, noisy, or broken?**
-- **What was the user trying to do? Did they succeed?**
-- **What went wrong, and how do you reproduce it?**
-- **Is this a new bug or a duplicate of something already known?**
+- Is this session normal, noisy, or broken?
+- What was the user trying to do? Did they succeed?
+- What went wrong, and how do you reproduce it?
+- Is this a new bug or a duplicate of something already known?
 
-The result is a prioritized issue queue that developers work from directly — not a wall of raw sessions or uncontextualized stack traces.
+The result is a prioritized issue queue that developers work from directly.
 
 ---
 
-## Why is it technically interesting?
+## Design decisions
 
-### AI as the product, not a feature
+### AI owns the triage decision
 
-Most monitoring tools bolt AI onto an existing workflow as a summarization layer. Vigil inverts this: the AI **owns** the core triage decision (create, attach, or ignore), and deterministic systems (fingerprinting, signal extraction, replay storage) exist to make the AI cheaper, faster, and auditable.
+Most monitoring tools bolt AI onto an existing workflow as a summarization layer. Vigil puts the AI in charge of the core triage decision (create, attach, or ignore). Deterministic systems for fingerprinting, signal extraction, and replay storage keep the AI cheaper, faster, and auditable.
 
 ### Dual-track data architecture
 
@@ -69,7 +73,7 @@ Before the AI runs, every signal gets a deterministic fingerprint (route + norma
 
 ### Transactional ingest, async AI
 
-The ingest pipeline uses Postgres transactions for all session state mutations, signal extraction, and job registration — guaranteeing consistency even under retries. Heavy work (replay blob compression, AI triage) runs asynchronously outside the request path. This keeps ingest latency low while ensuring no data loss.
+The ingest pipeline uses Postgres transactions for all session state mutations, signal extraction, and job registration, which keeps state consistent even under retries. Heavy work (replay blob compression, AI triage) runs asynchronously outside the request path. Ingest latency stays low and no data is lost.
 
 ### Session timeout reconciliation
 
@@ -146,7 +150,7 @@ When a batch arrives at `POST /api/v1/ingest`:
 3. **Async** — After the response, schedule replay blob persistence via `setImmediate` (gzip compress + write to disk).
 4. **Respond** — Return `200 { ok: true }`. AI triage runs asynchronously.
 
-**Noise skip heuristics**: Sessions under 5 seconds or with zero friction signals skip AI triage entirely.
+Sessions under 5 seconds or with zero friction signals skip AI triage entirely.
 
 ---
 
@@ -168,7 +172,7 @@ The triage worker picks jobs from a Postgres-backed queue and runs each session 
    - **Attach**: Link to existing `issue_group`, create new `issue_instance`. Optionally post a follow-up comment on the existing GitHub issue.
    - **Ignore**: Update session-level AI fields only.
 
-The AI never receives raw rrweb replay blobs — only structured summary timelines.
+The AI works from structured summary timelines.
 
 ---
 
@@ -184,7 +188,7 @@ Core tables and their roles:
 |---|---|
 | `users` | Dashboard accounts |
 | `projects` | Monitored apps, each with a unique `public_key` for SDK auth |
-| `sessions` | One row per browser session — metadata, flags, AI results |
+| `sessions` | One row per browser session, with metadata, flags, and AI results |
 | `events_summary` | Normalized signal events extracted from SDK payloads |
 | `issue_groups` | Deduplicated developer-facing issues (the primary product object) |
 | `issue_instances` | Per-session evidence linking a session to an issue group |
@@ -219,7 +223,7 @@ vigil/
 
 - **Node.js** ≥ 22 (see `.nvmrc`)
 - **pnpm** 11.x (`corepack enable` if using corepack)
-- **Neon Postgres** database ([neon.tech](https://neon.tech) — free tier works)
+- **Neon Postgres** database ([neon.tech](https://neon.tech), free tier works)
 - **OpenRouter API key** ([openrouter.ai](https://openrouter.ai)) for AI triage
 
 ### Setup
