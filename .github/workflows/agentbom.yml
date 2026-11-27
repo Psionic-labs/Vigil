@@ -13,6 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: Psionic-labs/agentbom/action@0f0fe6ff2777a328a287b88948d2c6fada74bfb9 # main
+      - uses: Psionic-labs/agentbom/action@3673eec2a87320b047851509234401ab75083429 # main
         with:
           upload-sarif: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
